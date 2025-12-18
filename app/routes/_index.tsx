@@ -20,7 +20,7 @@ export default function Index() {
         <MediaForm />
       </main>
       <footer className="bg-muted/50 border-t backdrop-blur-md">
-        <div className="mx-auto max-w-7xl px-6 py-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
           <p className="text-muted-foreground text-center text-sm font-medium">
             Hosted on{' '}
             <a
@@ -39,7 +39,8 @@ export default function Index() {
               className="hover:text-foreground underline underline-offset-4 transition-colors"
             >
               MediaInfo WebAssembly
-            </a>
+            </a>{' '}
+            • Build: {__BUILD_NUMBER__}
           </p>
         </div>
       </footer>

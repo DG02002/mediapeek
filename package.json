@@ -1,6 +1,7 @@
 {
   "name": "mediapeek",
   "private": true,
+  "license": "GPL-3.0",
   "type": "module",
   "scripts": {
     "build": "react-router build",

@@ -17,4 +17,7 @@ export default defineConfig({
     reactRouter(),
     tsconfigPaths(),
   ],
+  define: {
+    __BUILD_NUMBER__: JSON.stringify(new Date().toISOString().split('T')[0]),
+  },
 });
