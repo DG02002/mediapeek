@@ -72,7 +72,6 @@ class MediaInfo {
     readChunk: ReadChunkCallback,
     callback?: AnalyzeCallback,
   ) {
-    // Support promise signature
     if (callback === undefined) {
       return new Promise((resolve, reject) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -285,7 +284,6 @@ class MediaInfo {
     const intFields = INT_FIELDS;
     const floatFields = FLOAT_FIELDS;
 
-    // Parse JSON
     const result = JSON.parse(resultString);
     if (result.media) {
       const newMedia = {

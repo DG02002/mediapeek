@@ -2,7 +2,7 @@ import { index, type RouteConfig } from '@react-router/dev/routes';
 
 export default [
   index('routes/_index.tsx'),
-  { file: 'routes/home.tsx', path: 'home' },
+
   { file: 'routes/resource.analyze.ts', path: 'resource/analyze' },
   {
     path: '.well-known/appspecific/com.chrome.devtools.json',

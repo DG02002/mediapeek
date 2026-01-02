@@ -35,7 +35,6 @@ export const links: Route.LinksFunction = () => [
   },
 ];
 
-// Return the theme from the session storage using the loader
 export async function loader({ request }: Route.LoaderArgs) {
   const { getTheme } = await themeSessionResolver(request);
   return {

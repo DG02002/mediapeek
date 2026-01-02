@@ -1,100 +1,40 @@
-import mediaInfoFactory from '../lib/mediaInfoFactory';
+import MediaInfoFactory from '../lib/mediaInfoFactory';
+import {
+  getEmulationHeaders,
+  resolveGoogleDriveUrl,
+  validateUrl,
+} from '../lib/server-utils';
 // @ts-expect-error - Missing types for WASM import
 import mediaInfoWasm from '../wasm/MediaInfoModule.wasm';
 import type { Route } from './+types/resource.analyze';
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const url = new URL(request.url);
-  let targetUrl = url.searchParams.get('url');
+  const urlParams = new URL(request.url).searchParams;
+  const initialUrl = urlParams.get('url');
 
-  let isGoogleDrive = false;
-
-  if (targetUrl) {
-    const googleDriveRegex =
-      /https:\/\/drive\.google\.com\/file\/d\/([-a-zA-Z0-9_]+)\/view/;
-    const match = targetUrl.match(googleDriveRegex);
-    if (match && match[1]) {
-      isGoogleDrive = true;
-      const fileId = match[1];
-      targetUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
-      console.log(`[Analyze] Converted Google Drive URL to: ${targetUrl}`);
-    } else if (targetUrl.includes('drive.usercontent.google.com')) {
-      isGoogleDrive = true;
-    }
-
-    // SSRF Protection: Validate URL host
-    try {
-      const parsedUrl = new URL(targetUrl);
-      const host = parsedUrl.hostname;
-
-      // 1. Block Localhost
-      if (
-        host === 'localhost' ||
-        host.startsWith('127.') ||
-        host === '[::1]' ||
-        host === '::1'
-      ) {
-        throw new Error('Invalid URL: Access to local resources is denied.');
-      }
-
-      // 2. Block Private IP Ranges (Basic string checks for safety)
-      if (
-        host.startsWith('10.') ||
-        host.startsWith('192.168.') ||
-        host.startsWith('169.254.') || // Link-local
-        (host.startsWith('172.') &&
-          parseInt(host.split('.')[1], 10) >= 16 &&
-          parseInt(host.split('.')[1], 10) <= 31)
-      ) {
-        throw new Error('Invalid URL: Access to private resources is denied.');
-      }
-
-      // 3. Block Cloud Metadata Services
-      if (host === 'metadata.google.internal' || host === '169.254.169.254') {
-        throw new Error('Invalid URL: Access to metadata services is denied.');
-      }
-    } catch (e) {
-      if (e instanceof Error && e.message.startsWith('Invalid URL')) {
-        return Response.json({ error: e.message }, { status: 403 });
-      }
-      // If URL parsing fails, let fetch handle it or fail later
-    }
+  if (!initialUrl) {
+    return Response.json(
+      { error: 'Please provide a valid URL.' },
+      { status: 400 },
+    );
   }
 
-  if (!targetUrl) {
-    return Response.json({ error: 'Missing URL parameters' }, { status: 400 });
+  // 1. Resolve & Validate URL
+  const { url: targetUrl, isGoogleDrive } = resolveGoogleDriveUrl(initialUrl);
+  if (isGoogleDrive) {
+    console.log(`[Analyze] Converted Google Drive URL to: ${targetUrl}`);
   }
-
-  // 1. Define Helper for Emulation Headers (Same as Proxy)
-  const getEmulationHeaders = (range?: string) => {
-    const headers = new Headers();
-    if (range) headers.set('Range', range);
-    headers.set(
-      'accept',
-      'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-    );
-    headers.set('accept-language', 'en-US,en;q=0.9');
-    headers.set('priority', 'u=0, i');
-    headers.set(
-      'sec-ch-ua',
-      '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
-    );
-    headers.set('sec-ch-ua-mobile', '?0');
-    headers.set('sec-ch-ua-platform', '"macOS"');
-    headers.set('sec-fetch-dest', 'document');
-    headers.set('sec-fetch-mode', 'navigate');
-    headers.set('sec-fetch-site', 'none');
-    headers.set('sec-fetch-user', '?1');
-    headers.set('upgrade-insecure-requests', '1');
-    headers.set(
-      'user-agent',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
-    );
-    return headers;
-  };
 
   try {
-    // 2. Initial HEAD Request for Size
+    validateUrl(targetUrl);
+  } catch (e) {
+    if (e instanceof Error) {
+      return Response.json({ error: e.message }, { status: 403 });
+    }
+  }
+
+  try {
+    // 2. Fetch Metadata (HEAD)
     const headRes = await fetch(targetUrl, {
       method: 'HEAD',
       headers: getEmulationHeaders(),
@@ -104,24 +44,40 @@ export async function loader({ request }: Route.LoaderArgs) {
     console.log(`[Analyze] isGoogleDrive: ${isGoogleDrive}`);
     if (isGoogleDrive) {
       const contentType = headRes.headers.get('content-type');
-      console.log(`[Analyze] Content-Type: ${contentType}`);
       if (contentType && contentType.includes('text/html')) {
         throw new Error(
-          'Google Drive Error: This file is likely rate-limited or shared with too many people. Please try again later (up to 24h).',
+          'Google Drive file is rate-limited. Please try again in 24 hours.',
         );
       }
     }
 
     if (!headRes.ok) throw new Error(`Failed to HEAD: ${headRes.status}`);
 
-    // Handle redirects manually if needed, but 'follow' usually works.
-    // If strict 403, might need cookies? But usually headers are enough.
-
     const fileSize = parseInt(headRes.headers.get('content-length') || '0', 10);
     console.log(`[Analyze] File size: ${fileSize} bytes`);
     if (!fileSize) throw new Error('Could not determine file size');
 
-    // 3. Pre-fetch first 50MB (or less if file is smaller)
+    // 3. Determine Filename
+    let filename = targetUrl;
+    const contentDisposition = headRes.headers.get('content-disposition');
+    if (contentDisposition) {
+      const starMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+      if (starMatch && starMatch[1]) {
+        try {
+          filename = decodeURIComponent(starMatch[1]);
+        } catch (e) {
+          console.warn('Failed to decode filename*:', e);
+        }
+      } else {
+        const normalMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+        if (normalMatch && normalMatch[1]) {
+          filename = normalMatch[1];
+        }
+      }
+    }
+    console.log(`[Analyze] Resolved filename: ${filename}`);
+
+    // 4. Fetch Content Chunk
     const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB
     const fetchEnd = Math.min(CHUNK_SIZE - 1, fileSize - 1);
 
@@ -137,221 +93,149 @@ export async function loader({ request }: Route.LoaderArgs) {
       );
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    const fileBuffer = new Uint8Array(arrayBuffer);
-    console.log(`[Analyze] Loaded ${fileBuffer.byteLength} bytes into memory.`);
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('Failed to retrieve response body stream');
 
-    // 4. Setup MediaInfo ReadChunk logic (Memory-only)
-    const readChunk = async (size: number, offset: number) => {
-      // console.log(`[Analyze] readChunk: offset=${offset}, size=${size}`);
-
-      if (offset >= fileBuffer.byteLength) {
-        // Requested data is beyond our downloaded chunk.
-        // Return empty to simulate EOF (truncation).
-        return new Uint8Array(0);
-      }
-
-      // Slice from memory
-      const end = Math.min(offset + size, fileBuffer.byteLength);
-      const chunk = fileBuffer.subarray(offset, end);
-      return chunk;
-    };
-
-    // 5. Instantiate MediaInfo
-    let mediainfo;
-    let isMinimal = false;
-    let format = url.searchParams.get('format') || 'text';
-
-    if (format === 'minimal') {
-      format = 'JSON';
-      isMinimal = true;
-    }
+    const chunks: Uint8Array[] = [];
+    let receivedLength = 0;
+    const maxBytes = fetchEnd + 1;
 
     try {
-      mediainfo = await mediaInfoFactory({
-        format,
-        coverData: false,
-        full: false,
-        chunkSize: 5 * 1024 * 1024, // 5MB (Keep <10MB to avoid OOM on 128MB Free Plan limits)
-        wasmModule: mediaInfoWasm,
-        locateFile: () => 'ignored', // Not used when wasmModule is provided
-      });
-    } catch (e) {
-      console.error('Failed to load MediaInfo/WASM:', e);
-      return Response.json(
-        {
-          error: 'Failed to initialize MediaInfo on server',
-          details: String(e),
-        },
-        { status: 500 },
-      );
-    }
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-    // 5. Analyze
-    let result = await mediainfo.analyzeData(() => fileSize, readChunk);
-    mediainfo.close();
+        chunks.push(value);
+        receivedLength += value.length;
 
-    if (isMinimal) {
-      try {
-        const jsonResult = JSON.parse(result);
-        result = formatMinimal(jsonResult);
-      } catch (e) {
-        console.error('Failed to parse MediaInfo JSON for minimal format:', e);
-        // Fallback to text if parsing fails, although result is likely raw JSON string
-        result = 'Error formatting minimal output. Raw JSON:\n' + result;
+        if (receivedLength >= maxBytes) {
+          console.log(
+            `[Analyze] Reached chunk limit (${receivedLength}/${maxBytes}). Cancelling stream.`,
+          );
+          await reader.cancel();
+          break;
+        }
       }
+    } catch (err) {
+      console.warn('[Analyze] Stream reading interrupted or failed:', err);
     }
 
-    return Response.json({ result });
+    const fileBuffer = new Uint8Array(receivedLength);
+    let position = 0;
+    for (const chunk of chunks) {
+      fileBuffer.set(chunk, position);
+      position += chunk.length;
+    }
+
+    console.log(`[Analyze] Loaded ${fileBuffer.byteLength} bytes into memory.`);
+
+    // 5. Run MediaInfo Analysis
+    const readChunk = async (size: number, offset: number) => {
+      if (offset >= fileBuffer.byteLength) {
+        return new Uint8Array(0);
+      }
+      const end = Math.min(offset + size, fileBuffer.byteLength);
+      return fileBuffer.subarray(offset, end);
+    };
+
+    const formatsToGenerate = [
+      { type: 'JSON', key: 'json' },
+      { type: 'text', key: 'text' },
+      { type: 'XML', key: 'xml' },
+      { type: 'HTML', key: 'html' },
+    ];
+
+    const results: Record<string, string> = {};
+
+    await Promise.all(
+      formatsToGenerate.map(async ({ type, key }) => {
+        try {
+          const infoInstance = await MediaInfoFactory({
+            format: type,
+            coverData: false,
+            full: false,
+            chunkSize: 5 * 1024 * 1024,
+            wasmModule: mediaInfoWasm,
+            locateFile: () => 'ignored',
+          });
+
+          let resultStr = (await infoInstance.analyzeData(
+            () => fileSize,
+            readChunk,
+          )) as string;
+          infoInstance.close();
+
+          // Post-processing
+          if (type === 'JSON') {
+            try {
+              const json = JSON.parse(resultStr);
+              if (json && json.media && json.media.track) {
+                const generalTrack = json.media.track.find(
+                  (t: Record<string, unknown>) => t['@type'] === 'General',
+                );
+                if (generalTrack) {
+                  if (
+                    !generalTrack['CompleteName'] &&
+                    !generalTrack['Complete_name'] &&
+                    !generalTrack['File_Name']
+                  ) {
+                    generalTrack['CompleteName'] = filename;
+                  }
+                }
+              }
+              // Pretty print JSON
+              results[key] = JSON.stringify(json, null, 2);
+            } catch (e) {
+              console.warn('Failed to parse/inject JSON result:', e);
+              results[key] = resultStr; // Fallback
+            }
+          } else if (type === 'text') {
+            if (!resultStr.includes('Complete name')) {
+              // Injection logic for text
+              const lines = resultStr.split('\n');
+              const generalIndex = lines.findIndex((l) =>
+                l.trim().startsWith('General'),
+              );
+              if (generalIndex !== -1) {
+                let insertIndex = generalIndex + 1;
+                for (let i = generalIndex + 1; i < lines.length; i++) {
+                  if (lines[i].trim().startsWith('Unique ID')) {
+                    insertIndex = i + 1;
+                    break;
+                  }
+                  if (lines[i].trim() === '') break;
+                }
+                const padding = ' '.repeat(41 - 'Complete name'.length);
+                lines.splice(
+                  insertIndex,
+                  0,
+                  `Complete name${padding}: ${filename}`,
+                );
+                resultStr = lines.join('\n');
+              }
+            }
+            results[key] = resultStr;
+          } else {
+            results[key] = resultStr;
+          }
+        } catch (err) {
+          console.error(`Failed to generate ${type}:`, err);
+          results[key] = `Error generating ${type} view.`;
+        }
+      }),
+    );
+
+    return Response.json({ results });
   } catch (error) {
     console.error('Server-side Analysis Error:', error);
     return Response.json(
       {
-        error: error instanceof Error ? error.message : 'Unknown Server Error',
+        error:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred.',
       },
       { status: 500 },
     );
   }
-}
-
-// Helper Formatting Logic
-interface MediaInfoTrack {
-  '@type': string;
-  Format?: string;
-  Format_Profile?: string;
-  Format_Info?: string;
-  FileSize?: string;
-  Duration_String1?: string;
-  Duration_String?: string;
-  Duration?: string;
-  FrameRate?: string;
-  FrameRate_String?: string;
-  BitRate_String?: string;
-  BitRate?: string;
-  Width?: string;
-  Height?: string;
-  DisplayAspectRatio_String?: string;
-  PixelAspectRatio?: string;
-  Channels_String?: string;
-  Channels?: string;
-  SamplingRate_String?: string;
-  Title?: string;
-  Language_String?: string;
-  Language?: string;
-  Encoded_Application?: string;
-  extra?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
-interface MediaInfoResult {
-  media?: {
-    track: MediaInfoTrack[];
-  };
-}
-
-// Helper to separate keys
-function formatKey(key: string) {
-  return key.replace(/_/g, ' ');
-}
-
-function formatMinimal(data: MediaInfoResult): string {
-  if (!data?.media?.track) return 'No media tracks found.';
-
-  const tracks = data.media.track;
-  const lines: string[] = [];
-
-  // Group tracks by type
-  const general = tracks.find((t) => t['@type'] === 'General');
-  const videos = tracks.filter((t) => t['@type'] === 'Video');
-  const audios = tracks.filter((t) => t['@type'] === 'Audio');
-  const texts = tracks.filter((t) => t['@type'] === 'Text');
-  const menus = tracks.filter((t) => t['@type'] === 'Menu');
-
-  // 1. General
-  if (general) {
-    lines.push('General');
-    if (general.Format) lines.push(`Format: ${general.Format}`);
-    if (general.FileSize) lines.push(`FileSize: ${general.FileSize}`);
-    // Prefer Duration_String1 or Duration_String
-    const duration = general.Duration_String1 || general.Duration_String;
-    if (duration) lines.push(`Duration: ${duration}`);
-
-    if (general.FrameRate) lines.push(`FrameRate: ${general.FrameRate}`);
-    if (general.Encoded_Application)
-      lines.push(
-        `${formatKey('Encoded_Application')}: ${general.Encoded_Application}`,
-      );
-  }
-
-  if (general) lines.push(''); // Spacer
-
-  // 2. Video
-  videos.forEach((video, index) => {
-    lines.push(videos.length > 1 ? `Video #${index + 1}` : 'Video');
-    if (video.Format) lines.push(`Format: ${video.Format}`);
-    if (video.Format_Profile)
-      lines.push(`${formatKey('Format_Profile')}: ${video.Format_Profile}`);
-    if (video.BitRate_String)
-      lines.push(`${formatKey('BitRate_String')}: ${video.BitRate_String}`);
-
-    if (video.Width) lines.push(`Width: ${video.Width}`);
-    if (video.Height) lines.push(`Height: ${video.Height}`);
-
-    if (video.DisplayAspectRatio_String)
-      lines.push(
-        `${formatKey('DisplayAspectRatio_String')}: ${video.DisplayAspectRatio_String}`,
-      );
-
-    if (video.FrameRate_String)
-      lines.push(`${formatKey('FrameRate_String')}: ${video.FrameRate_String}`);
-    else if (video.FrameRate) lines.push(`FrameRate: ${video.FrameRate}`);
-
-    lines.push(''); // Spacer after each video track
-  });
-
-  // 3. Audio
-  audios.forEach((audio, index) => {
-    lines.push(`Audio #${index + 1}`);
-    const lang = audio.Language_String || audio.Language;
-    if (lang) lines.push(`Language: ${lang}`); // Language is key
-    if (audio.Format) lines.push(`Format: ${audio.Format}`);
-    if (audio.Channels_String)
-      lines.push(`${formatKey('Channels_String')}: ${audio.Channels_String}`);
-    if (audio.BitRate_String)
-      lines.push(`${formatKey('BitRate_String')}: ${audio.BitRate_String}`);
-    if (audio.Title) lines.push(`Title: ${audio.Title}`);
-
-    lines.push(''); // Spacer
-  });
-
-  // 4. Subtitle (Text)
-  texts.forEach((text, index) => {
-    lines.push(texts.length > 1 ? `Subtitle #${index + 1}` : 'Subtitle');
-    const lang = text.Language_String || text.Language;
-    if (lang) lines.push(`Language: ${lang}`);
-    if (text.Format) lines.push(`Format: ${text.Format}`);
-    if (text.BitRate_String)
-      lines.push(`${formatKey('BitRate_String')}: ${text.BitRate_String}`);
-    if (text.Title) lines.push(`Title: ${text.Title}`);
-
-    lines.push(''); // Spacer
-  });
-
-  // 5. Chapters (Menu)
-  menus.forEach((menu) => {
-    // Trying to find time-based keys
-    const timeRegex = /^\d{2}:\d{2}:\d{2}/;
-    const chapterKeys = Object.keys(menu).filter((k) => timeRegex.test(k));
-
-    if (chapterKeys.length > 0) {
-      lines.push('Chapters');
-      chapterKeys.sort().forEach((k) => {
-        const val = menu[k] as string;
-        lines.push(`${k}: ${val}`);
-      });
-      lines.push('');
-    }
-  });
-
-  return lines.join('\n').trim();
 }

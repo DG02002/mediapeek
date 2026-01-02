@@ -2,22 +2,16 @@
 // @ts-nocheck
 import MediaInfo, { DEFAULT_OPTIONS } from './MediaInfo';
 import mediaInfoModuleFactory from './mediainfo-module-patched.js';
-const noopPrint = () => {
-  // No-op
-};
+const noopPrint = () => {};
 function defaultLocateFile(path, prefix) {
   try {
     const url = new URL(prefix);
     if (url.pathname === '/') {
       return `${prefix}mediainfo.js/dist/${path}`;
     }
-  } catch {
-    // empty
-  }
+  } catch {}
   return `${prefix}../${path}`;
 }
-
-// TODO pass through more emscripten module options?
 
 /**
  * Creates a {@link MediaInfo} instance with the specified options.
@@ -52,7 +46,6 @@ function mediaInfoFactory(
     format: options.format ?? DEFAULT_OPTIONS.format,
   };
   const mediaInfoModuleFactoryOpts = {
-    // Silence all print in module
     print: noopPrint,
     printErr: noopPrint,
     locateFile: locateFile ?? defaultLocateFile,
@@ -64,7 +57,6 @@ function mediaInfoFactory(
     },
   };
 
-  // Fetch and load WASM module
   mediaInfoModuleFactory(mediaInfoModuleFactoryOpts)
     .then((wasmModule) => {
       callback(new MediaInfo(wasmModule, mergedOptions));
