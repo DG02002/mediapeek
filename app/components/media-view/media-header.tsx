@@ -96,14 +96,15 @@ export function MediaHeader({
 
   if (hasDTS) headerIcons.push('dts');
 
-  // 3. Subtitle Tech (SDH & CC)
-  const { hasSDH, hasCC } = getAccessibilityFeatures(
+  // 3. Subtitle Tech (SDH & CC & AD)
+  const { hasSDH, hasCC, hasAD } = getAccessibilityFeatures(
     audioTracks,
     textTracks,
     generalTrack,
   );
-  if (hasSDH) headerIcons.push('sdh');
   if (hasCC) headerIcons.push('cc');
+  if (hasSDH) headerIcons.push('sdh');
+  if (hasAD) headerIcons.push('ad');
 
   const filenameRaw =
     generalTrack['CompleteName'] || generalTrack['File_Name'] || 'Unknown';

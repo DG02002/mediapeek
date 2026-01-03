@@ -139,7 +139,7 @@ export function AudioSection({
                   {audio.extra?.dialnorm && (
                     <>
                       <span>•</span>
-                      <span className="text-yellow-500/80">
+                      <span className="text-amber-600/90 dark:text-yellow-500/80">
                         Dialnorm: {audio.extra.dialnorm}
                       </span>
                     </>
@@ -147,7 +147,7 @@ export function AudioSection({
                   {delay !== 0 && (
                     <>
                       <span>•</span>
-                      <span className="text-yellow-500/80">
+                      <span className="text-amber-600/90 dark:text-yellow-500/80">
                         Delay: {delay}ms
                       </span>
                     </>

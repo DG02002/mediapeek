@@ -1,37 +1,69 @@
-import { Moon, Sun } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useRouteLoaderData } from 'react-router';
 import { Theme, useTheme } from 'remix-themes';
 
-import { Button } from '~/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '~/components/ui/dropdown-menu';
+import { cn } from '~/lib/utils';
+import type { loader } from '~/root';
 
 export function ModeToggle() {
-  const [, setTheme] = useTheme();
+  const loaderData = useRouteLoaderData<typeof loader>('root');
+  const serverTheme = loaderData?.theme; // Access theme from loader data (source of truth for preference)
+  const [themeState, setThemeState] = useState<Theme | null | undefined>(
+    serverTheme,
+  );
+  const [, setTheme] = useTheme(); // useTheme used only for setting
+
+  useEffect(() => {
+    setThemeState(serverTheme);
+  }, [serverTheme]);
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <Sun className="h-[1.2rem] w-[1.2rem] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
-          <Moon className="absolute h-[1.2rem] w-[1.2rem] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
-          <span className="sr-only">Toggle theme</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme(Theme.LIGHT)}>
-          Light
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme(Theme.DARK)}>
-          Dark
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme(null)}>
-          System
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="border-input flex h-6 items-center rounded-lg border p-0.5 sm:h-7">
+      <button
+        type="button"
+        onClick={() => {
+          setTheme(Theme.LIGHT);
+          setThemeState(Theme.LIGHT);
+        }}
+        className={cn(
+          'min-w-[2.8rem] rounded-md px-1 py-0.5 text-[10px] font-medium transition-all sm:min-w-12 sm:px-2 sm:text-xs',
+          themeState === Theme.LIGHT
+            ? 'bg-primary text-primary-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground',
+        )}
+      >
+        Light
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setTheme(Theme.DARK);
+          setThemeState(Theme.DARK);
+        }}
+        className={cn(
+          'min-w-[2.8rem] rounded-md px-1 py-0.5 text-[10px] font-medium transition-all sm:min-w-12 sm:px-2 sm:text-xs',
+          themeState === Theme.DARK
+            ? 'bg-primary text-primary-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground',
+        )}
+      >
+        Dark
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setTheme(null);
+          setThemeState(null);
+        }}
+        className={cn(
+          'min-w-[2.8rem] rounded-md px-1 py-0.5 text-[10px] font-medium transition-all sm:min-w-12 sm:px-2 sm:text-xs',
+          themeState === null || themeState === undefined
+            ? 'bg-primary text-primary-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground',
+        )}
+      >
+        Auto
+      </button>
+    </div>
   );
 }

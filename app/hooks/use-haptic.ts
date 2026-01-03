@@ -15,6 +15,10 @@ export function useHapticFeedback() {
     vibrate(50);
   }, [vibrate]);
 
+  const triggerCreativeSuccess = useCallback(() => {
+    vibrate([50, 75, 50]);
+  }, [vibrate]);
+
   const triggerError = useCallback(() => {
     vibrate([50, 100, 50]);
   }, [vibrate]);
@@ -22,6 +26,7 @@ export function useHapticFeedback() {
   return {
     vibrate,
     triggerSuccess,
+    triggerCreativeSuccess,
     triggerError,
   };
 }

@@ -15,7 +15,6 @@ export async function analyzeMediaBuffer(
   filename: string,
   requestedFormats: string[] = [],
 ): Promise<MediaInfoResult> {
-  // 5. Run MediaInfo Analysis
   const readChunk = async (size: number, offset: number) => {
     if (offset >= fileBuffer.byteLength) {
       return new Uint8Array(0);
@@ -67,10 +66,8 @@ export async function analyzeMediaBuffer(
       locateFile: () => 'ignored',
     });
 
-    // Run analysis loop
     for (const { type, key } of formatsToGenerate) {
       try {
-        // Update format in options
         // Use 'text' (lowercase) for Text view to match MediaInfo expectation
         const formatStr = type === 'Text' ? 'text' : type;
         infoInstance.options.format = formatStr as
@@ -80,15 +77,12 @@ export async function analyzeMediaBuffer(
           | 'HTML'
           | 'text';
 
-        // Reset the instance to apply the new format
         infoInstance.reset();
 
-        // Re-run analysis on the buffered data
         await infoInstance.analyzeData(() => fileSize, readChunk);
 
         let resultStr = infoInstance.inform();
 
-        // Post-processing
         if (type === 'JSON') {
           try {
             const json = JSON.parse(resultStr);
@@ -106,7 +100,6 @@ export async function analyzeMediaBuffer(
                 }
               }
             }
-            // Pretty print JSON
             results[key] = JSON.stringify(json, null, 2);
           } catch (e) {
             console.warn('Failed to parse/inject JSON result:', e);

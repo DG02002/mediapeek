@@ -30,16 +30,35 @@ export async function fetchMediaChunk(
   });
 
   console.log(`[Analyze] isGoogleDrive: ${isGoogleDrive}`);
-  if (isGoogleDrive) {
-    const contentType = headRes.headers.get('content-type');
-    if (contentType && contentType.includes('text/html')) {
+
+  // Check for HTML content (indicates a webpage, not a direct file link)
+  const contentType = headRes.headers.get('content-type');
+  if (contentType?.includes('text/html')) {
+    // If it's Google Drive, it might be the rate-limit page
+    if (isGoogleDrive) {
       throw new Error(
         'Google Drive file is rate-limited. Please try again in 24 hours.',
       );
     }
+    // Generic HTML response
+    throw new Error(
+      'The URL links to a webpage, not a media file. Please provide a direct link.',
+    );
   }
 
-  if (!headRes.ok) throw new Error(`Failed to HEAD: ${headRes.status}`);
+  if (!headRes.ok) {
+    if (headRes.status === 404) {
+      throw new Error(
+        'The media file could not be found. Check the URL for errors.',
+      );
+    } else if (headRes.status === 403) {
+      throw new Error(
+        'Access to this file is denied. The link may have expired or requires authentication.',
+      );
+    } else {
+      throw new Error(`Unable to access file (HTTP ${headRes.status}).`);
+    }
+  }
 
   const fileSize = parseInt(headRes.headers.get('content-length') || '0', 10);
   console.log(`[Analyze] File size: ${fileSize} bytes`);
