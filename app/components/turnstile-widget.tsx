@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 
 import { getTurnstileSiteKey } from '~/lib/constants';
 
@@ -6,6 +12,10 @@ interface TurnstileWidgetProps {
   onVerify: (token: string) => void;
   onError?: () => void;
   onExpire?: () => void;
+}
+
+export interface TurnstileWidgetHandle {
+  reset: () => void;
 }
 
 declare global {
@@ -27,15 +37,23 @@ declare global {
   }
 }
 
-export function TurnstileWidget({
-  onVerify,
-  onError,
-  onExpire,
-}: TurnstileWidgetProps) {
+export const TurnstileWidget = forwardRef<
+  TurnstileWidgetHandle,
+  TurnstileWidgetProps
+>(({ onVerify, onError, onExpire }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [widgetId, setWidgetId] = useState<string | null>(null);
 
   const [isVerified, setIsVerified] = useState(false);
+
+  useImperativeHandle(ref, () => ({
+    reset: () => {
+      if (widgetId && window.turnstile) {
+        window.turnstile.reset(widgetId);
+        setIsVerified(false);
+      }
+    },
+  }));
 
   useEffect(() => {
     // Localhost / Development Bypass
@@ -105,4 +123,6 @@ export function TurnstileWidget({
   }
 
   return <div ref={containerRef} className="min-h-[65px] min-w-[300px]" />;
-}
+});
+
+TurnstileWidget.displayName = 'TurnstileWidget';

@@ -2,7 +2,7 @@
 
 import { AlertCircle, ArrowRight, Loader2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useActionState, useRef } from 'react';
+import { useActionState, useEffect, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 
 import { MediaSkeleton } from '~/components/media-skeleton';
@@ -18,7 +18,10 @@ import { useClipboardSuggestion } from '~/hooks/use-clipboard-suggestion';
 import { useHapticFeedback } from '../hooks/use-haptic';
 import { MediaView } from './media-view';
 import { ModeToggle } from './mode-toggle';
-import { TurnstileWidget } from './turnstile-widget';
+import {
+  TurnstileWidget,
+  type TurnstileWidgetHandle,
+} from './turnstile-widget';
 
 // Separate component to utilize useFormStatus
 function SubmitButton() {
@@ -78,6 +81,8 @@ export function MediaForm() {
   const { triggerCreativeSuccess, triggerError, triggerSuccess } =
     useHapticFeedback();
   const turnstileInputRef = useRef<HTMLInputElement>(null);
+  const turnstileWidgetRef = useRef<TurnstileWidgetHandle>(null);
+
   const [state, formAction, isPending] = useActionState(
     async (_prevState: FormState, formData: FormData): Promise<FormState> => {
       const url = formData.get('url') as string;
@@ -165,7 +170,18 @@ export function MediaForm() {
   );
 
   // Clipboard logic
+
   const { clipboardUrl, ignoreClipboard } = useClipboardSuggestion(state.url);
+
+  // Reset Turnstile when state changes (meaning submission completed)
+  useEffect(() => {
+    if (state.status === 'Done' || state.status === 'Failed') {
+      turnstileWidgetRef.current?.reset();
+      if (turnstileInputRef.current) {
+        turnstileInputRef.current.value = '';
+      }
+    }
+  }, [state]);
 
   return (
     <div className="flex min-h-[50vh] w-full flex-col items-center justify-center py-10">
@@ -291,6 +307,7 @@ export function MediaForm() {
 
             <div className="flex justify-center">
               <TurnstileWidget
+                ref={turnstileWidgetRef}
                 onVerify={(token) => {
                   if (turnstileInputRef.current) {
                     turnstileInputRef.current.value = token;
