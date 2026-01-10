@@ -43,6 +43,10 @@ export const cleanTrackTitle = (
     displayTitle = displayTitle.replace(langRegex, '');
   });
 
+  // Remove "Forced" labeling (redundant with Badge)
+  // Matches: "Forced", "[Forced]", "(Forced)"
+  displayTitle = displayTitle.replace(/(\[|\()?\s*\bForced\b\s*(\]|\))?/gi, '');
+
   displayTitle = displayTitle.trim();
 
   // Clean up leading/trailing punctuation that might remain (e.g. " (SDH)" -> "(SDH)", ", Title" -> "Title")
