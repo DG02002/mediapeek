@@ -141,9 +141,7 @@ export const getMediaBadges = (
       hdrCompatibility.includes('HDR10')
     ) {
       // 'HDR'
-      if (!hdrFormat.includes('Dolby Vision')) {
-        icons.push(BADGES.HDR);
-      }
+      icons.push(BADGES.HDR);
     }
 
     if (hdrFormat.includes('Dolby Vision')) {
@@ -195,7 +193,6 @@ export const getMediaBadges = (
     icons.push(BADGES.DOLBY_AUDIO);
   }
 
-  if (hasDTSX) icons.push(BADGES.DTS_X);
   if (hasDTSX) icons.push(BADGES.DTS_X);
   else if (hasDTS) icons.push(BADGES.DTS);
 
