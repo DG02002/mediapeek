@@ -527,7 +527,8 @@ export interface MediaTrackJSON {
   extra?: Record<string, string>;
 
   // Allow any other field from MediaInfo (dynamic nature)
-  [key: string]: string | number | Record<string, string> | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
 }
 
 export interface MediaInfoJSON {

@@ -1,4 +1,8 @@
-import { createMediaInfo, type MediaInfo } from '~/services/mediainfo-factory.server';
+import { normalizeMediaInfo } from '~/lib/media-utils';
+import {
+  createMediaInfo,
+  type MediaInfo,
+} from '~/services/mediainfo-factory.server';
 
 export interface MediaInfoResult {
   [key: string]: string;
@@ -111,10 +115,10 @@ export async function analyzeMediaBuffer(
 
         if (type === 'object') {
           try {
-            const json = resultData;
+            // Normalize the data (unwrap { #value } objects) before returning
+            const json = normalizeMediaInfo(resultData);
 
             if (json && json.media && json.media.track) {
-
               /* eslint-disable @typescript-eslint/no-explicit-any */
               const generalTrack = json.media.track.find(
                 (t: any) => t['@type'] === 'General',

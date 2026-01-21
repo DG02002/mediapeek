@@ -37,7 +37,9 @@ export function VideoSection({
 
           const rawBitrate =
             video['BitRate_String'] || video['OverallBitRate_String'];
-          const bitrateStr = rawBitrate ? cleanBitrateString(rawBitrate) : null;
+          const bitrateStr = rawBitrate
+            ? cleanBitrateString(String(rawBitrate))
+            : null;
           const bpf = video['BitsPixel_Frame'];
 
           return (
@@ -142,7 +144,7 @@ export function VideoSection({
               {video['HDR_Format'] && (
                 <MediaDetailItem
                   label="High Dynamic Range"
-                  value={video['HDR_Format']}
+                  value={String(video['HDR_Format'])}
                 >
                   <div className="flex flex-col gap-0.5">
                     <span className="text-foreground/85 font-semibold">
@@ -150,7 +152,7 @@ export function VideoSection({
                     </span>
                     {video['HDR_Format_Profile'] && (
                       <span className="text-muted-foreground text-xs">
-                        {mapDolbyProfile(video['HDR_Format_Profile'])}
+                        {mapDolbyProfile(String(video['HDR_Format_Profile']))}
                       </span>
                     )}
                     {video['HDR_Format_Compatibility'] && (
@@ -198,7 +200,11 @@ export function VideoSection({
                           !(
                             video['ChromaSubsampling_String'] ||
                             video['ChromaSubsampling']
-                          )?.includes(video['ChromaSubsampling_Position']) &&
+                          )
+                            ?.toString()
+                            .includes(
+                              String(video['ChromaSubsampling_Position']),
+                            ) &&
                           ` (${video['ChromaSubsampling_Position']})`}
                       </span>
                     )}
@@ -267,7 +273,7 @@ export function VideoSection({
 
                 if (!displayMain && fullLib) {
                   // Fallback: try to split "x264 - core 123"
-                  const match = fullLib.match(/^(.*?) - (.*)$/);
+                  const match = String(fullLib).match(/^(.*?) - (.*)$/);
                   if (match) {
                     displayMain = match[1];
                     displaySub = match[2];

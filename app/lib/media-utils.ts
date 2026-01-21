@@ -15,6 +15,35 @@ export const isAppleTvFilename = (filename: string): boolean => {
 };
 
 /**
+ * Recursively normalizes MediaInfo output to ensure a flat, friendly JSON structure.
+ * It unwraps objects like { "@dt": "...", "#value": "..." } into their raw value.
+ */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export const normalizeMediaInfo = (data: any): any => {
+  if (Array.isArray(data)) {
+    return data.map((item) => normalizeMediaInfo(item));
+  }
+
+  if (typeof data === 'object' && data !== null) {
+    // If we find the specific MediaInfo object wrapper, extract the value
+    if ('#value' in data) {
+      return data['#value'];
+    }
+
+    // Otherwise, normalize all children
+    const normalized: any = {};
+    for (const key of Object.keys(data)) {
+      normalized[key] = normalizeMediaInfo(data[key]);
+    }
+    return normalized;
+  }
+
+  // Primitives pass through unchanged
+  return data;
+};
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/**
  * Derived accessibility feature flags.
  */
 export interface AccessibilityFeatures {
