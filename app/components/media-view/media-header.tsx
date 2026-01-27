@@ -45,21 +45,22 @@ export const MediaHeader = memo(function MediaHeader({
   if (!generalTrack) return null;
 
   const filenameRaw =
-    (generalTrack['CompleteName'] as string) ||
-    (generalTrack['File_Name'] as string) ||
-    'Unknown';
+    generalTrack.CompleteName ?? generalTrack.File_Name ?? 'Unknown';
   // Extract basename
   const displayFilename =
-    filenameRaw.split('/').pop()?.split('\\').pop() || filenameRaw;
+    filenameRaw.split('/').pop()?.split('\\').pop() ?? filenameRaw;
 
+  const fileSizeRaw = generalTrack.FileSize_String;
   const fileSize =
-    generalTrack['FileSize_String'] ||
-    (generalTrack['FileSize/String'] as string) ||
-    (generalTrack['FileSize'] as string);
+    fileSizeRaw ??
+    (generalTrack['FileSize/String'] as string | undefined) ??
+    (generalTrack.FileSize as string | undefined);
+
+  const durationRaw = generalTrack.Duration_String;
   const duration =
-    generalTrack['Duration_String'] ||
-    (generalTrack['Duration/String'] as string) ||
-    (generalTrack['Duration'] as string);
+    durationRaw ??
+    (generalTrack['Duration/String'] as string | undefined) ??
+    (generalTrack.Duration as string | undefined);
 
   return (
     <div className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-50 -mx-4 flex flex-col gap-4 px-4 pt-4 pb-0 backdrop-blur-md transition-all md:-mx-8 md:px-8">

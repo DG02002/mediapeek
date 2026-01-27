@@ -337,7 +337,7 @@ interface MediaTrack {
 }
 
 function jsonToText(json: { media?: { track?: MediaTrack[] } }): string {
-  if (!json || !json.media || !Array.isArray(json.media.track)) {
+  if (!json?.media || !Array.isArray(json.media.track)) {
     return '';
   }
 

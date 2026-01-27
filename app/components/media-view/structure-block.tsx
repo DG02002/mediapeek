@@ -6,6 +6,14 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '~/components/ui/accordion';
+import {
+  getString,
+  isArray,
+  isPrimitive,
+  isRecord,
+  partitionEntries,
+  safeString,
+} from '~/lib/type-guards';
 
 // Map specific technical keys to user-friendly labels (based on MediaInfo text output)
 const LABEL_MAP: Record<string, string> = {
@@ -69,9 +77,56 @@ function formatLabel(key: string) {
     .replace(/^./, (str) => str.toUpperCase()); // Cap first letter
 }
 
+/**
+ * Get display text for an array item (for accordion headers)
+ */
+function getItemDisplayText(item: unknown): string | null {
+  const classifier = getString(item, 'Classifier');
+  if (classifier) return classifier;
+
+  const type = getString(item, 'Type');
+  if (type) return type;
+
+  const langString = getString(item, 'Language_String');
+  if (langString) return langString;
+
+  return null;
+}
+
+/**
+ * Get header subtitle text for object display
+ */
+function getHeaderSubtitle(data: unknown): string | null {
+  const langString = getString(data, 'Language_String');
+  if (langString) return langString;
+
+  const formatProfile = getString(data, 'Format_Profile');
+  if (formatProfile) return formatProfile;
+
+  const channelMode = getString(data, 'ChannelMode');
+  if (channelMode) return channelMode;
+
+  return null;
+}
+
+/**
+ * Check if a key should be hidden from display
+ */
+function shouldHideKey(key: string, val: unknown): boolean {
+  return (
+    key === 'Pos' ||
+    key === 'Index' ||
+    key.endsWith('_String') ||
+    key === 'Language_String' ||
+    key === 'Language' ||
+    key === 'Type' ||
+    key === 'Classifier' ||
+    (key.startsWith('LinkedTo_') && safeString(val) === '0')
+  );
+}
+
 interface StructureBlockProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  data: any;
+  data: unknown;
   label?: string;
   depth?: number;
 }
@@ -84,15 +139,15 @@ const StructureBlockImpl = function StructureBlock({
   if (!data) return null;
 
   // Array of objects (e.g., SignalGroup list, Presentation list)
-  if (Array.isArray(data)) {
-    // Case 1: Multiple Items -> Use Tabs
+  if (isArray(data)) {
+    // Case 1: Multiple Items -> Use Accordion
     if (data.length > 1) {
       return (
         <div className="flex w-full max-w-full flex-col gap-3">
           {label && (
             <div className="mb-1">
               <span className="text-muted-foreground/80 text-sm font-bold tracking-widest uppercase">
-                {label} ({data.length})
+                {label} ({String(data.length)})
               </span>
             </div>
           )}
@@ -101,25 +156,28 @@ const StructureBlockImpl = function StructureBlock({
             defaultValue={data.map((_, i) => String(i))}
             className="w-full"
           >
-            {data.map((item, idx) => (
-              <AccordionItem key={idx} value={String(idx)}>
-                <AccordionTrigger className="py-3 text-xs tracking-wider uppercase hover:no-underline">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold">#{idx + 1}</span>
-                    {(item.Classifier || item.Type || item.Language_String) && (
-                      <span className="truncate font-semibold normal-case">
-                        {item.Classifier || item.Type || item.Language_String}
-                      </span>
-                    )}
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="pt-2 pl-1">
-                    <StructureBlock data={item} depth={depth + 1} />
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
+            {data.map((item, idx) => {
+              const displayText = getItemDisplayText(item);
+              return (
+                <AccordionItem key={String(idx)} value={String(idx)}>
+                  <AccordionTrigger className="py-3 text-xs tracking-wider uppercase hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">#{String(idx + 1)}</span>
+                      {displayText && (
+                        <span className="truncate font-semibold normal-case">
+                          {displayText}
+                        </span>
+                      )}
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="pt-2 pl-1">
+                      <StructureBlock data={item} depth={depth + 1} />
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              );
+            })}
           </Accordion>
         </div>
       );
@@ -134,14 +192,9 @@ const StructureBlockImpl = function StructureBlock({
   }
 
   // Single Object
-  if (typeof data === 'object') {
-    const entries = Object.entries(data);
-    const primitives = entries.filter(
-      ([_, val]) => typeof val !== 'object' && val !== null,
-    );
-    const complex = entries.filter(
-      ([_, val]) => typeof val === 'object' && val !== null,
-    );
+  if (isRecord(data)) {
+    const { primitives, complex } = partitionEntries(data);
+    const headerSubtitle = getHeaderSubtitle(data);
 
     return (
       <div className="flex flex-col gap-4">
@@ -151,16 +204,11 @@ const StructureBlockImpl = function StructureBlock({
             <span className="text-muted-foreground/80 text-sm font-bold tracking-widest uppercase">
               {label}
             </span>
-            {(data.Language_String ||
-              data.Format_Profile ||
-              data.ChannelMode) &&
-              label !== 'Extra' && (
-                <span className="text-foreground/80 text-xs font-medium">
-                  {data.Language_String ||
-                    data.Format_Profile ||
-                    data.ChannelMode}
-                </span>
-              )}
+            {headerSubtitle && label !== 'Extra' && (
+              <span className="text-foreground/80 text-xs font-medium">
+                {headerSubtitle}
+              </span>
+            )}
           </div>
         )}
 
@@ -168,17 +216,7 @@ const StructureBlockImpl = function StructureBlock({
         {primitives.length > 0 && (
           <div className="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
             {primitives.map(([key, val]) => {
-              if (
-                key === 'Pos' ||
-                key === 'Index' ||
-                key.endsWith('_String') ||
-                key === 'Language_String' ||
-                key === 'Language' ||
-                key === 'Type' ||
-                key === 'Classifier' ||
-                (key.startsWith('LinkedTo_') && String(val) === '0')
-              )
-                return null;
+              if (shouldHideKey(key, val)) return null;
 
               return (
                 <div key={key} className="flex min-w-0 flex-col">
@@ -188,7 +226,7 @@ const StructureBlockImpl = function StructureBlock({
                   </span>
                   {/* VALUE: Exact match to AudioTrackRow */}
                   <span className="text-foreground/85 text-sm leading-tight font-medium break-all">
-                    {String(val)}
+                    {isPrimitive(val) ? String(val) : safeString(val)}
                   </span>
                 </div>
               );

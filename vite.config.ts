@@ -7,6 +7,12 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 export default defineConfig({
   build: {
     target: 'esnext',
+    rollupOptions: {
+      output: {
+        banner:
+          'globalThis.Cloudflare = globalThis.Cloudflare || { compatibilityFlags: {} };',
+      },
+    },
   },
   optimizeDeps: {
     exclude: ['mediainfo.js'],

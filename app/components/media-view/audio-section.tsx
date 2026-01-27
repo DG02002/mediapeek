@@ -21,7 +21,7 @@ export const AudioSection = memo(function AudioSection({
       <div className="flex flex-col gap-3">
         {audioTracks.map((audio, idx) => (
           <AudioTrackRow
-            key={audio.ID || audio.UniqueID || idx}
+            key={audio.ID ?? audio.UniqueID ?? idx}
             track={audio}
             trackNumber={audio['@typeorder']}
             showTrackNumber={audioTracks.length > 1}

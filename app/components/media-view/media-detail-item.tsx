@@ -22,19 +22,17 @@ export function MediaDetailItem({
   return (
     <div
       className={cn(
-        colSpan && colSpan > 1 && `sm:col-span-${colSpan}`,
+        colSpan && colSpan > 1 && `sm:col-span-${String(colSpan)}`,
         className,
       )}
     >
       <span className="text-muted-foreground/70 mb-1 block text-[10px] tracking-wider uppercase">
         {label}
       </span>
-      {children ? (
-        children
-      ) : (
+      {children ?? (
         <div className="flex flex-col">
           <span className="text-foreground/85 text-sm font-medium break-all">
-            {value}
+            {value ?? 'N/A'}
           </span>
           {subtext && (
             <span className="text-muted-foreground text-xs font-normal">

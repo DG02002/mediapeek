@@ -14,14 +14,18 @@ export { type MediaInfo };
  */
 export const createMediaInfo = async (): Promise<MediaInfo> => {
   return new Promise((resolve, reject) => {
-    mediaInfoFactory({
-      format: 'object',
-      // Explicitly pass the module (handled by our patched bundle)
-      wasmModule,
-    }, (mediainfo: MediaInfo) => {
-      resolve(mediainfo);
-    }, (err: unknown) => {
-      reject(err);
-    });
+    void mediaInfoFactory(
+      {
+        format: 'object',
+        // Explicitly pass the module (handled by our patched bundle)
+        wasmModule: wasmModule as unknown,
+      },
+      (mediainfo: MediaInfo) => {
+        resolve(mediainfo);
+      },
+      (err: unknown) => {
+        reject(err instanceof Error ? err : new Error(String(err)));
+      },
+    );
   });
 };

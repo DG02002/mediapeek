@@ -28,13 +28,12 @@ export function useMediaActions({ data, url }: UseMediaActionsProps) {
             `/resource/analyze?url=${encodeURIComponent(url)}&format=${format}`,
           );
           if (!response.ok) throw new Error('Failed to generate format');
-          const json = (await response.json()) as {
-            results?: Record<string, string>;
-          };
+          const json: { results?: Record<string, string> } =
+            await response.json();
           content = json.results?.[format];
           if (!content) throw new Error('No content returned');
 
-          fetchedData.current[format] = content as string;
+          fetchedData.current[format] = content;
           toast.dismiss(toastId);
         } catch (err) {
           console.error(err);
@@ -59,7 +58,7 @@ export function useMediaActions({ data, url }: UseMediaActionsProps) {
         },
       );
 
-      safeClipboardWrite(
+      void safeClipboardWrite(
         contentPromise,
         () => {
           triggerSuccess();
@@ -84,8 +83,10 @@ export function useMediaActions({ data, url }: UseMediaActionsProps) {
       }
 
       const content = await fetchContent(format, label);
+
       if (!content) {
-        if (content === undefined) toast.error(`No ${label} data found.`);
+        if (typeof content === 'undefined')
+          toast.error(`No ${label} data found.`);
         throw new Error('No content found');
       }
 

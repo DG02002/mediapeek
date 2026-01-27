@@ -22,62 +22,62 @@ export const AudioTechDetails = memo(function AudioTechDetails({
     return [
       {
         label: 'Format',
-        value: (track['Format_String'] ||
-          track['Format_Commercial'] ||
-          track['Format']) as string,
+        value: track.Format_String ?? track.Format_Commercial ?? track.Format,
       },
       {
         label: 'Format Settings',
-        value: [
-          track['Format_Settings_Endianness'],
-          track['Format_Settings_Sign'],
-        ]
+        value: [track.Format_Settings_Endianness, track.Format_Settings_Sign]
           .filter(Boolean)
           .join(' / '),
       },
       {
         label: 'Format Profile',
         value: [
-          track['Format_Profile'],
-          track['Format_Level'] && `@L${track['Format_Level']}`,
-          track['Format_Tier'] && `@${track['Format_Tier']}`,
+          track.Format_Profile,
+          track.Format_Level && `@L${track.Format_Level}`,
+          track.Format_Tier && `@${track.Format_Tier}`,
         ]
           .filter(Boolean)
           .join(''),
       },
       {
         label: 'Format Mode',
-        value: track['Format_Settings_Mode'],
+        value: track.Format_Settings_Mode,
       },
       {
         label: 'Bitrate',
         value: cleanBitrateString(
-          (track['BitRate_String'] ||
-            track['BitRate_Maximum_String']) as string,
+          (track.BitRate_String ??
+            track.BitRate_Maximum_String ??
+            '') as string,
         ),
-        sub: (track['BitRate_Mode_String'] || track['BitRate_Mode']) as string,
+
+        sub: track.BitRate_Mode_String ?? track.BitRate_Mode,
       },
       {
         label: 'Sample Rate',
-        value: track['SamplingRate_String'] || `${track['SamplingRate']} Hz`,
+
+        value:
+          track.SamplingRate_String ??
+          (track.SamplingRate ? `${String(track.SamplingRate)} Hz` : undefined),
       },
       {
         label: 'Bit Depth',
         value:
-          track['BitDepth_String'] ||
-          (track['BitDepth'] ? `${track['BitDepth']}-bit` : undefined),
+          track.BitDepth_String ??
+          (track.BitDepth ? `${String(track.BitDepth)}-bit` : undefined),
       },
       {
         label: 'Delay',
         value: (() => {
-          const d = track['Delay'];
+          const d = track.Delay;
           const sd = track.extra?.Source_Delay;
-          if (d && d !== '0' && d !== '0.000') return `${d}ms`;
-          if (sd && sd !== '0' && sd !== '0.000') return `${sd}ms`;
+          if (d && d !== '0' && d !== '0.000') return `${String(d)}ms`;
+          if (sd && sd !== '0' && sd !== '0.000') return `${String(sd)}ms`;
           return undefined;
         })(),
         sub: (() => {
-          const d = track['Delay'];
+          const d = track.Delay;
           const sd = track.extra?.Source_Delay;
           // If primary delay exists, we don't show source.
           // If primary is empty/0, and we use source delay, show its source if available.
@@ -95,22 +95,27 @@ export const AudioTechDetails = memo(function AudioTechDetails({
       {
         label: 'Dialogue Intelligence',
         value:
-          track.extra?.dialnorm_String ||
-          (track.extra?.dialnorm ? `${track.extra.dialnorm} dB` : undefined),
+          track.extra?.dialnorm_String ??
+          (track.extra?.dialnorm
+            ? `${String(track.extra.dialnorm)} dB`
+            : undefined),
       },
       {
         label: 'Compression',
-        value: (track['Compression_Mode_String'] ||
-          cleanMetadataString(track['Compression_Mode'])) as string,
+
+        value:
+          track.Compression_Mode_String ??
+          cleanMetadataString(track.Compression_Mode),
       },
       {
         label: 'Encoded Library',
-        value: (track['Encoded_Library_String'] ||
-          track['Encoded_Library']) as string,
+
+        value: track.Encoded_Library_String ?? track.Encoded_Library,
       },
       {
         label: 'Service Kind',
-        value: (track['ServiceKind_String'] || track['ServiceKind']) as string,
+
+        value: (track.ServiceKind_String ?? track.ServiceKind) as string,
       },
       {
         label: 'Codec Configuration Box',
@@ -125,7 +130,7 @@ export const AudioTechDetails = memo(function AudioTechDetails({
     <div className="grid grid-cols-2 gap-x-2 gap-y-3 md:grid-cols-4 md:gap-4">
       {details.map((item, idx) => (
         <MediaDetailItem
-          key={`${item.label}-${idx}`}
+          key={`${item.label}-${String(idx)}`}
           label={item.label}
           value={
             <>

@@ -6,7 +6,7 @@ import { useCallback } from 'react';
  */
 export function useHapticFeedback() {
   const vibrate = useCallback((pattern: number | number[]) => {
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    if (typeof navigator.vibrate === 'function') {
       navigator.vibrate(pattern);
     }
   }, []);

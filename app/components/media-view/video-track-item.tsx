@@ -12,15 +12,15 @@ interface VideoTrackItemProps {
 export const VideoTrackItem = memo(function VideoTrackItem({
   video,
 }: VideoTrackItemProps) {
-  let codec = video['Format'];
-  const formatInfo = video['Format_Info'] || video['Format/Info'];
+  let codec = video.Format;
+  const formatInfo = video.Format_Info ?? video['Format/Info'];
 
   if (formatInfo) {
-    codec = `${codec} (${formatInfo})`;
+    codec = `${codec ?? ''} (${formatInfo})`;
   }
-  const profile = video['Format_Profile'];
-  const level = video['Format_Level'];
-  const tier = video['Format_Tier'];
+  const profile = video.Format_Profile;
+  const level = video.Format_Level;
+  const tier = video.Format_Tier;
 
   const profileStr = [
     profile,
@@ -30,18 +30,18 @@ export const VideoTrackItem = memo(function VideoTrackItem({
     .filter(Boolean)
     .join('');
 
-  const rawBitrate = video['BitRate_String'] || video['OverallBitRate_String'];
-  const bitrateStr = rawBitrate ? cleanBitrateString(String(rawBitrate)) : null;
-  const bpf = video['BitsPixel_Frame'];
+  const rawBitrate = video.BitRate_String ?? video.OverallBitRate_String;
+  const bitrateStr = rawBitrate ? cleanBitrateString(rawBitrate) : null;
+  const bpf = video.BitsPixel_Frame;
 
   return (
     <div className="border-border/40 grid gap-x-8 gap-y-6 border-b pb-6 text-sm last:border-0 sm:grid-cols-2 md:grid-cols-4">
       <MediaDetailItem label="Codec">
         <div className="flex flex-col">
           <span className="text-foreground/85 font-semibold">{codec}</span>
-          {video['CodecID'] && (
+          {video.CodecID && (
             <span className="text-muted-foreground text-xs font-normal break-all">
-              {video['CodecID']}
+              {video.CodecID}
             </span>
           )}
           {profileStr && (
@@ -54,12 +54,11 @@ export const VideoTrackItem = memo(function VideoTrackItem({
       <MediaDetailItem label="Resolution">
         <div className="flex flex-col">
           <span className="text-foreground/85 font-semibold">
-            {video['Width']} x {video['Height']}
+            {video.Width} x {video.Height}
           </span>
-          {video['DisplayAspectRatio'] && (
+          {video.DisplayAspectRatio && (
             <span className="text-muted-foreground text-xs font-normal">
-              {video['DisplayAspectRatio_String'] ||
-                video['DisplayAspectRatio']}
+              {video.DisplayAspectRatio_String ?? video.DisplayAspectRatio}
             </span>
           )}
         </div>
@@ -70,9 +69,9 @@ export const VideoTrackItem = memo(function VideoTrackItem({
             <span className="text-foreground/85 font-semibold">
               {bitrateStr}
             </span>
-            {video['BitRate_Mode'] && (
+            {video.BitRate_Mode && (
               <span className="text-muted-foreground text-xs font-normal">
-                {video['BitRate_Mode_String'] || video['BitRate_Mode']}
+                {video.BitRate_Mode_String ?? video.BitRate_Mode}
               </span>
             )}
             {bpf && (
@@ -86,157 +85,148 @@ export const VideoTrackItem = memo(function VideoTrackItem({
       <MediaDetailItem label="Frame Rate">
         <div className="flex flex-col">
           <span className="text-foreground/85 font-semibold">
-            {video['FrameRate_String'] || video['FrameRate'] || 'Unknown'}
+            {video.FrameRate_String ?? video.FrameRate ?? 'Unknown'}
           </span>
-          {video['FrameRate_Original'] && (
+          {video.FrameRate_Original && (
             <span className="text-muted-foreground text-xs font-normal">
-              Original: {video['FrameRate_Original']}
+              Original: {video.FrameRate_Original}
             </span>
           )}
-          {video['FrameRate_Mode'] && (
+          {video.FrameRate_Mode && (
             <span className="text-muted-foreground text-xs font-normal">
-              {video['FrameRate_Mode_String'] || video['FrameRate_Mode']}
+              {video.FrameRate_Mode_String ?? video.FrameRate_Mode}
             </span>
           )}
         </div>
       </MediaDetailItem>
 
-      {(video['colour_primaries'] ||
-        video['transfer_characteristics'] ||
-        video['matrix_coefficients']) && (
+      {(video.colour_primaries ??
+        video.transfer_characteristics ??
+        video.matrix_coefficients) && (
         <MediaDetailItem label="Colorimetry">
           <div className="flex flex-col">
-            {video['colour_primaries'] && (
+            {video.colour_primaries && (
               <span className="text-foreground/85 font-semibold break-all">
-                {video['colour_primaries']}
+                {video.colour_primaries}
               </span>
             )}
-            {video['matrix_coefficients'] && (
+            {video.matrix_coefficients && (
               <span className="text-muted-foreground text-xs font-normal break-all">
-                {video['matrix_coefficients']}
+                {video.matrix_coefficients}
               </span>
             )}
-            {video['transfer_characteristics'] && (
+            {video.transfer_characteristics && (
               <span className="text-muted-foreground text-xs font-normal break-all">
-                {video['transfer_characteristics']} (Transfer)
+                {video.transfer_characteristics} (Transfer)
               </span>
             )}
           </div>
         </MediaDetailItem>
       )}
 
-      {video['HDR_Format'] && (
-        <MediaDetailItem
-          label="High Dynamic Range"
-          value={String(video['HDR_Format'])}
-        >
+      {video.HDR_Format && (
+        <MediaDetailItem label="High Dynamic Range" value={video.HDR_Format}>
           <div className="flex flex-col gap-0.5">
             <span className="text-foreground/85 font-semibold break-all">
-              {video['HDR_Format']}
+              {video.HDR_Format}
             </span>
-            {video['HDR_Format_Profile'] && (
+            {video.HDR_Format_Profile && (
               <span className="text-muted-foreground text-xs break-all">
-                {mapDolbyProfile(String(video['HDR_Format_Profile']))}
+                {mapDolbyProfile(video.HDR_Format_Profile)}
               </span>
             )}
-            {video['HDR_Format_Compatibility'] && (
+            {video.HDR_Format_Compatibility && (
               <span className="text-muted-foreground text-xs break-all">
-                Compatibility: {video['HDR_Format_Compatibility']}
+                Compatibility: {video.HDR_Format_Compatibility}
               </span>
             )}
           </div>
         </MediaDetailItem>
       )}
 
-      {(video['MasteringDisplay_ColorPrimaries'] ||
-        video['MasteringDisplay_Luminance']) && (
+      {(video.MasteringDisplay_ColorPrimaries ??
+        video.MasteringDisplay_Luminance) && (
         <MediaDetailItem label="Mastering Display">
           <div className="flex flex-col">
-            {video['MasteringDisplay_ColorPrimaries'] && (
+            {video.MasteringDisplay_ColorPrimaries && (
               <span className="text-foreground/85 font-semibold break-all">
-                {video['MasteringDisplay_ColorPrimaries']}
+                {video.MasteringDisplay_ColorPrimaries}
               </span>
             )}
-            {video['MasteringDisplay_Luminance'] && (
+            {video.MasteringDisplay_Luminance && (
               <span className="text-muted-foreground text-xs font-normal break-all">
-                {video['MasteringDisplay_Luminance']}
+                {video.MasteringDisplay_Luminance}
               </span>
             )}
           </div>
         </MediaDetailItem>
       )}
 
-      {(video['ColorSpace'] ||
-        video['ChromaSubsampling'] ||
-        video['colour_range']) && (
+      {(video.ColorSpace ?? video.ChromaSubsampling ?? video.colour_range) && (
         <MediaDetailItem label="Color">
           <div className="flex flex-col">
-            {video['ColorSpace'] && (
+            {video.ColorSpace && (
               <span className="text-foreground/85 font-semibold break-all">
-                {video['ColorSpace']}
+                {video.ColorSpace}
               </span>
             )}
-            {video['ChromaSubsampling'] && (
+            {video.ChromaSubsampling && (
               <span className="text-muted-foreground text-xs font-normal break-all">
-                {video['ChromaSubsampling_String'] ||
-                  video['ChromaSubsampling']}
-                {video['ChromaSubsampling_Position'] &&
+                {video.ChromaSubsampling_String ?? video.ChromaSubsampling}
+                {video.ChromaSubsampling_Position &&
                   !(
-                    video['ChromaSubsampling_String'] ||
-                    video['ChromaSubsampling']
-                  )
-                    ?.toString()
-                    .includes(String(video['ChromaSubsampling_Position'])) &&
-                  ` (${video['ChromaSubsampling_Position']})`}
+                    video.ChromaSubsampling_String ?? video.ChromaSubsampling
+                  ).includes(video.ChromaSubsampling_Position) &&
+                  ` (${video.ChromaSubsampling_Position})`}
               </span>
             )}
-            {video['colour_range'] && (
+            {video.colour_range && (
               <span className="text-muted-foreground text-xs font-normal break-all">
-                {video['colour_range']}
+                {video.colour_range}
               </span>
             )}
           </div>
         </MediaDetailItem>
       )}
 
-      {video['BitDepth'] && (
+      {video.BitDepth && (
         <MediaDetailItem
           label="Bit Depth"
-          value={video['BitDepth_String'] || `${video['BitDepth']} bits`}
+          value={video.BitDepth_String ?? `${String(video.BitDepth)} bits`}
         />
       )}
 
-      {(video['ScanType'] || video['Standard']) && (
+      {(video.ScanType ?? video.Standard) && (
         <MediaDetailItem label="Scan Type">
           <div className="flex flex-col">
-            {video['Standard'] && (
+            {video.Standard && (
               <span className="text-foreground/85 font-semibold">
-                {video['Standard']}
+                {video.Standard}
               </span>
             )}
-            {video['ScanType'] && (
+            {video.ScanType && (
               <span
                 className={
-                  video['Standard']
+                  video.Standard
                     ? 'text-muted-foreground text-xs font-normal'
                     : 'text-foreground/85 font-semibold'
                 }
               >
-                {video['ScanType']}
+                {video.ScanType}
               </span>
             )}
-            {video['ScanType_StoreMethod'] && (
+            {video.ScanType_StoreMethod && (
               <span className="text-muted-foreground text-xs font-normal">
-                {video['ScanType_StoreMethod']}
+                {video.ScanType_StoreMethod}
               </span>
             )}
-            {video['ScanOrder'] && (
+            {video.ScanOrder && (
               <span className="text-muted-foreground text-xs font-normal">
-                {video['ScanOrder'] === 'TFF'
+                {video.ScanOrder === 'TFF'
                   ? 'Top Field First'
-                  : video['ScanOrder'] === 'BFF'
+                  : video.ScanOrder === 'BFF'
                     ? 'Bottom Field First'
-                    : video['ScanOrder']}
+                    : video.ScanOrder}
               </span>
             )}
           </div>
@@ -244,16 +234,16 @@ export const VideoTrackItem = memo(function VideoTrackItem({
       )}
 
       {(() => {
-        const libName = video['Encoded_Library_Name'];
-        const libVersion = video['Encoded_Library_Version'];
-        const fullLib = video['Encoded_Library'];
+        const libName = video.Encoded_Library_Name;
+        const libVersion = video.Encoded_Library_Version;
+        const fullLib = video.Encoded_Library;
 
         let displayMain = libName;
         let displaySub = libVersion;
 
         if (!displayMain && fullLib) {
           // Fallback: try to split "x264 - core 123"
-          const match = String(fullLib).match(/^(.*?) - (.*)$/);
+          const match = /^(.*?) - (.*)$/.exec(fullLib);
           if (match) {
             displayMain = match[1];
             displaySub = match[2];
@@ -280,13 +270,13 @@ export const VideoTrackItem = memo(function VideoTrackItem({
         );
       })()}
 
-      {video['extra']?.['CodecConfigurationBox'] && (
+      {video.extra?.CodecConfigurationBox && (
         <MediaDetailItem
           label="Codec Configuration Box"
-          value={video['extra']['CodecConfigurationBox']}
+          value={video.extra.CodecConfigurationBox}
         >
           <span className="text-foreground/85 text-sm font-medium break-all">
-            {video['extra']['CodecConfigurationBox']}
+            {video.extra.CodecConfigurationBox}
           </span>
         </MediaDetailItem>
       )}

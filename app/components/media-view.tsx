@@ -2,12 +2,24 @@
 
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from 'react';
+import { useFetcher } from 'react-router';
+import { z } from 'zod';
 
 import { Button } from '~/components/ui/button';
 import { Skeleton } from '~/components/ui/skeleton';
+import { removeEmptyStrings } from '~/lib/media-utils';
 import { cn } from '~/lib/utils';
-import type { MediaInfoJSON } from '~/types/media';
+import { startNativeViewTransition } from '~/lib/view-transition';
+import type { MediaInfoJSON, MediaTrackJSON } from '~/types/media';
 
 import { AccessibilitySection } from './media-view/accessibility-section';
 import { AudioSection } from './media-view/audio-section';
@@ -18,50 +30,74 @@ import { MediaHeader } from './media-view/media-header';
 import { SubtitleSection } from './media-view/subtitle-section';
 import { VideoSection } from './media-view/video-section';
 
+export const TextResponseSchema = z.object({
+  results: z
+    .object({
+      text: z.string().optional(),
+    })
+    .optional(),
+});
+
+type TextResponse = z.infer<typeof TextResponseSchema>;
+
 interface MediaViewProps {
   data: Record<string, string>;
   url: string;
 }
 
-export function MediaView({ data, url }: MediaViewProps) {
+export const MediaView = memo(function MediaView({
+  data,
+  url,
+}: MediaViewProps) {
   const [isTextView, setIsTextView] = useState(false);
   const [showOriginalTitles, setShowOriginalTitles] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [lazyText, setLazyText] = useState<string | null>(null);
-  const [isFetchingText, setIsFetchingText] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Lazy load text view on demand
+  const fetcher = useFetcher<TextResponse>();
+  const [_isPending, startTransition] = useTransition();
+
+  // Stable handlers for View Switching to ensure responsiveness
+  const handleSetIsTextView = useCallback(
+    (val: boolean) => {
+      startNativeViewTransition(
+        () => {
+          setIsTextView(val);
+        },
+        () => {
+          startTransition(() => {
+            setIsTextView(val);
+          });
+        },
+      );
+    },
+    [startTransition],
+  );
+
+  const handleSetShowOriginalTitles = useCallback(
+    (val: boolean) => {
+      startNativeViewTransition(
+        () => {
+          setShowOriginalTitles(val);
+        },
+        () => {
+          startTransition(() => {
+            setShowOriginalTitles(val);
+          });
+        },
+      );
+    },
+    [startTransition],
+  );
+
+  // Lazy load text view on demand using useFetcher
   useEffect(() => {
-    if (isTextView && !data.text && !lazyText && !isFetchingText) {
-      const fetchText = async () => {
-        setIsFetchingText(true);
-        try {
-          const response = await fetch(
-            `/resource/analyze?url=${encodeURIComponent(url)}&format=text`,
-          );
-          if (response.ok) {
-            const data = (await response.json()) as {
-              results?: { text?: string };
-            };
-            if (data.results?.text) {
-              setLazyText(data.results.text);
-            } else {
-              setLazyText('No text data available.');
-            }
-          } else {
-            setLazyText('Failed to load text view.');
-          }
-        } catch (error) {
-          console.error('Failed to fetch text view:', error);
-          setLazyText('Error loading text view.');
-        } finally {
-          setIsFetchingText(false);
-        }
-      };
-      fetchText();
+    if (isTextView && !data.text && !fetcher.data && fetcher.state === 'idle') {
+      void fetcher.load(
+        `/resource/analyze?url=${encodeURIComponent(url)}&format=text`,
+      );
     }
-  }, [isTextView, data.text, lazyText, isFetchingText, url]);
+  }, [isTextView, data.text, fetcher, url]);
 
   // Handle Escape key to exit full screen
   useEffect(() => {
@@ -72,20 +108,19 @@ export function MediaView({ data, url }: MediaViewProps) {
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isFullScreen]);
 
-  // Reset scroll when toggling view mode, but only if we've scrolled past the header
+  // Reset scroll when toggling view mode
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Calculate the absolute top position of the container
     const { top } = containerRef.current.getBoundingClientRect();
     const scrollTop = window.scrollY || document.documentElement.scrollTop;
     const absoluteTop = top + scrollTop;
 
-    // Only scroll if we are deeper than the container start
-    // This allows the sticky header to "stick" at the top without jumping to page 0
     if (scrollTop > absoluteTop) {
       window.scrollTo({ top: absoluteTop, behavior: 'instant' });
     }
@@ -96,10 +131,10 @@ export function MediaView({ data, url }: MediaViewProps) {
       const jsonStr = data.json;
       if (!jsonStr) return { track: null, creatingLibrary: undefined };
       const json = JSON.parse(jsonStr) as MediaInfoJSON;
-      if (!json.media || !json.media.track)
+      if (!json.media?.track)
         return { track: null, creatingLibrary: undefined };
       return {
-        track: json.media.track,
+        track: removeEmptyStrings(json.media.track) as MediaTrackJSON[],
         creatingLibrary: json.creatingLibrary,
       };
     } catch {
@@ -108,13 +143,19 @@ export function MediaView({ data, url }: MediaViewProps) {
     }
   }, [data]);
 
-  // Merge lazy-loaded text into data for display and sharing actions
+  // Merge lazy-loaded text into data
   const fullData = useMemo(() => {
+    const fetchedText = fetcher.data?.results?.text;
+    const isLoading = fetcher.state === 'loading';
+
     return {
       ...data,
-      text: data.text || lazyText || (isFetchingText ? '' : ''),
+      text:
+        (data.text !== '' ? data.text : undefined) ??
+        fetchedText ??
+        (isLoading ? '' : ''),
     };
-  }, [data, lazyText, isFetchingText]);
+  }, [data, fetcher.data, fetcher.state]);
 
   const { General, VideoTracks, AudioTracks, TextTracks, MenuTrack } =
     useMemo(() => {
@@ -142,7 +183,7 @@ export function MediaView({ data, url }: MediaViewProps) {
         <p className="font-medium">Analysis Error</p>
         <p className="text-sm">Unable to parse analysis data.</p>
         <pre className="mt-2 overflow-x-auto text-xs whitespace-pre-wrap opacity-70">
-          {data.json || 'No JSON data'}
+          {(data['@ref'] ?? '').endsWith('.json') && 'No JSON data'}
         </pre>
       </div>
     );
@@ -160,9 +201,9 @@ export function MediaView({ data, url }: MediaViewProps) {
         audioTracks={AudioTracks}
         textTracks={TextTracks}
         isTextView={isTextView}
-        setIsTextView={setIsTextView}
+        setIsTextView={handleSetIsTextView}
         showOriginalTitles={showOriginalTitles}
-        setShowOriginalTitles={setShowOriginalTitles}
+        setShowOriginalTitles={handleSetShowOriginalTitles}
         rawData={fullData}
       />
 
@@ -197,7 +238,9 @@ export function MediaView({ data, url }: MediaViewProps) {
                 variant="ghost"
                 size="sm"
                 className="hover:bg-background/50 h-6 px-2 text-xs"
-                onClick={() => setIsFullScreen(!isFullScreen)}
+                onClick={() => {
+                  setIsFullScreen(!isFullScreen);
+                }}
                 title={isFullScreen ? 'Exit Full Screen (Esc)' : 'Full Screen'}
               >
                 {isFullScreen ? (
@@ -215,7 +258,7 @@ export function MediaView({ data, url }: MediaViewProps) {
             </motion.div>
             <div className="relative min-h-[200px]">
               <AnimatePresence mode="wait">
-                {isFetchingText ? (
+                {fetcher.state === 'loading' ? (
                   <motion.div
                     key="loading"
                     initial={{ opacity: 0 }}
@@ -291,4 +334,4 @@ export function MediaView({ data, url }: MediaViewProps) {
       )}
     </div>
   );
-}
+});

@@ -16,6 +16,7 @@ export interface MediaTrackJSON {
   ID?: string;
   OriginalSourceMedium_ID?: string;
   UniqueID?: string;
+  UniqueID_String?: string;
   MenuID?: string;
   GeneralCount?: string | number;
   VideoCount?: string | number;
@@ -47,6 +48,7 @@ export interface MediaTrackJSON {
   FolderName?: string;
   FileNameExtension?: string;
   FileName?: string;
+  File_Name?: string;
   FileExtension?: string;
   CompleteName_Last?: string;
   FolderName_Last?: string;
@@ -523,13 +525,131 @@ export interface MediaTrackJSON {
   Chapters_Pos_Begin?: string;
   Chapters_Pos_End?: string;
 
-  // Extra (for Chapters usually)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  extra?: Record<string, any>;
+  // Extra (for Chapters, AC-4, MPEG-H, Dolby Atmos data)
+  extra?: MediaTrackExtra;
 
   // Allow any other field from MediaInfo (dynamic nature)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
+  [key: string]: unknown;
+}
+
+/**
+ * Signal Group structure for AC-4/MPEG-H audio
+ */
+export interface SignalGroupEntry {
+  Type?: string;
+  NumberOfObjects?: string;
+  NumberOfObjects_String?: string;
+  Channels?: string | number;
+  Channels_String?: string;
+  BedChannelConfiguration?: string;
+  Language_String?: string;
+  Language?: string;
+  Classifier?: string;
+  Format_Profile?: string;
+  ChannelMode?: string;
+  LinkedTo_Group_Pos?: string;
+  Pos?: string;
+  Index?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Presentation structure for AC-4/MPEG-H audio
+ */
+export interface PresentationEntry {
+  PresentationID?: string;
+  PresentationLevel?: string;
+  ChannelMode?: string;
+  DolbyAtmos?: string;
+  DialogueNormalization?: string;
+  IntegratedLoudness_Speech?: string;
+  IntegratedLoudness_Level?: string;
+  RealtimeLoudnessCorrected?: string;
+  Eac3DrcProfile?: string;
+  HomeTheaterAvr?: string;
+  FlatPanelTv?: string;
+  PortableSpeakers?: string;
+  PortableHeadphones?: string;
+  LoRoCenterMixGain?: string;
+  LoRoSurroundMixGain?: string;
+  LtRtCenterMixGain?: string;
+  LtRtSurroundMixGain?: string;
+  LfeMixGain?: string;
+  PreferredDownmix?: string;
+  ContentClassifier?: string;
+  Language_String?: string;
+  Classifier?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Typed extra fields for MediaTrack
+ * Contains known fields from AC-4, MPEG-H, Dolby Atmos, etc.
+ */
+export interface MediaTrackExtra {
+  // Dolby Atmos / Object Audio
+  NumberOfDynamicObjects?: string | number;
+  NumberOfObjects?: string | number;
+  NumberOfObjects_String?: string;
+  SignalGroup?: SignalGroupEntry[];
+  Presentation?: PresentationEntry[];
+
+  // Delay / Timing
+  Source_Delay?: string | number;
+  Source_Delay_String?: string;
+  Source_Delay_Source?: string;
+
+  // Loudness / Normalization
+  dialnorm?: string | number;
+  dialnorm_String?: string;
+  DialogueNormalization?: string;
+  IntegratedLoudness_Speech?: string;
+  IntegratedLoudness_Level?: string;
+  RealtimeLoudnessCorrected?: string;
+  SamplePeakLevel?: string;
+  Loudness_Anchor?: string;
+  Loudness_Program?: string;
+  Loudness_Count?: string;
+  AudioLoudnessStandard?: string;
+  DialogueCorrected?: string;
+
+  // Codec Configuration
+  CodecConfigurationBox?: string;
+
+  // AC-4 / MPEG-H Specific
+  PresentationID?: string;
+  ChannelMode?: string;
+  DolbyAtmos?: string;
+  SignalGroupCount?: string | number;
+  NumberOfSubstreams?: string | number;
+  ChannelCoded?: string;
+  DialogueEnhancement?: string;
+  MaxGain?: string;
+
+  // DRC (Dynamic Range Compression)
+  DrcSets_Count?: string;
+  DrcSets_Effects?: string;
+  Eac3DrcProfile?: string;
+  HomeTheaterAvr?: string;
+  FlatPanelTv?: string;
+  PortableSpeakers?: string;
+  PortableHeadphones?: string;
+
+  // Downmix Settings
+  LoRoCenterMixGain?: string;
+  LoRoSurroundMixGain?: string;
+  LtRtCenterMixGain?: string;
+  LtRtSurroundMixGain?: string;
+  LfeMixGain?: string;
+  PreferredDownmix?: string;
+
+  // Other metadata
+  ContentClassifier?: string;
+  bitstream_version?: string;
+  PresentationLevel?: string;
+
+  // Allow other unknown fields for forward compatibility
+  [key: string]: unknown;
 }
 
 export interface MediaInfoJSON {

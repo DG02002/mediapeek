@@ -7,8 +7,15 @@ import {
   Loader2,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useActionState, useEffect, useRef, useState } from 'react';
+import {
+  useActionState,
+  useEffect,
+  useOptimistic,
+  useRef,
+  useState,
+} from 'react';
 import { useFormStatus } from 'react-dom';
+import { Link } from 'react-router';
 
 import { MediaSkeleton } from '~/components/media-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '~/components/ui/alert';
@@ -69,7 +76,9 @@ function PasteButton({ onPaste }: { onPaste: (text: string) => void }) {
   return (
     <InputGroupButton
       type="button"
-      onClick={handlePaste}
+      onClick={() => {
+        void handlePaste();
+      }}
       title="Paste from clipboard"
     >
       <ClipboardIcon className="h-4 w-4" />
@@ -101,13 +110,13 @@ function GithubButton({ className }: { className?: string }) {
   );
 }
 
-type FormState = {
+interface FormState {
   results: Record<string, string> | null;
   error: string | null;
   status: string;
   url?: string;
   duration?: number | null;
-};
+}
 
 const initialState: FormState = {
   results: null,
@@ -140,7 +149,11 @@ export function MediaForm() {
 
       const enableTurnstile =
         typeof window !== 'undefined'
-          ? window.ENV?.ENABLE_TURNSTILE === 'true'
+          ? (
+              window as unknown as {
+                ENV?: { ENABLE_TURNSTILE?: string };
+              }
+            ).ENV?.ENABLE_TURNSTILE === 'true'
           : false;
 
       if (enableTurnstile && !turnstileToken) {
@@ -169,17 +182,14 @@ export function MediaForm() {
         const contentType = response.headers.get('content-type');
         let data: { results?: Record<string, string>; error?: string } = {};
 
-        if (contentType && contentType.includes('application/json')) {
-          data = (await response.json()) as {
-            results?: Record<string, string>;
-            error?: string;
-          };
+        if (contentType?.includes('application/json')) {
+          data = await response.json();
         } else {
           // If response is not JSON (e.g., 503 HTML page), read as text to debug or just throw
           const text = await response.text();
           if (!response.ok) {
             throw new Error(
-              `Server Error (${response.status}): The analysis worker may have crashed or timed out.`,
+              `Server Error (${String(response.status)}): The analysis worker may have crashed or timed out.`,
             );
           }
           console.error('Unexpected non-JSON response:', text);
@@ -188,10 +198,10 @@ export function MediaForm() {
 
         if (!response.ok || data.error) {
           throw new Error(
-            data.error || 'Unable to analyze URL. Verify the link is correct.',
+            data.error ?? 'Unable to analyze URL. Verify the link is correct.',
           );
         }
-        const resultData = data.results || null;
+        const resultData = data.results ?? null;
 
         const endTime = performance.now();
         const duration = endTime - startTime;
@@ -218,6 +228,14 @@ export function MediaForm() {
     initialState,
   );
 
+  const [optimisticState, setOptimisticState] = useOptimistic(
+    state,
+    (currentState, optimisticValue: Partial<FormState>) => ({
+      ...currentState,
+      ...optimisticValue,
+    }),
+  );
+
   const {
     clipboardUrl,
     ignoreClipboard,
@@ -238,6 +256,12 @@ export function MediaForm() {
     }
   }, [state]);
 
+  const handleFormAction = (formData: FormData) => {
+    // Clear any previous error immediately
+    setOptimisticState({ error: null });
+    formAction(formData);
+  };
+
   return (
     <div className="flex min-h-[50vh] w-full flex-col items-center justify-center py-10">
       <div className="relative w-full max-w-5xl sm:px-12 sm:pt-12 sm:pb-2">
@@ -246,10 +270,7 @@ export function MediaForm() {
             {/* Header Group: Icon + Title + Actions */}
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
               {/* Icon */}
-              <a
-                href="https://mediapeek.plnk.workers.dev/"
-                className="block no-underline"
-              >
+              <Link to="/" viewTransition className="block no-underline">
                 <div className="relative h-16 w-16 drop-shadow-md">
                   <img
                     src="/badges/icon-light.webp"
@@ -262,20 +283,17 @@ export function MediaForm() {
                     className="h-full w-full object-contain dark:hidden"
                   />
                 </div>
-              </a>
+              </Link>
 
               {/* Content Column: Title/Actions + Description */}
               <div className="flex flex-1 flex-col">
                 {/* Title and Desktop Actions */}
                 <div className="flex items-center justify-between">
-                  <a
-                    href="https://mediapeek.plnk.workers.dev/"
-                    className="no-underline"
-                  >
+                  <Link to="/" viewTransition className="no-underline">
                     <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
                       MediaPeek
                     </h1>
-                  </a>
+                  </Link>
                   <div className="flex items-center gap-2">
                     <GithubButton className="hidden sm:inline-flex" />
                     <ModeToggle />
@@ -293,7 +311,7 @@ export function MediaForm() {
             </div>
           </div>
 
-          <form action={formAction} className="relative space-y-8">
+          <form action={handleFormAction} className="relative space-y-8">
             {/* Clipboard Suggestion Pill */}
             <AnimatePresence>
               {clipboardUrl && (
@@ -315,9 +333,10 @@ export function MediaForm() {
                       // Populate input instantly (controlled) + Auto focus + Submit
                       const form = e.currentTarget.closest('form');
                       if (form) {
-                        const input = form.querySelector(
-                          'input[name="url"]',
-                        ) as HTMLInputElement;
+                        const input =
+                          form.querySelector<HTMLInputElement>(
+                            'input[name="url"]',
+                          );
                         if (input) {
                           input.value = clipboardUrl;
                           form.requestSubmit();
@@ -349,12 +368,12 @@ export function MediaForm() {
                     placeholder="https://example.com/video.mp4"
                     autoComplete="off"
                     key={state.url}
-                    defaultValue={state.url || ''}
+                    defaultValue={state.url ?? ''}
                     required
                     onFocus={() => {
                       // Lazy check for clipboard (Chromium only).
                       if (isClipboardApiSupported) {
-                        checkClipboard();
+                        void checkClipboard();
                       }
                     }}
                   />
@@ -376,7 +395,11 @@ export function MediaForm() {
 
             {/* Turnstile Container */}
             {typeof window !== 'undefined' &&
-              window.ENV?.ENABLE_TURNSTILE === 'true' && (
+              (
+                window as unknown as {
+                  ENV?: { ENABLE_TURNSTILE?: string };
+                }
+              ).ENV?.ENABLE_TURNSTILE === 'true' && (
                 <div
                   className={`flex justify-center ${isTurnstileVerified ? 'hidden' : ''}`}
                 >
@@ -402,12 +425,12 @@ export function MediaForm() {
               )}
           </form>
 
-          {!isPending && state.error && (
+          {!isPending && optimisticState.error && (
             <div>
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{state.error}</AlertDescription>
+                <AlertDescription>{optimisticState.error}</AlertDescription>
               </Alert>
             </div>
           )}
@@ -417,10 +440,13 @@ export function MediaForm() {
       {isPending && <MediaSkeleton />}
 
       {/* Result Card */}
-      {state.results && !isPending && (
+      {optimisticState.results && !isPending && (
         <div className="w-full max-w-5xl px-0 sm:px-12">
           <div className="animate-in fade-in slide-in-from-bottom-4 mt-2 duration-500">
-            <MediaView data={state.results} url={state.url || ''} />{' '}
+            <MediaView
+              data={optimisticState.results}
+              url={optimisticState.url ?? ''}
+            />{' '}
             {/* Default uses JSON for formatted view */}
           </div>
         </div>

@@ -98,7 +98,7 @@ export function OptionsMenu({
 
   const copyToClipboard = () => {
     if (shareData?.url) {
-      navigator.clipboard.writeText(shareData.url);
+      void navigator.clipboard.writeText(shareData.url);
       toast.success('Link copied to clipboard');
     }
   };
@@ -218,8 +218,10 @@ export function OptionsMenu({
               <DropdownMenuSubContent className="w-48">
                 {formats.map((fmt, i) => (
                   <DropdownMenuItem
-                    key={`${fmt.id}-${i}`}
-                    onClick={() => handleCopy(fmt.id, fmt.label)}
+                    key={`${fmt.id}-${String(i)}`}
+                    onClick={() => {
+                      handleCopy(fmt.id, fmt.label);
+                    }}
                   >
                     Copy {fmt.label}
                   </DropdownMenuItem>
@@ -235,8 +237,10 @@ export function OptionsMenu({
               <DropdownMenuSubContent className="w-48">
                 {formats.map((fmt, i) => (
                   <DropdownMenuItem
-                    key={`${fmt.id}-${i}`}
-                    onClick={() => handleShareClick(fmt.id, fmt.label)}
+                    key={`${fmt.id}-${String(i)}`}
+                    onClick={() => {
+                      void handleShareClick(fmt.id, fmt.label);
+                    }}
                   >
                     Share {fmt.label}
                   </DropdownMenuItem>
@@ -304,7 +308,7 @@ export function OptionsMenu({
                   <div className="grid grid-cols-3 gap-2">
                     {formats.map((fmt, i) => (
                       <Button
-                        key={`copy-${fmt.id}-${i}`}
+                        key={`copy-${fmt.id}-${String(i)}`}
                         variant="ghost"
                         size="sm"
                         className="bg-muted/30 hover:bg-muted/50 border"
@@ -325,12 +329,12 @@ export function OptionsMenu({
                   <div className="grid grid-cols-3 gap-2">
                     {formats.map((fmt, i) => (
                       <Button
-                        key={`share-${fmt.id}-${i}`}
+                        key={`share-${fmt.id}-${String(i)}`}
                         variant="ghost"
                         size="sm"
                         className="bg-muted/30 hover:bg-muted/50 border"
                         onClick={() => {
-                          handleShareClick(fmt.id, fmt.label);
+                          void handleShareClick(fmt.id, fmt.label);
                           // No need to close drawer here as dialog will open
                         }}
                       >

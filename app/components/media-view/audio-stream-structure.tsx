@@ -30,7 +30,7 @@ export const AudioStreamStructure = memo(function AudioStreamStructure({
 
     const gData: Record<string, unknown> = {};
     globalKeys.forEach((key) => {
-      if (track.extra && track.extra[key]) {
+      if (track.extra?.[key]) {
         gData[key] = track.extra[key];
       }
     });

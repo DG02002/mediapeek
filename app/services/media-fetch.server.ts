@@ -1,9 +1,13 @@
+import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
+
 import {
   extractFilenameFromUrl,
   getEmulationHeaders,
   resolveGoogleDriveUrl,
   validateUrl,
 } from '~/lib/server-utils';
+import { mediaPeekEmitter } from '~/services/event-bus.server';
 
 export interface FetchDiagnostics {
   headRequestDurationMs: number;
@@ -20,6 +24,7 @@ export interface MediaFetchResult {
   filename: string;
   fileSize?: number;
   diagnostics: FetchDiagnostics;
+  hash?: string;
 }
 
 export async function fetchMediaChunk(
@@ -81,7 +86,9 @@ export async function fetchMediaChunk(
         'Access denied. The link may have expired or requires authentication.',
       );
     } else {
-      throw new Error(`Unable to access file (HTTP ${headRes.status}).`);
+      throw new Error(
+        `Unable to access file (HTTP ${String(headRes.status)}).`,
+      );
     }
   }
 
@@ -89,7 +96,7 @@ export async function fetchMediaChunk(
   let fileSize: number | undefined;
   const contentRange = headRes.headers.get('content-range');
   if (contentRange) {
-    const match = contentRange.match(/\/(\d+)$/);
+    const match = /\/(\d+)$/.exec(contentRange);
     if (match) {
       fileSize = parseInt(match[1], 10);
     }
@@ -109,16 +116,16 @@ export async function fetchMediaChunk(
   let filename = extractFilenameFromUrl(targetUrl);
   const contentDisposition = headRes.headers.get('content-disposition');
   if (contentDisposition) {
-    const starMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
-    if (starMatch && starMatch[1]) {
+    const starMatch = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition);
+    if (starMatch?.[1]) {
       try {
         filename = decodeURIComponent(starMatch[1]);
       } catch {
         // failed to decode, keep original
       }
     } else {
-      const normalMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
-      if (normalMatch && normalMatch[1]) {
+      const normalMatch = /filename="?([^";]+)"?/i.exec(contentDisposition);
+      if (normalMatch?.[1]) {
         filename = normalMatch[1];
       }
     }
@@ -134,7 +141,7 @@ export async function fetchMediaChunk(
 
   const tFetch = performance.now();
   const response = await fetch(targetUrl, {
-    headers: getEmulationHeaders(`bytes=0-${fetchEnd}`),
+    headers: getEmulationHeaders(`bytes=0-${String(fetchEnd)}`),
     redirect: 'follow',
   });
   diagnostics.fetchRequestDurationMs = Math.round(performance.now() - tFetch);
@@ -149,12 +156,10 @@ export async function fetchMediaChunk(
 
   // Check for Zip Header to transparently decompress Deflate streams
   // We need to read the first chunk primarily to check for the Zip signature.
-  const ZIP_SIG = [0x50, 0x4b, 0x03, 0x04];
-
   let firstChunk: Uint8Array | null = null;
   {
     const { done, value } = await reader.read();
-    if (!done && value) {
+    if (!done) {
       firstChunk = value;
     }
   }
@@ -162,58 +167,57 @@ export async function fetchMediaChunk(
   let finalReader = reader;
   let isZipCompressed = false;
 
-  // Verify Zip Signature
-  if (
-    firstChunk &&
-    firstChunk.length > 30 &&
-    firstChunk[0] === ZIP_SIG[0] &&
-    firstChunk[1] === ZIP_SIG[1] &&
-    firstChunk[2] === ZIP_SIG[2] &&
-    firstChunk[3] === ZIP_SIG[3]
-  ) {
-    // Check compression method at offset 8 (2 bytes, little endian)
-    const compressionMethod = firstChunk[8] | (firstChunk[9] << 8);
+  // Verify Zip Signature using Buffer
+  if (firstChunk && firstChunk.byteLength > 30) {
+    const buffer = Buffer.from(firstChunk); // View as Buffer for easier parsing
+    // Check for ZIP Local File Header Signature: 0x04034b50 (LE)
+    if (buffer.readUInt32LE(0) === 0x04034b50) {
+      // Check compression method at offset 8 (2 bytes)
+      const compressionMethod = buffer.readUInt16LE(8);
 
-    // Method 8 is DEFLATE. Method 0 is STORED.
-    if (compressionMethod === 8) {
-      // Zip Deflate detected: Create a DecompressionStream to unzip on-the-fly.
-      isZipCompressed = true;
+      // Method 8 is DEFLATE. Method 0 is STORED.
+      if (compressionMethod === 8) {
+        // Zip Deflate detected: Create a DecompressionStream to unzip on-the-fly.
+        isZipCompressed = true;
 
-      // Parse local file header to find where the compressed data starts
-      const fileNameLength = firstChunk[26] | (firstChunk[27] << 8);
-      const extraFieldLength = firstChunk[28] | (firstChunk[29] << 8);
-      const dataOffset = 30 + fileNameLength + extraFieldLength;
+        // Parse local file header to find where the compressed data starts
+        const fileNameLength = buffer.readUInt16LE(26);
+        const extraFieldLength = buffer.readUInt16LE(28);
+        const dataOffset = 30 + fileNameLength + extraFieldLength;
 
-      // Ensure we have enough data in the first chunk to strip the header
-      if (firstChunk.length > dataOffset) {
-        const dataInFirstChunk = firstChunk.subarray(dataOffset);
+        // Ensure we have enough data in the first chunk to strip the header
+        if (firstChunk.length > dataOffset) {
+          const dataInFirstChunk = firstChunk.subarray(dataOffset);
 
-        // 1. Create a stream that emits the rest of the first chunk (minus header) + the original stream
-        const rawCompressedStream = new ReadableStream({
-          start(controller) {
-            if (dataInFirstChunk.byteLength > 0) {
-              controller.enqueue(dataInFirstChunk);
-            }
-          },
-          async pull(controller) {
-            const { done, value } = await reader.read();
-            if (done) {
-              controller.close();
-            } else {
-              controller.enqueue(value);
-            }
-          },
-          cancel() {
-            reader.cancel();
-          },
-        });
+          // 1. Create a stream that emits the rest of the first chunk (minus header) + the original stream
+          const rawCompressedStream = new ReadableStream({
+            start(controller) {
+              if (dataInFirstChunk.byteLength > 0) {
+                controller.enqueue(dataInFirstChunk);
+              }
+            },
+            async pull(controller) {
+              const { done, value } = await reader.read();
+              if (done) {
+                controller.close();
+              } else {
+                controller.enqueue(value);
+              }
+            },
+            cancel() {
+              void reader.cancel();
+            },
+          });
 
-        // 2. Pipe through DecompressionStream to get raw media data
-        const decompressor = new DecompressionStream('deflate-raw');
-        finalReader = rawCompressedStream.pipeThrough(decompressor).getReader();
+          // 2. Pipe through DecompressionStream to get raw media data
+          const decompressor = new DecompressionStream('deflate-raw');
+          finalReader = rawCompressedStream
+            .pipeThrough(decompressor)
+            .getReader();
 
-        // firstChunk is now consumed by the new stream pipeline
-        firstChunk = null;
+          // firstChunk is now consumed by the new stream pipeline
+          firstChunk = null;
+        }
       }
     }
   }
@@ -230,7 +234,7 @@ export async function fetchMediaChunk(
         // If buffer full from just the first chunk, close the original reader.
         // We only cancel the original reader if we didn't upgrade to a decompression pipeline,
         // because the decompression pipeline manages the original reader's lifecycle.
-        if (!isZipCompressed) await reader.cancel();
+        if (!isZipCompressed) void reader.cancel();
       } else {
         tempBuffer.set(firstChunk, offset);
         offset += firstChunk.byteLength;
@@ -238,27 +242,31 @@ export async function fetchMediaChunk(
     }
 
     // Now read the rest
-    if (offset < SAFE_LIMIT) {
-      while (true) {
-        const { done, value } = await finalReader.read();
-        if (done) break;
+    // Now read the rest
+    while (offset < SAFE_LIMIT) {
+      const { done, value } = await finalReader.read();
+      if (done) break;
 
-        const spaceLeft = SAFE_LIMIT - offset;
+      const spaceLeft = SAFE_LIMIT - offset;
 
-        if (value.byteLength > spaceLeft) {
-          tempBuffer.set(value.subarray(0, spaceLeft), offset);
-          offset += spaceLeft;
-          await finalReader.cancel();
-          break;
-        } else {
-          tempBuffer.set(value, offset);
-          offset += value.byteLength;
-        }
+      if (value.byteLength > spaceLeft) {
+        tempBuffer.set(value.subarray(0, spaceLeft), offset);
+        offset += spaceLeft;
+        await finalReader.cancel();
+        break;
+      } else {
+        tempBuffer.set(value, offset);
+        offset += value.byteLength;
       }
     }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
 
+    console.error(
+      `Failed to close stream reader (HTTP ${String(diagnostics.responseStatus)}): ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
     // DecompressionStream throws if the stream ends while expecting more data (valid for partial fetches)
     if (
       offset > 0 &&
@@ -276,12 +284,26 @@ export async function fetchMediaChunk(
   // Create a view of the actual data we read (no copy)
   const fileBuffer = tempBuffer.subarray(0, offset);
 
+  // Compute SHA-256 Integrity Hash
+  const hash = createHash('sha256').update(fileBuffer).digest('hex');
+
   diagnostics.totalDurationMs = Math.round(performance.now() - tStart);
 
-  return {
+  const result: MediaFetchResult = {
     buffer: fileBuffer,
     filename,
     fileSize,
     diagnostics: diagnostics as FetchDiagnostics,
+    hash,
   };
+
+  // Emit Telemetry
+  mediaPeekEmitter.emit('fetch:complete', {
+    diagnostics: result.diagnostics,
+    fileSize: result.fileSize,
+    filename: result.filename,
+    hash: result.hash,
+  });
+
+  return result;
 }

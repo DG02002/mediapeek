@@ -19,6 +19,7 @@ import {
 import { Toaster } from '~/components/ui/sonner';
 
 import type { Route } from './+types/root';
+import { RouteAnnouncer } from './components/route-announcer';
 import { createThemeSessionResolverWithSecret } from './sessions.server';
 
 declare global {
@@ -60,7 +61,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 export function Layout({ children }: { children: React.ReactNode }) {
   const data = useLoaderData<typeof loader>();
   return (
-    <ThemeProvider specifiedTheme={data?.theme} themeAction="/action/set-theme">
+    <ThemeProvider specifiedTheme={data.theme} themeAction="/action/set-theme">
       <AppWithProviders>{children}</AppWithProviders>
     </ThemeProvider>
   );
@@ -80,17 +81,17 @@ function AppWithProviders({ children }: { children: React.ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
-        <PreventFlashOnWrongTheme ssrTheme={Boolean(data?.theme)} />
+        <PreventFlashOnWrongTheme ssrTheme={Boolean(data.theme)} />
         <Links />
         {/* Dynamic Favicons */}
-        {theme === 'light' ? (
+        {String(theme) === 'light' ? (
           <link
             rel="icon"
             type="image/png"
             sizes="32x32"
             href="/favicon-dark-32x32.png"
           />
-        ) : theme === 'dark' ? (
+        ) : String(theme) === 'dark' ? (
           <link
             rel="icon"
             type="image/png"
@@ -118,7 +119,7 @@ function AppWithProviders({ children }: { children: React.ReactNode }) {
         )}
         <script
           dangerouslySetInnerHTML={{
-            __html: `window.ENV = ${JSON.stringify(data?.env)}`,
+            __html: `window.ENV = ${JSON.stringify(data.env)}`,
           }}
         />
         <script
@@ -133,6 +134,7 @@ function AppWithProviders({ children }: { children: React.ReactNode }) {
           <Toaster position={isMobile ? 'top-center' : 'bottom-right'} />
         </div>
         <ScrollRestoration />
+        <RouteAnnouncer />
         <Scripts />
       </body>
     </html>

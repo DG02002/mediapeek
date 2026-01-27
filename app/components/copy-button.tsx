@@ -17,7 +17,9 @@ export function CopyButton({ content, className }: CopyButtonProps) {
     try {
       await navigator.clipboard.writeText(content);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => {
+        setCopied(false);
+      }, 2000);
     } catch (err) {
       console.error('Failed to copy to clipboard', err);
     }
@@ -27,7 +29,9 @@ export function CopyButton({ content, className }: CopyButtonProps) {
     <Button
       variant="secondary"
       size="icon"
-      onClick={handleCopy}
+      onClick={() => {
+        void handleCopy();
+      }}
       className={className}
       title="Copy to clipboard"
     >

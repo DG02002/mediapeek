@@ -1,31 +1,26 @@
-import { useEffect, useState } from 'react';
-import type { MetaFunction } from 'react-router';
+import { MediaForm } from '~/components/media-form';
+import { useHydrated } from '~/hooks/use-hydrated';
 
-import { MediaForm } from '../components/media-form';
+import type { Route } from './+types/route';
 
-export const meta: MetaFunction = () => {
+export const meta: Route.MetaFunction = () => {
   return [
     { title: 'MediaPeek' },
     {
       name: 'description',
       content:
-        'Analyze media files directly in your browser using Cloudflare Workers proxy and MediaInfo.js',
+        'Analyze media files directly in your browser using Cloudflare Workers and MediaInfo.js',
     },
   ];
 };
 
 export default function Index() {
-  const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsClient(true);
-  }, []);
+  const isHydrated = useHydrated();
 
   return (
     <div className="flex min-h-screen flex-col font-sans">
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col items-center justify-start px-4 pt-4 lg:px-8">
-        {isClient ? (
+        {isHydrated ? (
           <MediaForm />
         ) : (
           <div className="flex w-full max-w-3xl animate-pulse flex-col gap-8 py-8">

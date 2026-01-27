@@ -18,7 +18,7 @@ export const VideoSection = memo(function VideoSection({
       <div className="grid gap-4">
         {videoTracks.map((video, idx) => (
           <VideoTrackItem
-            key={video.ID || video.UniqueID || idx}
+            key={video.ID ?? video.UniqueID ?? idx}
             video={video}
           />
         ))}

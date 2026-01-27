@@ -24,8 +24,8 @@ export const AudioTrackRow = memo(function AudioTrackRow({
   showTrackNumber,
   showOriginalTitles,
 }: AudioTrackRowProps) {
-  const langName = track['Language_String'] || track['Language'] || 'Unknown';
-  const rawTitle = track['Title'];
+  const langName = track.Language_String ?? track.Language ?? 'Unknown';
+  const rawTitle = track.Title;
 
   const title = useMemo(() => {
     return showOriginalTitles
@@ -34,21 +34,21 @@ export const AudioTrackRow = memo(function AudioTrackRow({
   }, [showOriginalTitles, rawTitle, track, langName]);
 
   const channelsStr =
-    formatAudioChannels(track['Channels'], track['ChannelPositions']) ||
-    track['Channel(s)_String'] ||
-    track['Channels_String'] ||
-    track['Channel(s)'] ||
-    track['Channels'];
+    (formatAudioChannels(track.Channels, track.ChannelPositions) ||
+      track['Channel(s)_String']) ??
+    track.Channels_String ??
+    track['Channel(s)'] ??
+    track.Channels;
 
   let channels = String(channelsStr);
 
   if (track.extra?.NumberOfDynamicObjects) {
-    channels += ` with ${track.extra.NumberOfDynamicObjects} Objects`;
+    channels += ` with ${String(track.extra.NumberOfDynamicObjects)} Objects`;
   } else if (Array.isArray(track.extra?.SignalGroup)) {
-    const signalGroups = track.extra.SignalGroup as Array<{
+    const signalGroups = track.extra.SignalGroup as {
       Type?: string;
       NumberOfObjects?: string;
-    }>;
+    }[];
     const objectCount = signalGroups.reduce((acc, group) => {
       if (group.Type === 'Object' && group.NumberOfObjects) {
         return acc + (parseInt(group.NumberOfObjects, 10) || 0);
@@ -57,28 +57,28 @@ export const AudioTrackRow = memo(function AudioTrackRow({
     }, 0);
 
     if (objectCount > 0) {
-      channels += ` with ${objectCount} Objects`;
+      channels += ` with ${String(objectCount)} Objects`;
     }
   }
 
-  const commercial = cleanMetadataString(track['Format_Commercial_IfAny']);
-  const info = track['Format_Info'];
-  const rawFormat = cleanMetadataString(track['Format']);
-  const codecInfo = track['CodecID_Info'];
+  const commercial = cleanMetadataString(track.Format_Commercial_IfAny);
+  const info = track.Format_Info;
+  const rawFormat = cleanMetadataString(track.Format);
+  const codecInfo = track.CodecID_Info;
 
   // Prioritize CodecID_Info if available
-  const format = codecInfo || commercial || info || rawFormat;
+  const format = codecInfo ?? commercial ?? info ?? rawFormat;
   const subFormat = commercial && info ? info : undefined;
 
   const renderBadges = () => {
     return (
       <>
-        {track['Default'] === 'Yes' && (
+        {track.Default === 'Yes' && (
           <Badge className="border border-emerald-500/20 bg-emerald-500/15 text-[10px] text-emerald-700 hover:bg-emerald-500/25 dark:bg-emerald-500/20 dark:text-emerald-400">
             Default
           </Badge>
         )}
-        {track['Forced'] === 'Yes' && (
+        {track.Forced === 'Yes' && (
           <Badge className="border border-amber-500/20 bg-amber-500/15 text-[10px] text-amber-700 hover:bg-amber-500/25 dark:bg-amber-500/20 dark:text-amber-400">
             Forced
           </Badge>
@@ -144,9 +144,9 @@ export const AudioTrackRow = memo(function AudioTrackRow({
                   </span>
                 )}
               </span>
-              {track['ChannelLayout'] && (
+              {track.ChannelLayout && (
                 <span className="text-muted-foreground font-mono text-xs">
-                  {track['ChannelLayout']}
+                  {track.ChannelLayout}
                 </span>
               )}
             </div>

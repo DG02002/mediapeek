@@ -14,10 +14,10 @@ export const SubtitleTrackRow = memo(function SubtitleTrackRow({
   track,
   showOriginalTitles,
 }: SubtitleTrackRowProps) {
-  const langName = track['Language_String'] || track['Language'] || 'Unknown';
-  const rawTitle = track['Title'];
-  const format = track['Format_Info'] || track['Format'];
-  const codecId = track['CodecID'];
+  const langName = track.Language_String ?? track.Language ?? 'Unknown';
+  const rawTitle = track.Title;
+  const format = track.Format_Info ?? track.Format;
+  const codecId = track.CodecID;
 
   const displayTitle = useMemo(() => {
     return showOriginalTitles
@@ -26,15 +26,15 @@ export const SubtitleTrackRow = memo(function SubtitleTrackRow({
   }, [showOriginalTitles, rawTitle, track, langName]);
 
   const isForcedTitle =
-    rawTitle && rawTitle.toLowerCase() === `${langName} (Forced)`.toLowerCase();
+    rawTitle?.toLowerCase() === `${langName} (Forced)`.toLowerCase();
 
   const showTitle =
     displayTitle &&
     displayTitle.length > 0 &&
     displayTitle.toLowerCase() !== langName.toLowerCase() &&
-    !(isForcedTitle && track['Forced'] === 'Yes');
+    !(isForcedTitle && track.Forced === 'Yes');
 
-  let displayFormat = track['CodecID_Info'] || format;
+  let displayFormat = track.CodecID_Info ?? format;
   if (!displayFormat && codecId && format) {
     displayFormat = `${format} (${codecId})`;
   } else if (!displayFormat && codecId) {
@@ -43,12 +43,12 @@ export const SubtitleTrackRow = memo(function SubtitleTrackRow({
 
   const renderBadges = () => (
     <>
-      {track['Default'] === 'Yes' && (
+      {track.Default === 'Yes' && (
         <Badge className="h-5 border border-emerald-500/20 bg-emerald-500/15 text-[10px] text-emerald-700 hover:bg-emerald-500/25 dark:bg-emerald-500/20 dark:text-emerald-400">
           Default
         </Badge>
       )}
-      {track['Forced'] === 'Yes' && (
+      {track.Forced === 'Yes' && (
         <Badge className="h-5 border border-amber-500/20 bg-amber-500/15 text-[10px] text-amber-700 hover:bg-amber-500/25 dark:bg-amber-500/20 dark:text-amber-400">
           Forced
         </Badge>

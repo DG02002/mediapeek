@@ -29,7 +29,7 @@ export const ChapterSection = memo(function ChapterSection({
               </span>
               <span className="text-foreground/85 truncate font-medium break-all">
                 {
-                  String(name).replace(
+                  name.replace(
                     /^[a-z]{2}:/,
                     '',
                   ) /* Remove 'en:' prefix if present */

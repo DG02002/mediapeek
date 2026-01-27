@@ -1,3 +1,5 @@
+import { getString } from '~/lib/type-guards';
+
 const COMMON_AUDIO_TERMS_TO_REMOVE = [
   'Lossless',
   '16-bit',
@@ -95,9 +97,12 @@ const AUDIO_FORMAT_RULES: FormatRule[] = [
   },
 ];
 
-export const cleanMetadataString = (s: string | undefined): string => {
-  if (!s) return '';
-  return s.trim();
+export const cleanMetadataString = (
+  s: string | undefined | null,
+): string | undefined => {
+  if (!s) return undefined;
+  const trimmed = s.trim();
+  return trimmed === '' ? undefined : trimmed;
 };
 
 export const cleanBitrateString = (s: string | undefined): string => {
@@ -220,7 +225,7 @@ const polishTitle = (text: string): string => {
 export const cleanTrackTitle = (
   title: string | undefined,
   langName: string | undefined,
-): string | null => {
+): string | null | undefined => {
   if (!title || !langName) return null;
 
   let displayTitle = title;
@@ -230,10 +235,7 @@ export const cleanTrackTitle = (
   }
 
   // Use our helper to remove language names
-  displayTitle = removeKeywords(
-    displayTitle,
-    namesToRemove.filter(Boolean) as string[],
-  );
+  displayTitle = removeKeywords(displayTitle, namesToRemove.filter(Boolean));
 
   // Remove "Forced" labeling (redundant with Badge)
   displayTitle = displayTitle.replace(/(\[|\()?\s*\bForced\b\s*(\]|\))?/gi, '');
@@ -246,7 +248,7 @@ export const cleanAudioTrackTitle = (
   title: string | undefined | null,
   track: Record<string, unknown>,
   langName?: string,
-): string | null => {
+): string | null | undefined => {
   if (!title) return null;
 
   let processingTitle = title;
@@ -254,7 +256,7 @@ export const cleanAudioTrackTitle = (
   // 1. Language Removal
   if (langName) {
     const cleaned = cleanTrackTitle(processingTitle, langName);
-    if (cleaned !== null) processingTitle = cleaned;
+    if (cleaned !== null && cleaned !== undefined) processingTitle = cleaned;
   }
 
   // 2. Identify Keywords to Remove
@@ -268,9 +270,10 @@ export const cleanAudioTrackTitle = (
   });
 
   // B. Format Rules
-  const format = String(track.Format || '').toUpperCase();
-  const formatCom = String(track.Format_Commercial || '').toUpperCase();
-  const codecId = String(track.CodecID || '').toUpperCase();
+  // B. Format Rules
+  const format = (getString(track, 'Format') ?? '').toUpperCase();
+  const formatCom = (getString(track, 'Format_Commercial') ?? '').toUpperCase();
+  const codecId = (getString(track, 'CodecID') ?? '').toUpperCase();
 
   AUDIO_FORMAT_RULES.forEach((rule) => {
     if (rule.check(format, formatCom, codecId)) {
@@ -299,7 +302,7 @@ export const cleanSubtitleTrackTitle = (
   title: string | undefined | null,
   track: Record<string, unknown>,
   langName?: string,
-): string | null => {
+): string | null | undefined => {
   if (!title) return null;
 
   let processingTitle = title;
@@ -307,7 +310,7 @@ export const cleanSubtitleTrackTitle = (
   // 1. Language Removal
   if (langName) {
     const cleaned = cleanTrackTitle(processingTitle, langName);
-    if (cleaned !== null) processingTitle = cleaned;
+    if (cleaned !== null && cleaned !== undefined) processingTitle = cleaned;
   }
 
   // 2. Identify Keywords to Remove
@@ -345,18 +348,18 @@ export const formatAudioChannels = (
   const count = Number(channels);
   if (!channels || isNaN(count)) return '';
 
-  const cleanPositions = (positions || '').toUpperCase();
-  const lfeCount = (cleanPositions.match(/\bLFE\d*\b/g) || []).length;
+  const cleanPositions = (positions ?? '').toUpperCase();
+  const lfeCount = (cleanPositions.match(/\bLFE\d*\b/g) ?? []).length;
 
   const heightRegex =
     /\b(TFL|TFR|TBL|TBR|TSL|TSR|THL|THR|TFC|TBC|VHL|VHR|TC|TCS)\b/g;
-  const heightCount = (cleanPositions.match(heightRegex) || []).length;
+  const heightCount = (cleanPositions.match(heightRegex) ?? []).length;
 
   const mainCount = count - lfeCount - heightCount;
 
-  let layout = `${mainCount}.${lfeCount}`;
+  let layout = `${String(mainCount)}.${String(lfeCount)}`;
   if (heightCount > 0) {
-    layout += `.${heightCount}`; // e.g., 5.1.4
+    layout += `.${String(heightCount)}`; // e.g., 5.1.4
   }
 
   switch (layout) {

@@ -37,12 +37,11 @@ export function useClipboardSuggestion(currentUrl: string | undefined) {
   useEffect(() => {
     const attemptAutoRead = async () => {
       try {
-        if (
-          typeof navigator !== 'undefined' &&
-          navigator.permissions &&
-          navigator.permissions.query
-        ) {
-          const result = await navigator.permissions.query({
+        const nav = navigator as Partial<Navigator> & {
+          permissions?: Permissions;
+        };
+        if (nav.permissions?.query) {
+          const result = await nav.permissions.query({
             name: 'clipboard-read' as PermissionName,
           });
 
@@ -50,7 +49,7 @@ export function useClipboardSuggestion(currentUrl: string | undefined) {
 
           if (result.state === 'granted') {
             setIsPermissionGranted(true);
-            checkClipboard();
+            void checkClipboard();
           } else if (result.state === 'prompt') {
             // Do not read on load. Wait for user interaction (focus).
             setIsPermissionGranted(false);
@@ -67,13 +66,17 @@ export function useClipboardSuggestion(currentUrl: string | undefined) {
     };
 
     if (typeof window !== 'undefined') {
-      attemptAutoRead();
-      window.addEventListener('focus', attemptAutoRead);
+      void attemptAutoRead();
+      window.addEventListener('focus', () => {
+        void attemptAutoRead();
+      });
     }
 
     return () => {
       if (typeof window !== 'undefined') {
-        window.removeEventListener('focus', attemptAutoRead);
+        window.removeEventListener('focus', () => {
+          void attemptAutoRead();
+        });
       }
     };
   }, [checkClipboard]);

@@ -1,13 +1,12 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 // Hardcoded service metadata for now.
 // In a real build pipeline, these would be injected via define variables or env vars.
 const SERVICE_NAME = 'mediapeek-worker';
 const SERVICE_VERSION = '1.0.0'; // TODO: hook up to git commit hash
 
-export interface LogEvent {
-  severity: 'INFO' | 'WARNING' | 'ERROR';
-  message: string;
+export interface LogContext {
   requestId: string;
-
   httpRequest?: {
     requestMethod: string;
     requestUrl: string;
@@ -16,6 +15,17 @@ export interface LogEvent {
     userAgent?: string;
     latency?: string;
   };
+  customContext?: Record<string, unknown>;
+}
+
+export const requestStorage = new AsyncLocalStorage<LogContext>();
+
+export interface LogEvent {
+  severity: 'INFO' | 'WARNING' | 'ERROR';
+  message: string;
+  requestId?: string; // Made optional as it can be inferred from store
+
+  httpRequest?: LogContext['httpRequest'];
   context?: Record<string, unknown>;
   error?: unknown;
 
@@ -42,12 +52,7 @@ function shouldSample(event: LogEvent): boolean {
   // In development, we might want 100%, but let's stick to logic for now.
   // We'll trust the caller environment check if they want to force log.
   // Actually, for local dev, let's keep all.
-  if (
-    typeof import.meta !== 'undefined' &&
-    import.meta.env &&
-    import.meta.env.DEV
-  )
-    return true;
+  if (import.meta.env.DEV) return true;
 
   return Math.random() < 0.1;
 }
@@ -58,16 +63,28 @@ function shouldSample(event: LogEvent): boolean {
  * Output: Single line JSON object
  */
 export function log(event: LogEvent) {
-  if (!shouldSample(event)) return;
+  const store = requestStorage.getStore();
+
+  const mergedEvent: LogEvent = {
+    ...event,
+    requestId: event.requestId ?? store?.requestId ?? 'unknown',
+    httpRequest: event.httpRequest ?? store?.httpRequest,
+    context: {
+      ...store?.customContext,
+      ...event.context,
+    },
+  };
+
+  if (!shouldSample(mergedEvent)) return;
 
   const logPayload = JSON.stringify({
     timestamp: new Date().toISOString(),
     service: SERVICE_NAME,
     version: SERVICE_VERSION,
-    ...event,
+    ...mergedEvent,
   });
 
-  switch (event.severity) {
+  switch (mergedEvent.severity) {
     case 'ERROR':
       console.error(logPayload);
       break;

@@ -21,7 +21,7 @@ export const SubtitleSection = memo(function SubtitleSection({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {textTracks.map((text, idx) => (
           <SubtitleTrackRow
-            key={text.ID || text.UniqueID || idx}
+            key={text.ID ?? text.UniqueID ?? idx}
             track={text}
             showOriginalTitles={showOriginalTitles}
           />

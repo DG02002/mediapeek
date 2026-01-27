@@ -5,7 +5,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mediapeek",
-  "compatibility_date": "2025-04-04",
+  "compatibility_date": "2026-01-26",
   "compatibility_flags": ["nodejs_compat"],
   "main": "./workers/app.ts",
   "vars": {

@@ -4,8 +4,17 @@ import {
   type MediaInfo,
 } from '~/services/mediainfo-factory.server';
 
-export interface MediaInfoResult {
-  [key: string]: string;
+// Strict typing for MediaInfo results, removing 'any' usage
+export interface MediaInfoResult extends Record<string, unknown> {
+  media?: {
+    track?: {
+      '@type': string;
+      CompleteName?: string;
+      Complete_name?: string;
+      File_Name?: string;
+      [key: string]: unknown;
+    }[];
+  };
 }
 
 export interface MediaInfoDiagnostics {
@@ -25,6 +34,21 @@ export interface MediaInfoAnalysis {
 
 export type MediaInfoFormat = 'object' | 'Text' | 'XML' | 'HTML';
 
+/**
+ * Wrapper to make MediaInfo compatible with 'using' keyword (Explicit Resource Management)
+ */
+class DisposableMediaInfo implements Disposable {
+  public instance: MediaInfo;
+
+  constructor(instance: MediaInfo) {
+    this.instance = instance;
+  }
+
+  [Symbol.dispose]() {
+    this.instance.close();
+  }
+}
+
 export async function analyzeMediaBuffer(
   fileBuffer: Uint8Array,
   fileSize: number | undefined,
@@ -43,11 +67,11 @@ export async function analyzeMediaBuffer(
     formatErrors: {},
   };
 
-  const readChunk = async (size: number, offset: number) => {
+  const readChunk = (chunkSize: number, offset: number) => {
     if (offset >= fileBuffer.byteLength) {
       return new Uint8Array(0);
     }
-    const end = Math.min(offset + size, fileBuffer.byteLength);
+    const end = Math.min(offset + chunkSize, fileBuffer.byteLength);
     return fileBuffer.subarray(offset, end);
   };
 
@@ -70,18 +94,23 @@ export async function analyzeMediaBuffer(
 
   const results: Record<string, string> = {};
 
-  // Generate formats sequentially to save memory/CPU
   // Default to JSON if no format specified effectively
   if (formatsToGenerate.length === 0) {
     formatsToGenerate.push({ type: 'object', key: 'json' });
   }
 
-  let infoInstance: MediaInfo | undefined;
   try {
     const tFactory = performance.now();
-    infoInstance = await createMediaInfo();
 
-    // Set initial options (defaults for subsequent loops)
+    // Explicit Resource Management: Auto-closes 'info' when leaving scope
+    // Note: We need a wrapper because correct TS 'using' requires an object with [Symbol.dispose]
+    // and pure mediainfo.js instance might not have it polyfilled directly.
+    // If MediaInfo adds Symbol.dispose native support we can remove the wrapper.
+    const rawInstance = await createMediaInfo();
+    using disposableInfo = new DisposableMediaInfo(rawInstance);
+    const infoInstance = disposableInfo.instance;
+
+    // Set initial options
     infoInstance.options.chunkSize = 5 * 1024 * 1024;
     infoInstance.options.coverData = false;
 
@@ -90,19 +119,13 @@ export async function analyzeMediaBuffer(
     for (const { type, key } of formatsToGenerate) {
       const tFormat = performance.now();
       try {
-        // Use 'text' (lowercase) for Text view to match MediaInfo expectation
         const formatStr = type === 'Text' ? 'text' : type;
 
         infoInstance.options.format = formatStr as 'object';
-        // Enable full output (internal tags) for object/JSON view AND Text view
-        infoInstance.options.full = Boolean(
-          type === 'object' || type === 'Text',
-        );
+        infoInstance.options.full = type === 'object' || type === 'Text';
 
         infoInstance.reset();
 
-        // For 'object' format, analyzeData returns the result directly.
-        // For others, we need to call inform().
         const resultData = await infoInstance.analyzeData(
           () => effectiveFileSize,
           readChunk,
@@ -115,22 +138,21 @@ export async function analyzeMediaBuffer(
 
         if (type === 'object') {
           try {
-            // Normalize the data (unwrap { #value } objects) before returning
-            const json = normalizeMediaInfo(resultData);
+            // Normalize the data (unwrap { #value } objects)
+            const json = normalizeMediaInfo(resultData) as MediaInfoResult;
 
-            if (json && json.media && json.media.track) {
-              /* eslint-disable @typescript-eslint/no-explicit-any */
+            if (json.media?.track) {
               const generalTrack = json.media.track.find(
-                (t: any) => t['@type'] === 'General',
-              ) as any;
-              /* eslint-enable @typescript-eslint/no-explicit-any */
+                (t) => t['@type'] === 'General',
+              );
+
               if (generalTrack) {
                 if (
-                  !generalTrack['CompleteName'] &&
-                  !generalTrack['Complete_name'] &&
-                  !generalTrack['File_Name']
+                  !generalTrack.CompleteName &&
+                  !generalTrack.Complete_name &&
+                  !generalTrack.File_Name
                 ) {
-                  generalTrack['CompleteName'] = filename;
+                  generalTrack.CompleteName = filename;
                 }
               }
             }
@@ -179,10 +201,10 @@ export async function analyzeMediaBuffer(
         results[key] = `Error generating ${type} view.`;
       }
     }
-  } finally {
-    if (infoInstance) {
-      infoInstance.close();
-    }
+  } catch (err) {
+    // Catch factory errors or other failures not caught in loop
+    diagnostics.wasmLoadError =
+      err instanceof Error ? err.message : String(err);
   }
 
   diagnostics.totalAnalysisTimeMs = Math.round(performance.now() - tStart);

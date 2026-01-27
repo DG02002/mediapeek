@@ -31,12 +31,14 @@ export function PrivateBinButton({ content }: PrivateBinButtonProps) {
       } catch (err) {
         console.error('PrivateBin upload failed:', err);
         setStatus('error');
-        setTimeout(() => setStatus('idle'), 3000);
+        setTimeout(() => {
+          setStatus('idle');
+        }, 3000);
         throw err;
       }
     })();
 
-    safeClipboardWrite(
+    void safeClipboardWrite(
       uploadPromise,
       () => {
         toast.success('Link Copied', {
@@ -105,7 +107,9 @@ export function PrivateBinButton({ content }: PrivateBinButtonProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleCopyAgain}
+              onClick={() => {
+                void handleCopyAgain();
+              }}
               className="text-primary hover:text-primary/80"
             >
               <Check className="mr-2 h-4 w-4" />

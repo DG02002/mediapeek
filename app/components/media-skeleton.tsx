@@ -36,7 +36,7 @@ export function MediaSkeleton() {
         <Skeleton className="h-6 w-16 bg-zinc-200 dark:bg-zinc-800" />{' '}
         {/* Title */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
+          {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="flex flex-col gap-2">
               <Skeleton className="h-3 w-16 bg-zinc-200 dark:bg-zinc-800" />{' '}
               {/* Label */}
@@ -52,7 +52,7 @@ export function MediaSkeleton() {
       <div className="space-y-4">
         <Skeleton className="h-6 w-16 bg-zinc-200 dark:bg-zinc-800" />
         <div className="space-y-3">
-          {[...Array(2)].map((_, i) => (
+          {Array.from({ length: 2 }).map((_, i) => (
             <div
               key={i}
               className="bg-muted/10 flex h-20 w-full animate-pulse rounded-lg border border-zinc-200 dark:border-zinc-800"

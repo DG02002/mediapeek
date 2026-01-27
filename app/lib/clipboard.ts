@@ -21,8 +21,7 @@ export async function safeClipboardWrite(
     // Safari specifically requires passing a Promise to ClipboardItem to keep the activation alive during fetch.
     if (
       typeof ClipboardItem !== 'undefined' &&
-      navigator.clipboard &&
-      navigator.clipboard.write
+      'write' in navigator.clipboard
     ) {
       const mime = 'text/plain';
       const blobPromise = textOrPromise.then(

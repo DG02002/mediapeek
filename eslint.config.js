@@ -6,9 +6,21 @@ import simpleImportSortPlugin from 'eslint-plugin-simple-import-sort';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
-export default [
+
+
+/** @type {any} */
+const config = [
   { files: ['**/*.{js,mjs,cjs,ts,jsx,tsx}'] },
-  { ignores: ['build/', 'dist/', '.wrangler/', '.react-router/', 'worker-configuration.d.ts'] },
+  {
+    ignores: [
+      'build/',
+      'dist/',
+      'scripts/',
+      '.wrangler/',
+      '.react-router/',
+      'worker-configuration.d.ts',
+    ],
+  },
   {
     languageOptions: {
       globals: {
@@ -16,6 +28,10 @@ export default [
         ...globals.node,
       },
       parserOptions: {
+        projectService: {
+          allowDefaultProject: ['*.mjs', '*.cjs', 'vitest.config.ts'],
+        },
+        tsconfigRootDir: import.meta.dirname,
         ecmaFeatures: {
           jsx: true,
         },
@@ -30,7 +46,8 @@ export default [
     },
   },
   js.configs.recommended,
-  ...tseslint.configs.recommended,
+  ...tseslint.configs.strictTypeChecked,
+  ...tseslint.configs.stylisticTypeChecked,
   reactPlugin.configs.flat.recommended,
   {
     plugins: {
@@ -48,7 +65,14 @@ export default [
       ],
       // Google Style Guide: Interfaces usually named IInterface or just Interface.
       // We'll stick to recommended TS rules which are generally clean.
+      '@typescript-eslint/no-deprecated': 'warn',
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
+      ],
     },
   },
   prettierConfig,
 ];
+
+export default config;

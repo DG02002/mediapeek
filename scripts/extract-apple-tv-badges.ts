@@ -13,12 +13,12 @@ async function main() {
   // Find the main css file
   // Look for <link rel="stylesheet" ... href="/assets/main~...">
   // Example: <link rel="stylesheet" crossorigin href="/assets/main~C4ibcj_vaK.css">
-  const cssMatch = pageHtml.match(/href="([^"]*\/assets\/main[^"]*\.css)"/);
+  const cssMatch = /href="([^"]*\/assets\/main[^"]*\.css)"/.exec(pageHtml);
 
   if (!cssMatch) {
     console.error('Could not find main CSS file in HTML');
     // Fallback search for any css if specific main pattern fails
-    const anyCss = pageHtml.match(/href="(\/assets\/[^"]+\.css)"/);
+    const anyCss = /href="(\/assets\/[^"]+\.css)"/.exec(pageHtml);
     if (!anyCss) {
       console.error('No CSS assets found.');
       return;

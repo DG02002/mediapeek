@@ -1,17 +1,19 @@
+import type {
+  AnalyzeCallback,
+  MediaInfoInstance,
+  MediaInfoModule,
+  MediaInfoOptions,
+  MediaInfoResult,
+  ReadChunkCallback,
+} from '~/types/mediainfo-wasm';
+
 import { unknownToError } from './error';
 import { FLOAT_FIELDS, INT_FIELDS } from './MediaInfoResult.js';
 
 const MAX_UINT32_PLUS_ONE = 2 ** 32;
 
 /** Format of the result type */
-const FORMAT_CHOICES = ['JSON', 'XML', 'HTML', 'text'];
-
-interface MediaInfoOptions {
-  coverData?: boolean;
-  chunkSize: number;
-  format?: 'object' | 'JSON' | 'XML' | 'HTML' | 'text';
-  full?: boolean;
-}
+const FORMAT_CHOICES = ['JSON', 'XML', 'HTML', 'text'] as const;
 
 const DEFAULT_OPTIONS: MediaInfoOptions = {
   coverData: false,
@@ -19,13 +21,6 @@ const DEFAULT_OPTIONS: MediaInfoOptions = {
   format: 'object',
   full: false,
 };
-
-type ReadChunkCallback = (
-  size: number,
-  offset: number,
-) => Uint8Array | Promise<Uint8Array>;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnalyzeCallback = (result: any, error?: Error) => void;
 
 /**
  * Wrapper for the MediaInfoLib WASM module.
@@ -37,11 +32,9 @@ type AnalyzeCallback = (result: any, error?: Error) => void;
  */
 class MediaInfo {
   isAnalyzing = false;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mediainfoModule: any;
-  options: MediaInfoOptions;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mediainfoModuleInstance: any;
+  private readonly mediainfoModule: MediaInfoModule;
+  readonly options: MediaInfoOptions;
+  private mediainfoModuleInstance: MediaInfoInstance;
 
   /** @group General Use */
 
@@ -52,8 +45,7 @@ class MediaInfo {
    * @param mediainfoModule WASM module
    * @param options User options
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(mediainfoModule: any, options: MediaInfoOptions) {
+  constructor(mediainfoModule: MediaInfoModule, options: MediaInfoOptions) {
     this.mediainfoModule = mediainfoModule;
     this.options = options;
     this.mediainfoModuleInstance = this.instantiateModuleInstance();
@@ -70,12 +62,20 @@ class MediaInfo {
   analyzeData(
     size: number | (() => number | Promise<number>),
     readChunk: ReadChunkCallback,
+  ): Promise<MediaInfoResult | string>;
+  analyzeData(
+    size: number | (() => number | Promise<number>),
+    readChunk: ReadChunkCallback,
+    callback: AnalyzeCallback,
+  ): void;
+  analyzeData(
+    size: number | (() => number | Promise<number>),
+    readChunk: ReadChunkCallback,
     callback?: AnalyzeCallback,
-  ) {
+  ): Promise<MediaInfoResult | string> | void {
     if (callback === undefined) {
-      return new Promise((resolve, reject) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const resultCb = (result: any, error?: Error) => {
+      return new Promise<MediaInfoResult | string>((resolve, reject) => {
+        const resultCb: AnalyzeCallback = (result, error) => {
           this.isAnalyzing = false;
           if (error || !result) {
             reject(unknownToError(error));
@@ -122,17 +122,17 @@ class MediaInfo {
       };
 
       const getChunk = () => {
-        let dataValue;
+        let dataValue: Uint8Array | Promise<Uint8Array>;
         try {
           const safeSize = Math.min(this.options.chunkSize, fileSize - offset);
           dataValue = readChunk(safeSize, offset);
-        } catch (error) {
+        } catch (error: unknown) {
           this.isAnalyzing = false;
           callback('', unknownToError(error));
           return;
         }
         if (dataValue instanceof Promise) {
-          dataValue.then(readNextChunk).catch((error) => {
+          dataValue.then(readNextChunk).catch((error: unknown) => {
             this.isAnalyzing = false;
             callback('', unknownToError(error));
           });
@@ -161,11 +161,11 @@ class MediaInfo {
 
     const fileSizeValue = typeof size === 'function' ? size() : size;
     if (fileSizeValue instanceof Promise) {
-      fileSizeValue.then(runReadDataLoop).catch((error) => {
-        callback(null, unknownToError(error));
+      fileSizeValue.then(runReadDataLoop).catch((error: unknown) => {
+        callback('', unknownToError(error));
       });
     } else {
-      runReadDataLoop(fileSizeValue as number);
+      runReadDataLoop(fileSizeValue);
     }
   }
 
@@ -178,13 +178,7 @@ class MediaInfo {
    * @group General Use
    */
   setOption(option: string, value: string): string {
-    // Check if the method exists on the instance (it should, but safety first)
-    if (typeof this.mediainfoModuleInstance.Option === 'function') {
-      return this.mediainfoModuleInstance.Option(option, value);
-    }
-    // Fallback or explicit check if casing differs in some builds, though 'Option' is standard
-    // Some emscripten builds might strictly export it.
-    return '';
+    return this.mediainfoModuleInstance.Option(option, value);
   }
 
   /**
@@ -192,10 +186,8 @@ class MediaInfo {
    *
    * @group General Use
    */
-  close() {
-    if (typeof this.mediainfoModuleInstance.close === 'function') {
-      this.mediainfoModuleInstance.close();
-    }
+  close(): void {
+    this.mediainfoModuleInstance.close();
   }
 
   /**
@@ -204,7 +196,7 @@ class MediaInfo {
    * This method ensures that the instance is ready for a new parse.
    * @group General Use
    */
-  reset() {
+  reset(): void {
     this.mediainfoModuleInstance.delete();
     this.mediainfoModuleInstance = this.instantiateModuleInstance();
   }
@@ -217,7 +209,7 @@ class MediaInfo {
    * @returns Result data (format can be configured in options)
    * @group Low-level
    */
-  inform() {
+  inform(): string {
     return this.mediainfoModuleInstance.inform();
   }
 
@@ -231,7 +223,7 @@ class MediaInfo {
    * @returns Processing state: `0` (no bits set) = not finished, Bit `0` set = enough data read for providing information
    * @group Low-level
    */
-  openBufferContinue(data: Uint8Array, size: number) {
+  openBufferContinue(data: Uint8Array, size: number): boolean {
     // bit 3 set -> done
     return !!(
       this.mediainfoModuleInstance.open_buffer_continue(data, size) & 0x08
@@ -249,23 +241,23 @@ class MediaInfo {
    * @returns Seek position (where MediaInfoLib wants go in the data buffer)
    * @group Low-level
    */
-  openBufferContinueGotoGet() {
+  openBufferContinueGotoGet(): number {
     // JS bindings don't support 64 bit int
     // https://github.com/buzz/mediainfo.js/issues/11
-    let seekTo = -1;
-    const seekToLow =
+    const seekToLow: number =
       this.mediainfoModuleInstance.open_buffer_continue_goto_get_lower();
-    const seekToHigh =
+    const seekToHigh: number =
       this.mediainfoModuleInstance.open_buffer_continue_goto_get_upper();
-    if (seekToLow == -1 && seekToHigh == -1) {
-      seekTo = -1;
-    } else if (seekToLow < 0) {
-      seekTo =
-        seekToLow + MAX_UINT32_PLUS_ONE + seekToHigh * MAX_UINT32_PLUS_ONE;
-    } else {
-      seekTo = seekToLow + seekToHigh * MAX_UINT32_PLUS_ONE;
+
+    if (seekToLow === -1 && seekToHigh === -1) {
+      return -1;
     }
-    return seekTo;
+
+    if (seekToLow < 0) {
+      return seekToLow + MAX_UINT32_PLUS_ONE + seekToHigh * MAX_UINT32_PLUS_ONE;
+    }
+
+    return seekToLow + seekToHigh * MAX_UINT32_PLUS_ONE;
   }
 
   /**
@@ -275,7 +267,7 @@ class MediaInfo {
    *
    * @group Low-level
    */
-  openBufferFinalize() {
+  openBufferFinalize(): void {
     this.mediainfoModuleInstance.open_buffer_finalize();
   }
 
@@ -288,7 +280,7 @@ class MediaInfo {
    * @param offset Buffer offset
    * @group Low-level
    */
-  openBufferInit(size: number, offset: number) {
+  openBufferInit(size: number, offset: number): void {
     this.mediainfoModuleInstance.open_buffer_init(size, offset);
   }
 
@@ -298,51 +290,48 @@ class MediaInfo {
    * @param result Serialized JSON from MediaInfo
    * @returns Parsed JSON object
    */
-  parseResultJson(resultString: string) {
+  parseResultJson(resultString: string): MediaInfoResult {
     const intFields = INT_FIELDS;
     const floatFields = FLOAT_FIELDS;
 
-    const result = JSON.parse(resultString);
-    if (result.media) {
-      const newMedia = {
-        ...result.media,
-        track: [],
+    const result = JSON.parse(resultString) as MediaInfoResult;
+
+    if (!result.media?.track) {
+      return result;
+    }
+
+    const newTracks: Record<string, unknown>[] = [];
+
+    for (const track of result.media.track) {
+      const newTrack: Record<string, unknown> = {
+        '@type': track['@type'],
       };
-      if (Array.isArray(result.media.track)) {
-        for (const track of result.media.track) {
-          let newTrack = {
-            '@type': track['@type'],
-          };
-          for (const [key, val] of Object.entries(track)) {
-            if (key === '@type') {
-              continue;
-            }
-            if (typeof val === 'string' && intFields.includes(key)) {
-              newTrack = {
-                ...newTrack,
-                [key]: Number.parseInt(val, 10),
-              };
-            } else if (typeof val === 'string' && floatFields.includes(key)) {
-              newTrack = {
-                ...newTrack,
-                [key]: Number.parseFloat(val),
-              };
-            } else {
-              newTrack = {
-                ...newTrack,
-                [key]: val,
-              };
-            }
-          }
-          newMedia.track.push(newTrack);
+
+      for (const [key, val] of Object.entries(track)) {
+        if (key === '@type') {
+          continue;
+        }
+        if (typeof val === 'string' && intFields.includes(key)) {
+          newTrack[key] = Number.parseInt(val, 10);
+        } else if (typeof val === 'string' && floatFields.includes(key)) {
+          newTrack[key] = Number.parseFloat(val);
+        } else {
+          newTrack[key] = val;
         }
       }
-      return {
-        ...result,
-        media: newMedia,
-      };
+
+      newTracks.push(newTrack);
     }
-    return result;
+
+    return {
+      ...result,
+      media: {
+        ...result.media,
+        track: newTracks as MediaInfoResult['media'] extends { track: infer T }
+          ? T
+          : never,
+      },
+    };
   }
 
   /**
@@ -350,13 +339,17 @@ class MediaInfo {
    *
    * @returns MediaInfo module instance
    */
-  instantiateModuleInstance() {
+  private instantiateModuleInstance(): MediaInfoInstance {
+    const format =
+      this.options.format === 'object' ? 'JSON' : this.options.format;
     return new this.mediainfoModule.MediaInfo(
-      this.options.format === 'object' ? 'JSON' : this.options.format,
-      this.options.coverData,
-      this.options.full,
+      format ?? 'JSON',
+      this.options.coverData ?? false,
+      this.options.full ?? false,
     );
   }
 }
+
 export { DEFAULT_OPTIONS, FORMAT_CHOICES };
+export type { MediaInfoOptions };
 export default MediaInfo;

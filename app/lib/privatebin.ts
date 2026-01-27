@@ -1,10 +1,4 @@
-export interface PrivateBinResponse {
-  status: number;
-  id: string;
-  url: string;
-  deletetoken: string;
-  message?: string;
-}
+import { PrivateBinResponseSchema } from './schemas/privatebin';
 
 const privateBinHost = 'https://privatebin.net';
 
@@ -115,11 +109,12 @@ export async function uploadToPrivateBin(
     const text = await response.text();
     console.error('PrivateBin HTTP Error:', response.status, text);
     throw new Error(
-      `PrivateBin upload failed: ${response.statusText} (${response.status})`,
+      `PrivateBin upload failed: ${response.statusText} (${String(response.status)})`,
     );
   }
 
-  const result = (await response.json()) as PrivateBinResponse;
+  const json = await response.json();
+  const result = PrivateBinResponseSchema.parse(json);
 
   if (result.status !== 0) {
     console.error(
@@ -128,7 +123,7 @@ export async function uploadToPrivateBin(
       'Message:',
       result.message,
     );
-    throw new Error(`PrivateBin error: Status ${result.status}`);
+    throw new Error(`PrivateBin error: Status ${String(result.status)}`);
   }
 
   // 6. Construct URL

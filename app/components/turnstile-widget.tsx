@@ -18,33 +18,22 @@ export interface TurnstileWidgetHandle {
   reset: () => void;
 }
 
-declare global {
-  interface Window {
-    turnstile: {
-      render: (
-        element: HTMLElement | string,
-        options: {
-          sitekey: string;
-          callback: (token: string) => void;
-          'error-callback'?: () => void;
-          'expired-callback'?: () => void;
-          theme?: 'light' | 'dark' | 'auto';
-        },
-      ) => string;
-      reset: (widgetId: string) => void;
-      remove: (widgetId: string) => void;
-    };
-  }
-}
-
 export const TurnstileWidget = forwardRef<
   TurnstileWidgetHandle,
   TurnstileWidgetProps
 >(({ onVerify, onError, onExpire }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [widgetId, setWidgetId] = useState<string | null>(null);
+  const widgetIdRef = useRef<string | null>(null);
 
-  const [isVerified, setIsVerified] = useState(false);
+  const [isVerified, setIsVerified] = useState(() => import.meta.env.DEV);
+
+  // Store callbacks in ref to avoid effect dependencies
+  const callbacksRef = useRef({ onVerify, onError, onExpire });
+
+  useEffect(() => {
+    callbacksRef.current = { onVerify, onError, onExpire };
+  });
 
   useImperativeHandle(ref, () => ({
     reset: () => {
@@ -58,8 +47,8 @@ export const TurnstileWidget = forwardRef<
   useEffect(() => {
     // Localhost / Development Bypass
     if (import.meta.env.DEV) {
-      onVerify('localhost-mock-token');
-      setIsVerified(true);
+      callbacksRef.current.onVerify('localhost-mock-token');
+      // Already set to true in initial state
       return;
     }
 
@@ -67,27 +56,32 @@ export const TurnstileWidget = forwardRef<
 
     // Wait for turnstile to be available
     const checkTurnstile = setInterval(() => {
-      if (window.turnstile && containerRef.current) {
+      // Type assertion as we check existence
+      const turnstile = window.turnstile;
+
+      if (turnstile && containerRef.current) {
         clearInterval(checkTurnstile);
-        if (!widgetId) {
+        // Check ref instead of state to avoid stale closure issues during initial mount/setup
+        if (!widgetIdRef.current) {
           try {
             const siteKey = getTurnstileSiteKey();
-            const id = window.turnstile.render(containerRef.current, {
+            const id = turnstile.render(containerRef.current, {
               sitekey: siteKey,
               callback: (token) => {
-                onVerify(token);
+                callbacksRef.current.onVerify(token);
                 setIsVerified(true);
               },
               'error-callback': () => {
-                onError?.();
+                callbacksRef.current.onError?.();
               },
               'expired-callback': () => {
-                onExpire?.();
+                callbacksRef.current.onExpire?.();
                 setIsVerified(false);
               },
               theme: 'auto',
             });
             setWidgetId(id);
+            widgetIdRef.current = id;
           } catch (e) {
             console.error('Turnstile render error:', e);
           }
@@ -97,11 +91,12 @@ export const TurnstileWidget = forwardRef<
 
     return () => {
       clearInterval(checkTurnstile);
-      if (widgetId && window.turnstile) {
-        window.turnstile.remove(widgetId);
+      if (widgetIdRef.current && window.turnstile) {
+        window.turnstile.remove(widgetIdRef.current);
+        widgetIdRef.current = null;
+        setWidgetId(null);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (import.meta.env.DEV) {
@@ -112,12 +107,7 @@ export const TurnstileWidget = forwardRef<
     );
   }
 
-  // We keep the widget in DOM but hide it to avoid re-verification issues if react unmounts/remounts excessively
-  // Or simply return null if we are confident.
-  // Generally safer to css-hide it so the session stays active if we needed to re-submit but usually token is one-time use anyway.
-  // Actually, once verified, we have the token. If user submits, token is used.
-  // If we hide it, that's fine.
-
+  // Hide when verified to clean up UI, but keep mounted if needed (logic specific to use case)
   if (isVerified) {
     return null;
   }
