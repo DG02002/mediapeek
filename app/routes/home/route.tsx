@@ -1,3 +1,4 @@
+import { Footer } from '~/components/footer';
 import { MediaForm } from '~/components/media-form';
 import { useHydrated } from '~/hooks/use-hydrated';
 
@@ -29,14 +30,7 @@ export default function Index() {
           </div>
         )}
       </main>
-      <footer className="bg-muted/50 border-t backdrop-blur-md">
-        <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-          <p className="text-muted-foreground text-center text-sm font-medium">
-            Copyright &copy; {new Date().getFullYear()} MediaPeek. All rights
-            reserved.
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

@@ -139,8 +139,9 @@ export async function loader({ request, context }: Route.LoaderArgs) {
         return Response.json({ error: serverError }, { status: 400 });
       }
 
-      const { url: initialUrl, format: requestedFormats } =
-        validationResult.data;
+      // Validation ensures these exist
+      const initialUrl = validationResult.data.url;
+      const requestedFormats = validationResult.data.format;
 
       // START REQUEST - Explicitly track start if needed, or rely on end log
       mediaPeekEmitter.emit('request:start', {
@@ -167,10 +168,21 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       status = 500;
       severity = 'ERROR';
 
-      const errorMessage =
+      let errorMessage =
         error instanceof Error
           ? error.message
           : 'An unexpected error occurred.';
+
+      // Handle Cloudflare workerd internal fetch errors (often due to HTTP/2 incompatible servers)
+      if (
+        errorMessage.includes('internal error; reference =') ||
+        (error instanceof Error &&
+          'remote' in error &&
+          (error as { remote?: boolean }).remote)
+      ) {
+        errorMessage =
+          'Unable to retrieve the media file. The remote server may be incompatible with our fetcher (e.g., specific HTTP/2 or SSL configurations). Please try a different source.';
+      }
 
       const errorObj = {
         code: 500,

@@ -5,4 +5,7 @@ export default {
   future: {
     v8_viteEnvironmentApi: true,
   },
+  prerender() {
+    return ['/privacy', '/terms'];
+  },
 } satisfies Config;

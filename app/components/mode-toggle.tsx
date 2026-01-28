@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useRouteLoaderData } from 'react-router';
 import { Theme, useTheme } from 'remix-themes';
 
@@ -17,13 +18,27 @@ export function ModeToggle() {
     setThemeState(serverTheme);
   }, [serverTheme]);
 
+  const switchTheme = (newTheme: Theme | null) => {
+    if (!('startViewTransition' in document)) {
+      setTheme(newTheme);
+      setThemeState(newTheme);
+      return;
+    }
+
+    document.startViewTransition(() => {
+      flushSync(() => {
+        setTheme(newTheme);
+        setThemeState(newTheme);
+      });
+    });
+  };
+
   return (
     <div className="border-input flex h-6 items-center rounded-lg border p-0.5 sm:h-7">
       <button
         type="button"
         onClick={() => {
-          setTheme(Theme.LIGHT);
-          setThemeState(Theme.LIGHT);
+          switchTheme(Theme.LIGHT);
         }}
         className={cn(
           'min-w-[2.8rem] rounded-md px-1 py-0.5 text-[10px] font-medium transition-all sm:min-w-12 sm:px-2 sm:text-xs',
@@ -37,8 +52,7 @@ export function ModeToggle() {
       <button
         type="button"
         onClick={() => {
-          setTheme(Theme.DARK);
-          setThemeState(Theme.DARK);
+          switchTheme(Theme.DARK);
         }}
         className={cn(
           'min-w-[2.8rem] rounded-md px-1 py-0.5 text-[10px] font-medium transition-all sm:min-w-12 sm:px-2 sm:text-xs',
@@ -52,8 +66,7 @@ export function ModeToggle() {
       <button
         type="button"
         onClick={() => {
-          setTheme(null);
-          setThemeState(null);
+          switchTheme(null);
         }}
         className={cn(
           'min-w-[2.8rem] rounded-md px-1 py-0.5 text-[10px] font-medium transition-all sm:min-w-12 sm:px-2 sm:text-xs',

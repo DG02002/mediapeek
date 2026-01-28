@@ -6,8 +6,6 @@ import simpleImportSortPlugin from 'eslint-plugin-simple-import-sort';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
-
-
 /** @type {any} */
 const config = [
   { files: ['**/*.{js,mjs,cjs,ts,jsx,tsx}'] },
@@ -19,6 +17,7 @@ const config = [
       '.wrangler/',
       '.react-router/',
       'worker-configuration.d.ts',
+      'app/lib/mediainfo-bundle.js',
     ],
   },
   {
