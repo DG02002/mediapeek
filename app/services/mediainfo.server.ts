@@ -1,4 +1,7 @@
-import { normalizeMediaInfo } from '~/lib/media-utils';
+import {
+  extractFirstFileFromArchive,
+  normalizeMediaInfo,
+} from '~/lib/media-utils';
 import {
   createMediaInfo,
   type MediaInfo,
@@ -66,6 +69,14 @@ export async function analyzeMediaBuffer(
     totalAnalysisTimeMs: 0,
     formatErrors: {},
   };
+
+  // Attempt to detect inner file from archive (Container Peeking)
+  // This detects "inner name" for Stored Zip / Tar where we didn't unzip on the fly.
+  const archiveInnerName = extractFirstFileFromArchive(fileBuffer);
+
+  // Prefer the archive inner name if detected (Prong B)
+  // Otherwise, use the filename passed to us (Prong A might have set this to the inner name already, or it's just the URL filename)
+  const displayFilename = archiveInnerName ?? filename;
 
   const readChunk = (chunkSize: number, offset: number) => {
     if (offset >= fileBuffer.byteLength) {
@@ -152,7 +163,17 @@ export async function analyzeMediaBuffer(
                   !generalTrack.Complete_name &&
                   !generalTrack.File_Name
                 ) {
-                  generalTrack.CompleteName = filename;
+                  generalTrack.CompleteName = displayFilename;
+                  generalTrack.CompleteName = displayFilename;
+                } else if (archiveInnerName) {
+                  // If we specifically found an inner name from archive peeking, force use it
+                  // because MediaInfo likely returned the OUTER zip name or nothing useful.
+                  generalTrack.CompleteName = displayFilename;
+                }
+
+                // If detected name differs from URL name, preserve URL name as Archive Name
+                if (displayFilename !== filename) {
+                  generalTrack.Archive_Name = filename;
                 }
               }
             }
@@ -182,7 +203,7 @@ export async function analyzeMediaBuffer(
               lines.splice(
                 insertIndex,
                 0,
-                `Complete name${padding}: ${filename}`,
+                `Complete name${padding}: ${displayFilename}`,
               );
               resultStr = lines.join('\n');
             }

@@ -379,3 +379,172 @@ export function removeEmptyStrings(obj: unknown): unknown {
 
   return obj;
 }
+
+/**
+ * Extracts the filename of the first significant file (non-directory) from a Zip or Tar archive buffer.
+ *
+ * Supported formats:
+ * - ZIP (Standard PKZip)
+ * - TAR (USTAR/GNU Tar with LongLink support)
+ *
+ * @param buffer - The raw byte buffer of the archive (verified safe for Node.js/Cloudflare Workers)
+ */
+export function extractFirstFileFromArchive(buffer: Uint8Array): string | null {
+  // 1. Signature Check for ZIP (PK\x03\x04)
+  if (
+    buffer.byteLength > 4 &&
+    buffer[0] === 0x50 &&
+    buffer[1] === 0x4b &&
+    buffer[2] === 0x03 &&
+    buffer[3] === 0x04
+  ) {
+    return extractFirstFileFromZip(buffer);
+  }
+
+  // 2. Fallback to TAR parsing (no reliable magic at 0, process as stream)
+  // Most TARs have 'ustar' at 257, but we can just attempt parsing.
+  return extractFirstFileFromTar(buffer);
+}
+
+function extractFirstFileFromZip(buffer: Uint8Array): string | null {
+  let offset = 0;
+  const view = new DataView(
+    buffer.buffer,
+    buffer.byteOffset,
+    buffer.byteLength,
+  );
+
+  while (offset + 30 <= buffer.byteLength) {
+    // Signature Check: PK\x03\x04
+    if (
+      buffer[offset] !== 0x50 ||
+      buffer[offset + 1] !== 0x4b ||
+      buffer[offset + 2] !== 0x03 ||
+      buffer[offset + 3] !== 0x04
+    ) {
+      break;
+    }
+
+    const generalPurposeFlag = view.getUint16(offset + 6, true);
+    // const compressionMethod = view.getUint16(offset + 8, true);
+    const compressedSize = view.getUint32(offset + 18, true);
+    const fileNameLength = view.getUint16(offset + 26, true);
+    const extraFieldLength = view.getUint16(offset + 28, true);
+
+    const fileNameStart = offset + 30;
+    if (fileNameStart + fileNameLength > buffer.byteLength) break;
+
+    const fileNameBytes = buffer.subarray(
+      fileNameStart,
+      fileNameStart + fileNameLength,
+    );
+    const fileName = new TextDecoder().decode(fileNameBytes);
+
+    // Check for Data Descriptor (Bit 3) which indicates size follows data.
+    // If set, we can't easily skip if proper size isn't in header.
+    // However, if we found a file (not folder), we default to returning it.
+    const hasDataDescriptor = (generalPurposeFlag & 0x08) !== 0;
+
+    if (hasDataDescriptor) {
+      if (!fileName.endsWith('/')) {
+        return fileName;
+      }
+      // If directory with bit 3, assume 0 payload size (standard behavior)
+    } else {
+      if (!fileName.endsWith('/')) {
+        return fileName;
+      }
+    }
+
+    const skipSize = hasDataDescriptor ? 0 : compressedSize;
+    const headerSize = 30 + fileNameLength + extraFieldLength;
+    offset += headerSize + skipSize;
+  }
+  return null;
+}
+
+function extractFirstFileFromTar(buffer: Uint8Array): string | null {
+  let offset = 0;
+  let nextNameOverride: string | null = null;
+
+  while (offset + 512 <= buffer.byteLength) {
+    // Check for end-of-archive (null block)
+    if (buffer[offset] === 0) {
+      // Basic check: if first char is 0, entire block is likely 0 or padding
+      let isZeroBlock = true;
+      for (let i = 0; i < 512; i++) {
+        if (buffer[offset + i] !== 0) {
+          isZeroBlock = false;
+          break;
+        }
+      }
+      if (isZeroBlock) {
+        offset += 512;
+        continue;
+      }
+    }
+
+    let name = nextNameOverride;
+    if (!name) {
+      let nameEnd = offset;
+      // Name field is 100 bytes
+      while (nameEnd < offset + 100 && buffer[nameEnd] !== 0) nameEnd++;
+      if (nameEnd > offset) {
+        name = new TextDecoder().decode(buffer.subarray(offset, nameEnd));
+      }
+    }
+
+    const typeFlag = String.fromCharCode(buffer[offset + 156]);
+
+    // Size field is 12 bytes octal at offset 124
+    let sizeEnd = offset + 124;
+    while (
+      sizeEnd < offset + 136 &&
+      buffer[sizeEnd] !== 0 &&
+      buffer[sizeEnd] !== 0x20
+    )
+      sizeEnd++;
+    const sizeStr = new TextDecoder().decode(
+      buffer.subarray(offset + 124, sizeEnd),
+    );
+    const size = parseInt(sizeStr, 8) || 0;
+
+    // Handle GNU LongLink (Type 'L')
+    if (typeFlag === 'L') {
+      const blocks = Math.ceil(size / 512);
+      const contentStart = offset + 512;
+      const contentEnd = contentStart + size;
+
+      if (contentEnd <= buffer.byteLength) {
+        const longNameBytes = buffer.subarray(contentStart, contentEnd);
+        // Trim trailing nulls
+        let trimEnd = longNameBytes.length;
+        while (trimEnd > 0 && longNameBytes[trimEnd - 1] === 0) trimEnd--;
+        nextNameOverride = new TextDecoder().decode(
+          longNameBytes.subarray(0, trimEnd),
+        );
+      }
+      offset += 512 + blocks * 512;
+      continue;
+    }
+
+    const isDir = typeFlag === '5' || name?.endsWith('/');
+    // Type '0', '\0', or ' ' are files
+    const isFile =
+      typeFlag === '0' || typeFlag === '\0' || typeFlag === ' ' || !typeFlag;
+
+    if (!isDir && isFile) {
+      if (name && !name.endsWith('/')) {
+        return name;
+      }
+    }
+
+    // Reset override
+    nextNameOverride = null;
+
+    // Skip Data Blocks
+    const blocks = Math.ceil(size / 512);
+    offset += 512 + blocks * 512;
+  }
+  return null;
+}

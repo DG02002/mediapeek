@@ -1,5 +1,5 @@
 // Initialize Telemetry Service (Singleton) - Ensures listeners are active
-import { log, requestStorage } from '~/lib/logger.server';
+import { log, type LogContext, requestStorage } from '~/lib/logger.server';
 import { analyzeSchema } from '~/lib/schemas';
 import { TurnstileResponseSchema } from '~/lib/schemas/turnstile';
 import { mediaPeekEmitter } from '~/services/event-bus.server';
@@ -20,7 +20,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   // Generate Request ID immediately for correlation
   const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
 
-  const initialContext = {
+  const initialContext: LogContext = {
     requestId,
     httpRequest: {
       requestMethod: request.method,
@@ -153,9 +153,34 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       // fetchMediaChunk now emits 'fetch:complete' internally!
       const { buffer, fileSize, filename } = await fetchMediaChunk(initialUrl);
 
+      // Update Logger Context with File Info
+      if (initialContext.customContext) {
+        initialContext.customContext.filename = filename;
+        initialContext.customContext.fileSize = fileSize;
+      }
+
       // Analyze
       const { results, diagnostics: analysisDiagnostics } =
         await analyzeMediaBuffer(buffer, fileSize, filename, requestedFormats);
+
+      // Inspect if we found an archive name (from our previous logic)
+      try {
+        const json = JSON.parse(results.json || '{}') as {
+          media?: { track: { '@type': string; Archive_Name?: string }[] };
+        };
+        const general = json.media?.track.find((t) => t['@type'] === 'General');
+        if (general?.Archive_Name && initialContext.customContext) {
+          initialContext.customContext.archiveName = general.Archive_Name;
+          initialContext.customContext.innerFilename = filename; // The 'filename' var here is the inner one if extraction happened
+        }
+      } catch {
+        // ignore parse error for logging context
+      }
+
+      // Add Diagnostics to Logger Context
+      if (initialContext.customContext) {
+        initialContext.customContext.analysis = analysisDiagnostics;
+      }
 
       // Emit Analysis Telemetry
       mediaPeekEmitter.emit('analyze:complete', {
@@ -197,8 +222,10 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
       return Response.json({ error: errorMessage }, { status: 500 });
     } finally {
-      initialContext.httpRequest.status = status;
-      initialContext.httpRequest.latency = `${String((performance.now() - startTime) / 1000)}s`;
+      if (initialContext.httpRequest) {
+        initialContext.httpRequest.status = status;
+        initialContext.httpRequest.latency = `${String((performance.now() - startTime) / 1000)}s`;
+      }
       log({
         severity,
         message: 'Media Analysis Request',

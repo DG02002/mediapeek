@@ -164,7 +164,7 @@ export function MediaForm() {
           const text = await response.text();
           if (!response.ok) {
             throw new Error(
-              `Server Error (${String(response.status)}): The analysis worker may have crashed or timed out.`,
+              `Server Error (${String(response.status)}): The analysis server failed or timed out.`,
             );
           }
           console.error('Unexpected non-JSON response:', text);

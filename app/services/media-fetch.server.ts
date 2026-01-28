@@ -17,6 +17,7 @@ export interface FetchDiagnostics {
   resolvedFilename: string;
   responseStatus: number;
   probeMethod: string;
+  streamCloseError?: string;
 }
 
 export interface MediaFetchResult {
@@ -25,6 +26,7 @@ export interface MediaFetchResult {
   fileSize?: number;
   diagnostics: FetchDiagnostics;
   hash?: string;
+  innerFilename?: string; // Captured from container header if unzipped on-the-fly
 }
 
 export async function fetchMediaChunk(
@@ -185,6 +187,16 @@ export async function fetchMediaChunk(
         const extraFieldLength = buffer.readUInt16LE(28);
         const dataOffset = 30 + fileNameLength + extraFieldLength;
 
+        // Capture the filename from the header before stripping it
+        if (firstChunk.length > 30 + fileNameLength) {
+          const nameBytes = firstChunk.subarray(30, 30 + fileNameLength);
+          const innerName = new TextDecoder().decode(nameBytes);
+          // If we are unzipping effectively a "single file", this name is the real name.
+          if (innerName && !innerName.endsWith('/')) {
+            diagnostics.resolvedFilename = innerName; // Upstream prefers this name
+          }
+        }
+
         // Ensure we have enough data in the first chunk to strip the header
         if (firstChunk.length > dataOffset) {
           const dataInFirstChunk = firstChunk.subarray(dataOffset);
@@ -242,7 +254,6 @@ export async function fetchMediaChunk(
     }
 
     // Now read the rest
-    // Now read the rest
     while (offset < SAFE_LIMIT) {
       const { done, value } = await finalReader.read();
       if (done) break;
@@ -262,11 +273,8 @@ export async function fetchMediaChunk(
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
 
-    console.error(
-      `Failed to close stream reader (HTTP ${String(diagnostics.responseStatus)}): ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
+    diagnostics.streamCloseError = errorMessage;
+
     // DecompressionStream throws if the stream ends while expecting more data (valid for partial fetches)
     if (
       offset > 0 &&
@@ -295,6 +303,10 @@ export async function fetchMediaChunk(
     fileSize,
     diagnostics: diagnostics as FetchDiagnostics,
     hash,
+    innerFilename:
+      diagnostics.resolvedFilename === filename
+        ? undefined
+        : diagnostics.resolvedFilename,
   };
 
   // Emit Telemetry

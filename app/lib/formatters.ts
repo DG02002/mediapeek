@@ -368,6 +368,6 @@ export const formatAudioChannels = (
     case '2.0':
       return 'Stereo';
     default:
-      return `${layout} channel`;
+      return `${layout} Channels`;
   }
 };

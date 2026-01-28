@@ -50,6 +50,10 @@ export const MediaHeader = memo(function MediaHeader({
   const displayFilename =
     filenameRaw.split('/').pop()?.split('\\').pop() ?? filenameRaw;
 
+  const archiveNameRaw = generalTrack.Archive_Name as string | undefined;
+  const displayArchiveName =
+    archiveNameRaw?.split('/').pop()?.split('\\').pop() ?? archiveNameRaw;
+
   const fileSizeRaw = generalTrack.FileSize_String;
   const fileSize =
     fileSizeRaw ??
@@ -65,9 +69,16 @@ export const MediaHeader = memo(function MediaHeader({
   return (
     <div className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-50 -mx-4 flex flex-col gap-4 px-4 pt-4 pb-0 backdrop-blur-md transition-all md:-mx-8 md:px-8">
       <div className="flex flex-col items-start gap-2 md:gap-4">
-        <h1 className="text-lg font-bold tracking-tight break-all md:text-2xl">
-          {displayFilename}
-        </h1>
+        <div className="flex w-full flex-col gap-1">
+          {displayArchiveName && (
+            <div className="text-muted-foreground font-mono text-xs font-semibold tracking-wider break-all uppercase opacity-80 select-all">
+              {displayArchiveName}
+            </div>
+          )}
+          <h1 className="text-lg font-bold tracking-tight break-all md:text-2xl">
+            {displayFilename}
+          </h1>
+        </div>
         <div className="text-muted-foreground flex w-full flex-wrap items-center gap-4 text-sm">
           {duration && <span>{duration}</span>}
           {fileSize && (
