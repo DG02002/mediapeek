@@ -73,6 +73,13 @@ export default function PrivacyPolicy() {
                 technical metadata generated.
               </li>
               <li>
+                <strong>Clipboard Access:</strong> MediaPeek may read your
+                clipboard to auto-detect media URLs when you focus the input
+                field. This data is processed locally in your browser and is not
+                transmitted to our servers unless you submit the URL for
+                analysis.
+              </li>
+              <li>
                 <strong>Request Metadata:</strong> IP addresses, browser type,
                 and timestamps, which are processed by our infrastructure
                 provider (Cloudflare) for security and analytics purposes.
@@ -182,13 +189,13 @@ export default function PrivacyPolicy() {
 
           <section className="space-y-4">
             <h2 className="scroll-m-20 text-3xl font-semibold tracking-tight">
-              Our Companywide Commitment to Your Privacy
+              Our Commitment to Your Privacy
             </h2>
             <p className="leading-7 not-first:mt-6">
-              To make sure your personal data is secure, we communicate our
-              privacy and security guidelines to MediaPeek employees and
-              strictly enforce privacy safeguards within the company. We build
-              privacy into our products from the ground up.
+              To ensure your personal data is secure, MediaPeek is built with
+              privacy-first principles. As an open-source project, our code is
+              publicly auditable, and privacy safeguards are baked into the
+              architecture from the ground up.
             </p>
           </section>
 

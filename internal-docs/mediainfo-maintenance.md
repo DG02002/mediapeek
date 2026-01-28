@@ -125,3 +125,17 @@ import wasmModule from './MediaInfoModule.wasm';
 - TypeScript does not natively understand `.wasm` imports without extensive global type augmentation (e.g., `declare module '*.wasm'`).
 - Adding global wildcards can be fragile and may conflict with other environment types.
 - **Decision**: We explicitly use `@ts-expect-error` as a directive. This is better than `eslint-disable` because it acknowledges a specific TypeScript limitation in this environment while keeping the rest of the file strict. DO NOT remove this unless you have implemented a robust global type declaration that works across `pnpm typecheck` and the build system.
+
+## Known Incompatibilities
+
+### Prerendering
+
+**DO NOT enable `prerender()` in `react-router.config.ts`.**
+
+Prerendering runs server code at build time in a Node.js/Vite environment, which triggers WASM loading via the direct `.wasm` import. This environment cannot handle WASM imports the same way Cloudflare Workers can, resulting in build errors like:
+
+```
+Cannot find package 'a' imported from .../MediaInfoModule-*.wasm
+```
+
+If you need static pages (like `/privacy` or `/terms`), serve them dynamically via SSR rather than prerendering.

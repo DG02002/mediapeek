@@ -175,12 +175,11 @@ export default function TermsOfUse() {
               VII. Indemnity
             </h2>
             <p className="leading-7 not-first:mt-6">
-              You agree to indemnify and hold MediaPeek, its officers,
-              directors, shareholders, predecessors, successors in interest,
-              employees, agents, subsidiaries and affiliates, harmless from any
-              demands, loss, liability, claims or expenses (including attorneys’
-              fees), made against MediaPeek by any third party due to or arising
-              out of or in connection with your use of the Service.
+              You agree to indemnify and hold MediaPeek and its contributors
+              harmless from any demands, loss, liability, claims or expenses
+              (including attorneys&apos; fees), made against MediaPeek by any
+              third party due to or arising out of or in connection with your
+              use of the Service.
             </p>
           </section>
 
