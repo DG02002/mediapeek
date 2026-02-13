@@ -1,0 +1,11 @@
+{
+  "extends": "@mediapeek/config-typescript/hono",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types", "vitest/globals", "vite/client"],
+    "baseUrl": "./src",
+    "paths": {
+      "~/*": ["./*"]
+    }
+  },
+  "include": ["src/**/*"]
+}

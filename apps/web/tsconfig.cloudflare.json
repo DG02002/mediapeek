@@ -1,0 +1,34 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    ".react-router/types/**/*",
+    "app/**/*",
+    "app/**/.server/**/*",
+    "app/**/.client/**/*",
+    "app/**/.client/**/*",
+    "../../packages/shared/src/**/*",
+    "../../apps/analyzer/src/**/*",
+    "workers/**/*",
+    "worker-configuration.d.ts"
+  ],
+  "compilerOptions": {
+    "composite": true,
+    "strict": true,
+    "erasableSyntaxOnly": true,
+    "lib": ["DOM", "DOM.Iterable", "ESNext", "ESNext.Disposable"],
+    "types": ["vite/client", "node"],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "rootDirs": [".", "./.react-router/types"],
+    "paths": {
+      "~/*": ["./app/*"],
+      "@mediapeek/shared/*": ["../../packages/shared/src/*"],
+      "mediapeek-analyzer": ["../../apps/analyzer/src/index.ts"]
+    },
+    "esModuleInterop": true,
+    "resolveJsonModule": true
+  }
+}

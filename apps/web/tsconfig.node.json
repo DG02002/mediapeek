@@ -1,0 +1,28 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "vite.config.ts",
+    "react-router.config.ts",
+    "app/services/**/*",
+    "app/types/**/*",
+    "app/lib/media-utils.ts",
+    "app/lib/server-utils.ts",
+    "app/lib/error-utils.ts",
+    "app/lib/logger.server.ts",
+    "app/lib/media/**/*",
+    "app/lib/mediainfo-bundle.js",
+    "app/lib/schemas/**/*",
+    "packages/shared/**/*",
+    "scripts/**/*",
+    "eslint.config.js"
+  ],
+  "compilerOptions": {
+    "composite": true,
+    "strict": true,
+    "types": ["node", "vite/client"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler"
+  }
+}

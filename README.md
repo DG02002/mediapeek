@@ -40,6 +40,25 @@ Export metadata as Object, JSON, Text, HTML, or XML.
 
 SSRF protection blocks requests to local and private network resources.
 
+### API Response Contract
+
+`/resource/analyze` now returns a normalized JSON envelope:
+
+- Success:
+  - `success: true`
+  - `requestId: string`
+  - `results: Record<string, string>`
+- Error:
+  - `success: false`
+  - `requestId: string`
+  - `error: { code, message, retryable }`
+
+Optional analyzer controls:
+
+- `ANALYZE_API_KEY` (secret)
+- `ANALYZE_RATE_LIMIT_PER_MINUTE` (default `30`)
+- `ANALYZE_API_BASE_URL` (optional frontend -> analyzer forwarding target)
+
 ## Try It
 
 Test with these sample URLs:

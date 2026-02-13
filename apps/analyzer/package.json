@@ -1,0 +1,39 @@
+{
+  "name": "mediapeek-analyzer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "wrangler deploy --dry-run --outdir=dist",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "start": "wrangler dev",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "cf-typegen": "wrangler types",
+    "lint": "eslint .",
+    "clean": "rm -rf dist .turbo node_modules"
+  },
+  "dependencies": {
+    "@hono/standard-validator": "^0.2.2",
+    "@mediapeek/shared": "workspace:*",
+    "@standard-schema/spec": "^1.1.0",
+    "hono": "^4.11.9",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260210.0",
+    "@eslint/js": "^9.17.0",
+    "@mediapeek/config-eslint": "workspace:*",
+    "@mediapeek/config-typescript": "workspace:*",
+    "eslint": "^9.17.0",
+    "globals": "^17.3.0",
+    "mediainfo.js": "^0.3.7",
+    "vite": "^7.3.1",
+    "vitest": "^3.2.4",
+    "wrangler": "^4.64.0"
+  }
+}

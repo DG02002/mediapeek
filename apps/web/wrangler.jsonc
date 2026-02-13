@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mediapeek-web",
+  "compatibility_date": "2024-11-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "workers/app.ts",
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "public",
+  },
+  "services": [
+    {
+      "binding": "ANALYZER",
+      "service": "mediapeek-analyzer",
+    },
+  ],
+  "vars": {
+    "ENABLE_TURNSTILE": "false",
+  },
+  "observability": {
+    "enabled": true,
+  },
+}

@@ -124,7 +124,7 @@ import wasmModule from './MediaInfoModule.wasm';
 - We import a `.wasm` file directly so that Vite/Rollup can process it as an asset/module.
 - TypeScript does not natively understand `.wasm` imports without extensive global type augmentation (e.g., `declare module '*.wasm'`).
 - Adding global wildcards can be fragile and may conflict with other environment types.
-- **Decision**: We explicitly use `@ts-expect-error` as a directive. This is better than `eslint-disable` because it acknowledges a specific TypeScript limitation in this environment while keeping the rest of the file strict. DO NOT remove this unless you have implemented a robust global type declaration that works across `pnpm typecheck` and the build system.
+- **Decision**: We explicitly use `@ts-expect-error` as a directive. This is better than `eslint-disable` because it acknowledges a specific TypeScript limitation in this environment while keeping the rest of the file strict. DO NOT remove this unless you have implemented a robust global type declaration that works across `pnpm type-check` and the build system.
 
 ## Known Incompatibilities
 

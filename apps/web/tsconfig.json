@@ -1,0 +1,20 @@
+{
+  "extends": "@mediapeek/config-typescript/react-router",
+  "compilerOptions": {
+    "types": ["node", "vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "~/*": ["./app/*"],
+      "@mediapeek/ui/*": ["../../packages/ui/src/*"],
+      "@mediapeek/shared/*": ["../../packages/shared/src/*"]
+    },
+    "rootDirs": [".", "./.react-router/types"]
+  },
+  "include": [
+    "app/**/*",
+    "worker-configuration.d.ts",
+    "env.d.ts",
+    ".react-router/types/**/*.d.ts",
+    "workers/**/*"
+  ]
+}

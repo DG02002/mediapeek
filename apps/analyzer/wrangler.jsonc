@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mediapeek-analyzer",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-04-03",
+  "compatibility_flags": ["nodejs_compat"],
+  "dev": {
+    "port": 8788,
+  },
+  "upload_source_maps": true,
+  "observability": {
+    "enabled": true,
+  },
+}

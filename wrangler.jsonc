@@ -12,6 +12,8 @@
     "VALUE_FROM_CLOUDFLARE": "Hello from Cloudflare",
     "TURNSTILE_SITE_KEY": "0x4AAAAAACLSwN-VBqB6mZ1u",
     "ENABLE_TURNSTILE": "false",
+    "ANALYZE_RATE_LIMIT_PER_MINUTE": "30",
+    "ANALYZE_API_BASE_URL": "",
   },
   "observability": {
     "enabled": true,

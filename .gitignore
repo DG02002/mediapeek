@@ -10,11 +10,12 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Dependencies
-/node_modules/
+node_modules/
 
 # Build Output
-/build/
-/dist/
+build/
+dist/
+.turbo/
 *.tsbuildinfo
 
 # React Router
@@ -34,4 +35,23 @@ worker-configuration.d.ts
 
 # Editor
 .idea/
+.agents/
 # We keep .vscode tracked for shared settings
+
+# Cache & Stores
+.pnpm-store/
+.vercel/
+.now/
+.turbo/
+.jest-cache/
+
+# Coverage & Tests
+coverage/
+.nyc_output/
+*.cpuprofile
+*.heapsnapshot
+
+# Temporary
+temp/
+tmp/
+

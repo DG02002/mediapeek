@@ -104,6 +104,10 @@ interface LogEvent {
       details?: unknown;
     };
 
+    // Normalized failure category for alerting and dashboards
+    // e.g., CPU_LIMIT_EXCEEDED, ROUTE_NOT_FOUND, THEME_CONTEXT_MISSING
+    errorClass?: string;
+
     [key: string]: unknown;
   };
 }

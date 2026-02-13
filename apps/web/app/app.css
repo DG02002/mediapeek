@@ -1,0 +1,8 @@
+@import 'tailwindcss';
+@source './**/*.{ts,tsx}';
+@source '../../../packages/ui/src/**/*.{ts,tsx}';
+
+/* Import base styles from UI package - Single Source of Truth */
+@import '../../../packages/ui/src/styles/globals.css';
+
+@plugin 'tailwindcss-animate';

@@ -1,0 +1,21 @@
+{
+  "name": "@mediapeek/config-typescript",
+  "version": "0.0.0",
+  "private": true,
+  "files": [
+    "base.json",
+    "react-library.json",
+    "react-router.json",
+    "hono.json"
+  ],
+  "exports": {
+    "./base": "./base.json",
+    "./react-library": "./react-library.json",
+    "./react-router": "./react-router.json",
+    "./hono": "./hono.json"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0"
+  }
+}

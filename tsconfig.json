@@ -1,19 +1,30 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.node.json" },
-    { "path": "./tsconfig.cloudflare.json" }
-  ],
   "compilerOptions": {
-    "checkJs": true,
-    "verbatimModuleSyntax": true,
+    "target": "ES2022",
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
-    "types": ["./worker-configuration.d.ts"],
+    "esModuleInterop": true,
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "~/*": ["./app/*"]
-    }
-  }
+      "@mediapeek/ui/*": ["./packages/ui/src/*"],
+      "@mediapeek/shared/*": ["./packages/shared/src/*"]
+    },
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true
+  },
+  "include": [],
+  "references": [
+    { "path": "./apps/web" },
+    { "path": "./apps/analyzer" },
+    { "path": "./packages/shared" },
+    { "path": "./packages/ui" }
+  ]
 }

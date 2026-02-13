@@ -1,0 +1,21 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "base-maia",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "src/styles/globals.css",
+    "baseColor": "neutral",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "iconLibrary": "hugeicons",
+  "aliases": {
+    "components": "@mediapeek/ui/components",
+    "utils": "@mediapeek/ui/lib/utils",
+    "ui": "@mediapeek/ui/components",
+    "lib": "@mediapeek/ui/lib",
+    "hooks": "@mediapeek/ui/hooks"
+  }
+}

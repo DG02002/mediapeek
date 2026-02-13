@@ -1,0 +1,29 @@
+{
+  "name": "@mediapeek/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "clean": "rm -rf dist .turbo node_modules"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@mediapeek/config-eslint": "workspace:*",
+    "@mediapeek/config-typescript": "workspace:*",
+    "eslint": "^9.17.0",
+    "globals": "^17.3.0",
+    "vitest": "^4.0.18"
+  },
+  "exports": {
+    "./analyze-contract": "./src/analyze-contract.ts",
+    "./telemetry": "./src/telemetry.ts",
+    "./schemas": "./src/schemas.ts",
+    "./media": "./src/media.ts",
+    "./media-info-result": "./src/media-info-result.ts"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
+}
