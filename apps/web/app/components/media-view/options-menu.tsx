@@ -99,6 +99,14 @@ export function OptionsMenu({
 
   const shareClickedRef = React.useRef(false);
 
+  const blurActiveElement = () => {
+    if (typeof document === 'undefined') return;
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement) {
+      activeElement.blur();
+    }
+  };
+
   const handleShareClick = async (format: string, label: string) => {
     try {
       const shareUrl = await getShareUrl(format, label);
@@ -110,6 +118,7 @@ export function OptionsMenu({
         // Wait for drawer close animation to finish before opening dialog
         // This prevents layout thrashing and jitter on mobile
         setTimeout(() => {
+          blurActiveElement();
           setShareDialogOpen(true);
           shareClickedRef.current = false;
           onShareSuccess?.(shareUrl);
@@ -177,7 +186,7 @@ export function OptionsMenu({
       </AlertDialog>
 
       {isDesktop ? (
-        <DropdownMenu open={open} onOpenChange={setOpen}>
+        <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
           <DropdownMenuTrigger
             className={cn(
               buttonVariants({ variant: 'ghost', size: 'icon' }),

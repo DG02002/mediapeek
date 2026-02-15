@@ -14,13 +14,10 @@ export const meta: Route.MetaFunction = () => [
 export default function PrivacyPolicy() {
   return (
     <div className="flex min-h-screen flex-col font-sans">
+      <Header />
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-12 sm:px-12">
-        <div className="mb-10">
-          <Header align="center" />
-        </div>
-
         <div className="mx-auto w-full space-y-10">
-          <div className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-50 -mx-4 flex flex-col gap-4 px-4 pt-4 pb-0 backdrop-blur-md transition-all sm:-mx-12 sm:px-12">
+          <div className="-mx-4 flex flex-col gap-4 px-4 pt-4 pb-0 sm:-mx-12 sm:px-12">
             <h1 className="scroll-m-20 text-3xl font-extrabold tracking-tight lg:text-4xl">
               Privacy Policy
             </h1>

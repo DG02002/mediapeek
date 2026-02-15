@@ -6,6 +6,8 @@
 
 MediaPeek provides detailed technical metadata for video, audio, image, and subtitle files directly in your browser. It processes URLs intelligently—fetching only the necessary data segments—so you don't need to download the whole file.
 
+The website root (`/`) is the product homepage, and the live analyzer interface is available at `/app`.
+
 ![MediaPeek Demo](resources/preview.png)
 
 ## Features

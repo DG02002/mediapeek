@@ -14,6 +14,12 @@ type Pages = {
   "/": {
     params: {};
   };
+  "/app": {
+    params: {};
+  };
+  "/preview": {
+    params: {};
+  };
   "/resource/analyze": {
     params: {};
   };
@@ -42,11 +48,19 @@ type Pages = {
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/resource/analyze" | "/privacy" | "/terms" | "/robots.txt" | "/.well-known/appspecific/com.chrome.devtools.json" | "/action/set-theme" | "/*";
+    page: "/" | "/app" | "/preview" | "/resource/analyze" | "/privacy" | "/terms" | "/robots.txt" | "/.well-known/appspecific/com.chrome.devtools.json" | "/action/set-theme" | "/*";
   };
   "routes/home/route.tsx": {
     id: "routes/home/route";
     page: "/";
+  };
+  "routes/app/route.tsx": {
+    id: "routes/app/route";
+    page: "/app";
+  };
+  "routes/preview/route.tsx": {
+    id: "routes/preview/route";
+    page: "/preview";
   };
   "routes/api/analyze/route.ts": {
     id: "routes/api/analyze/route";
@@ -81,6 +95,8 @@ type RouteFiles = {
 type RouteModules = {
   "root": typeof import("./app/root.tsx");
   "routes/home/route": typeof import("./app/routes/home/route.tsx");
+  "routes/app/route": typeof import("./app/routes/app/route.tsx");
+  "routes/preview/route": typeof import("./app/routes/preview/route.tsx");
   "routes/api/analyze/route": typeof import("./app/routes/api/analyze/route.ts");
   "routes/privacy/route": typeof import("./app/routes/privacy/route.tsx");
   "routes/terms/route": typeof import("./app/routes/terms/route.tsx");

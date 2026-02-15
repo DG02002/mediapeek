@@ -24,7 +24,6 @@ import { MediaSkeleton } from '~/components/media-skeleton';
 import { useClipboardSuggestion } from '~/hooks/use-clipboard-suggestion';
 
 import { useHapticFeedback } from '../hooks/use-haptic';
-import { Header } from './header';
 import { MediaView } from './media-view';
 import {
   TurnstileWidget,
@@ -241,15 +240,9 @@ export function MediaForm() {
   };
 
   return (
-    <div className="flex min-h-[50vh] w-full flex-col items-center justify-center py-10">
-      <div className="relative w-full max-w-5xl sm:px-12 sm:pt-12 sm:pb-2">
+    <div className="flex min-h-[50vh] w-full flex-col items-center justify-center py-8">
+      <div className="relative w-full max-w-5xl sm:px-12 sm:py-2">
         <div className="relative z-10 space-y-10">
-          <div>
-            <div>
-              <Header showDescription />
-            </div>
-          </div>
-
           <form onSubmit={onSubmit} className="relative space-y-8" noValidate>
             {/* Clipboard Suggestion Pill */}
             <AnimatePresence>
