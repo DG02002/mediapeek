@@ -9,6 +9,10 @@
     "port": 0,
   },
   "vars": {
+    "APP_ENV": "production",
+    "LOG_SAMPLE_RATE": "0.1",
+    "LOG_SLOW_REQUEST_MS": "2000",
+    "LOG_FORCE_ALL_REQUESTS": "false",
     "ANALYZE_CPU_BUDGET_MS": "25000",
   },
   "upload_source_maps": true,

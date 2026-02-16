@@ -237,15 +237,18 @@ export function MediaForm() {
         }, ANALYZE_REQUEST_TIMEOUT_MS);
 
         try {
-          const response = await fetch(
-            `/resource/analyze?url=${encodeURIComponent(url)}&format=object`,
-            {
-              headers: {
-                'CF-Turnstile-Response': turnstileToken,
-              },
-              signal: controller.signal,
+          const response = await fetch('/resource/analyze', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'CF-Turnstile-Response': turnstileToken,
             },
-          );
+            body: JSON.stringify({
+              url,
+              format: ['object'],
+            }),
+            signal: controller.signal,
+          });
 
           const contentType = response.headers.get('content-type');
           let data: AnalyzeResponse = {};

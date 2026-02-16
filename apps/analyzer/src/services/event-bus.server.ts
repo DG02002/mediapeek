@@ -8,7 +8,12 @@ import type { MediaInfoDiagnostics } from './mediainfo.server';
  */
 export interface MediaPeekEvents {
   'request:start': { requestId: string; url: string };
-  'turnstile:verify': { success: boolean; token: string; outcome?: unknown };
+  'turnstile:verify': {
+    success: boolean;
+    tokenPresent: boolean;
+    tokenLength: number;
+    outcome?: unknown;
+  };
   'fetch:complete': {
     diagnostics: FetchDiagnostics;
     fileSize?: number;

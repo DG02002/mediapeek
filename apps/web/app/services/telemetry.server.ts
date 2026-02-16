@@ -1,3 +1,5 @@
+import { redactSensitiveUrl } from '@mediapeek/shared/log-redaction';
+
 import { requestStorage } from '~/lib/logger.server';
 import { mediaPeekEmitter } from '~/services/event-bus.server';
 
@@ -59,7 +61,7 @@ export class TelemetryService {
     mediaPeekEmitter.on('request:start', (payload) => {
       // Useful if we wanted to log "Start" events, but we stick to "One Log Per Request".
       // We could use this to init metrics if needed.
-      this.updateContext('targetUrl', payload.url);
+      this.updateContext('targetUrl', redactSensitiveUrl(payload.url));
     });
   }
 

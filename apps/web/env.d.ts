@@ -7,13 +7,17 @@ interface Env {
   ANALYZE_PUBLIC_API_KEY?: string;
   ANALYZE_RATE_LIMIT_PER_MINUTE?: string;
   ANALYZER_REQUEST_TIMEOUT_MS?: string;
+  APP_ENV?: string;
+  LOG_SAMPLE_RATE?: string;
+  LOG_SLOW_REQUEST_MS?: string;
+  LOG_FORCE_ALL_REQUESTS?: string;
   ANALYZE_RATE_LIMITER?: {
     limit: (options: { key: string }) => Promise<{ success: boolean }>;
   };
-  TURNSTILE_SECRET_KEY: string;
+  TURNSTILE_SECRET_KEY?: string;
   TURNSTILE_SITE_KEY: string;
   ENABLE_TURNSTILE?: string;
-  SESSION_SECRET: string;
+  SESSION_SECRET?: string;
 }
 
 

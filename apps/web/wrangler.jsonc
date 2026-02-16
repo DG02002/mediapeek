@@ -15,6 +15,10 @@
     },
   ],
   "vars": {
+    "APP_ENV": "production",
+    "LOG_SAMPLE_RATE": "0.1",
+    "LOG_SLOW_REQUEST_MS": "2000",
+    "LOG_FORCE_ALL_REQUESTS": "false",
     "TURNSTILE_SITE_KEY": "0x4AAAAAACLSwN-VBqB6mZ1u",
     "ENABLE_TURNSTILE": "true",
     "ANALYZE_RATE_LIMIT_PER_MINUTE": "30",

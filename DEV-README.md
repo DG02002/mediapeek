@@ -20,7 +20,7 @@ This repository is a pnpm workspace + Turbo monorepo.
 Run from repo root:
 
 ```bash
-cd /Users/darshan/Documents/Github/mediapeek
+cd /path/to/mediapeek
 pnpm install
 ```
 
@@ -49,12 +49,20 @@ Recommended local values:
 SESSION_SECRET="<long-random-string>"
 TURNSTILE_SECRET_KEY="1x0000000000000000000000000000000AA"
 ANALYZE_API_KEY="<shared-internal-api-key>"
+APP_ENV="development"
+LOG_SAMPLE_RATE="1"
+LOG_SLOW_REQUEST_MS="2000"
+LOG_FORCE_ALL_REQUESTS="true"
 ```
 
 ```bash
 # apps/analyzer/.dev.vars
 ANALYZE_API_KEY="<same-shared-internal-api-key-as-web>"
 ANALYZE_CPU_BUDGET_MS="25000"
+APP_ENV="development"
+LOG_SAMPLE_RATE="1"
+LOG_SLOW_REQUEST_MS="2000"
+LOG_FORCE_ALL_REQUESTS="true"
 ```
 
 Turnstile localhost test key pair:
@@ -92,12 +100,20 @@ pnpm --filter mediapeek-analyzer exec wrangler secret put ANALYZE_API_KEY
 
 `apps/web/wrangler.jsonc` should have production-safe values:
 
+- `APP_ENV`: `"production"`
+- `LOG_SAMPLE_RATE`: e.g. `"0.1"`
+- `LOG_SLOW_REQUEST_MS`: e.g. `"2000"`
+- `LOG_FORCE_ALL_REQUESTS`: `"false"`
 - `TURNSTILE_SITE_KEY`: your production Turnstile site key
 - `ENABLE_TURNSTILE`: `"true"`
 - `ANALYZE_RATE_LIMIT_PER_MINUTE`: e.g. `"30"`
 
 `apps/analyzer/wrangler.jsonc` should have:
 
+- `APP_ENV`: `"production"`
+- `LOG_SAMPLE_RATE`: e.g. `"0.1"`
+- `LOG_SLOW_REQUEST_MS`: e.g. `"2000"`
+- `LOG_FORCE_ALL_REQUESTS`: `"false"`
 - `ANALYZE_CPU_BUDGET_MS`: e.g. `"25000"` (soft in-app guardrail)
 
 Optional (paid Workers plans only):
@@ -129,6 +145,14 @@ Reason: web has a service binding to analyzer, so analyzer must exist first.
 6. Burst requests return `429` with `Retry-After`.
 7. Analyzer is reachable through service binding flow (no public `workers.dev` endpoint).
 8. Analyzer logs include `cpuBudgetMs`, `cpuBudgetRemainingMs`, and `errorClass` for failed heavy analyses.
+9. Application logs do not include raw Turnstile tokens or signed URL query-token values.
+
+## Analyze Route Contract
+
+- Primary contract: `POST /resource/analyze` with JSON body:
+  - `{ "url": "<absolute-media-url>", "format": ["object"] }`
+- Legacy compatibility:
+  - `GET /resource/analyze?url=...&format=...` is still accepted temporarily but deprecated.
 
 ## Local Dev Troubleshooting
 

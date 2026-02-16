@@ -16,7 +16,6 @@ import {
   useState,
   useTransition,
 } from 'react';
-import { useFetcher } from 'react-router';
 import { z } from 'zod';
 
 import { removeEmptyStrings } from '~/lib/media-utils';
@@ -44,8 +43,6 @@ export const TextResponseSchema = z.object({
     .optional(),
 });
 
-type TextResponse = z.infer<typeof TextResponseSchema>;
-
 interface MediaViewProps {
   data: Record<string, string>;
   url: string;
@@ -58,9 +55,9 @@ export const MediaView = memo(function MediaView({
   const [isTextView, setIsTextView] = useState(false);
   const [showOriginalTitles, setShowOriginalTitles] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [fetchedText, setFetchedText] = useState<string | null>(null);
+  const [isTextLoading, setIsTextLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  const fetcher = useFetcher<TextResponse>();
   const [_isPending, startTransition] = useTransition();
 
   // Stable handlers for View Switching to ensure responsiveness
@@ -96,14 +93,50 @@ export const MediaView = memo(function MediaView({
     [startTransition],
   );
 
-  // Lazy load text view on demand using useFetcher
+  // Lazy-load text output on demand using POST to avoid exposing URLs in query strings.
   useEffect(() => {
-    if (isTextView && !data.text && !fetcher.data && fetcher.state === 'idle') {
-      void fetcher.load(
-        `/resource/analyze?url=${encodeURIComponent(url)}&format=text`,
-      );
-    }
-  }, [isTextView, data.text, fetcher, url]);
+    if (!isTextView || data.text || fetchedText || isTextLoading) return;
+
+    let cancelled = false;
+    const loadText = async () => {
+      setIsTextLoading(true);
+      try {
+        const response = await fetch('/resource/analyze', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            url,
+            format: ['text'],
+          }),
+        });
+        const json = TextResponseSchema.parse(await response.json());
+        if (!response.ok || json.success === false) {
+          throw new Error(
+            typeof json.error === 'string'
+              ? json.error
+              : (json.error?.message ?? 'Failed to load text output.'),
+          );
+        }
+        if (!cancelled) {
+          setFetchedText(json.results?.text ?? null);
+        }
+      } catch (error) {
+        console.error('Failed to lazy-load text output', error);
+      } finally {
+        if (!cancelled) {
+          setIsTextLoading(false);
+        }
+      }
+    };
+
+    void loadText();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data.text, fetchedText, isTextLoading, isTextView, url]);
 
   // Handle Escape key to exit full screen
   useEffect(() => {
@@ -151,17 +184,14 @@ export const MediaView = memo(function MediaView({
 
   // Merge lazy-loaded text into data
   const fullData = useMemo(() => {
-    const fetchedText = fetcher.data?.results?.text;
-    const isLoading = fetcher.state === 'loading';
-
     return {
       ...data,
       text:
         (data.text !== '' ? data.text : undefined) ??
         fetchedText ??
-        (isLoading ? '' : ''),
+        (isTextLoading ? '' : ''),
     };
-  }, [data, fetcher.data, fetcher.state]);
+  }, [data, fetchedText, isTextLoading]);
 
   const { General, VideoTracks, AudioTracks, TextTracks, MenuTrack } =
     useMemo(() => {
@@ -265,7 +295,7 @@ export const MediaView = memo(function MediaView({
             </motion.div>
             <div className="relative min-h-[200px]">
               <AnimatePresence mode="wait">
-                {fetcher.state === 'loading' ? (
+                {isTextLoading ? (
                   <motion.div
                     key="loading"
                     initial={{ opacity: 0 }}

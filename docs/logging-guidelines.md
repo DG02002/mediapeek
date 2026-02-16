@@ -43,6 +43,13 @@ To control costs without losing value, we implement **Tail Sampling** (deciding 
 
 _Note: In local development, we keep 100% of logs._
 
+Runtime sampling controls are configured via Worker bindings:
+
+- `APP_ENV` (`development`, `staging`, `production`)
+- `LOG_SAMPLE_RATE` (`0..1`)
+- `LOG_SLOW_REQUEST_MS`
+- `LOG_FORCE_ALL_REQUESTS` (`true`/`false`)
+
 ## Cloudflare Workers Integration
 
 To ensure seamless integration with the Cloudflare Dashboard and `wrangler tail` (see [Workers Logs documentation](https://developers.cloudflare.com/workers/observability/logs/workers-logs/)):
@@ -61,6 +68,12 @@ To ensure seamless integration with the Cloudflare Dashboard and `wrangler tail`
 - **Dates**: RFC 3339 strings.
 - **Errors**: Structured objects, not strings.
 
+## Sensitive Data Redaction
+
+- Never log raw Turnstile tokens, API keys, auth headers, cookies, or URL query signatures.
+- Redact signed URL query params before writing request context (`token`, `sig`, `signature`, `key`, `auth`, `expires`, `X-Amz-*`, `X-Goog-*`).
+- Prefer metadata (`tokenPresent`, `tokenLength`) instead of raw token values.
+
 ## Standard Schema (`LogEvent`)
 
 ```typescript
@@ -74,6 +87,7 @@ interface LogEvent {
   requestId: string;
   service: string;
   version: string;
+  environment: 'development' | 'staging' | 'production';
 
   // --- HTTP Context ---
   httpRequest?: {

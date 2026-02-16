@@ -1,10 +1,9 @@
+import type { AppEnvironment } from '@mediapeek/shared/runtime-config';
+import { isProductionEnvironment } from '@mediapeek/shared/runtime-config';
 import { createCookieSessionStorage } from 'react-router';
 import { createThemeSessionResolver } from 'remix-themes';
 
-// You can default to 'development' if import.meta.env.MODE is not set
-const isProduction = import.meta.env.MODE === 'production';
-
-const getSessionStorage = (secret: string) =>
+const getSessionStorage = (secret: string, appEnv: AppEnvironment) =>
   createCookieSessionStorage({
     cookie: {
       name: 'theme',
@@ -12,9 +11,11 @@ const getSessionStorage = (secret: string) =>
       httpOnly: true,
       sameSite: 'lax',
       secrets: [secret],
-      secure: isProduction,
+      secure: isProductionEnvironment(appEnv),
     },
   });
 
-export const createThemeSessionResolverWithSecret = (secret: string) =>
-  createThemeSessionResolver(getSessionStorage(secret));
+export const createThemeSessionResolverWithSecret = (
+  secret: string,
+  appEnv: AppEnvironment,
+) => createThemeSessionResolver(getSessionStorage(secret, appEnv));

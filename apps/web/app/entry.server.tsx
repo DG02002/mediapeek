@@ -1,3 +1,4 @@
+import { isDevelopmentEnvironment } from '@mediapeek/shared/runtime-config';
 import { isbot } from 'isbot';
 import { renderToReadableStream } from 'react-dom/server';
 import type { AppLoadContext, EntryContext } from 'react-router';
@@ -8,7 +9,7 @@ export default async function handleRequest(
   responseStatusCode: number,
   responseHeaders: Headers,
   routerContext: EntryContext,
-  _loadContext: AppLoadContext,
+  loadContext: AppLoadContext,
 ) {
   let shellRendered = false;
   const userAgent = request.headers.get('user-agent');
@@ -34,7 +35,10 @@ export default async function handleRequest(
 
   responseHeaders.set('Content-Type', 'text/html');
 
-  const contentSecurityPolicy = import.meta.env.DEV
+  const isDevelopment = isDevelopmentEnvironment(
+    loadContext.cloudflare.runtimeConfig.appEnv,
+  );
+  const contentSecurityPolicy = isDevelopment
     ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: blob:; font-src 'self' https: data:; connect-src 'self' https: ws: wss:; worker-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com;"
     : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https: data:; connect-src 'self' https:; frame-src 'self' https://challenges.cloudflare.com;";
   responseHeaders.set('Content-Security-Policy', contentSecurityPolicy);

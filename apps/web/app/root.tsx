@@ -1,5 +1,6 @@
 import './app.css';
 
+import { isDevelopmentEnvironment } from '@mediapeek/shared/runtime-config';
 import { Toaster } from '@mediapeek/ui/components/sonner';
 import { TooltipProvider } from '@mediapeek/ui/components/tooltip';
 import clsx from 'clsx';
@@ -21,25 +22,15 @@ import {
 
 import type { Route } from './+types/root';
 import { RouteAnnouncer } from './components/route-announcer';
+import { log } from './lib/logger.server';
 import { createThemeSessionResolverWithSecret } from './sessions.server';
-
-const TURNSTILE_TEST_SITE_KEY = '1x00000000000000000000AA';
-
-const isLocalRequest = (request: Request) => {
-  const hostname = new URL(request.url).hostname;
-  return (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname === '::1' ||
-    hostname === '[::1]'
-  );
-};
 
 declare global {
   interface Window {
     ENV: {
       TURNSTILE_SITE_KEY: string;
       ENABLE_TURNSTILE: string;
+      APP_ENV: string;
     };
   }
 }
@@ -59,30 +50,58 @@ export const links: Route.LinksFunction = () => [
 ];
 
 export async function loader({ request, context }: Route.LoaderArgs) {
+  const requestId =
+    request.headers.get('cf-ray') ??
+    request.headers.get('x-request-id') ??
+    crypto.randomUUID();
+  const runtimeConfig = context.cloudflare.runtimeConfig;
   let theme: Theme | null = null;
   try {
-    const sessionSecret =
-      context.cloudflare.env.SESSION_SECRET ||
-      (import.meta.env.DEV ? 'dev-theme-secret' : '');
+    const sessionSecret = context.cloudflare.env.SESSION_SECRET?.trim();
     if (sessionSecret) {
       const { getTheme } =
-        await createThemeSessionResolverWithSecret(sessionSecret)(request);
+        await createThemeSessionResolverWithSecret(
+          sessionSecret,
+          runtimeConfig.appEnv,
+        )(request);
       theme = getTheme();
+    } else {
+      log(
+        {
+          severity: 'WARNING',
+          message: 'SESSION_SECRET missing; theme session is disabled.',
+          requestId,
+          context: {
+            errorClass: 'THEME_CONTEXT_MISSING',
+          },
+        },
+        { runtimeConfig },
+      );
     }
   } catch (error) {
-    console.error('THEME_CONTEXT_MISSING', error);
+    log(
+      {
+        severity: 'ERROR',
+        message: 'Failed to resolve theme session.',
+        requestId,
+        context: {
+          errorClass: 'THEME_CONTEXT_MISSING',
+          error: error instanceof Error ? error.message : String(error),
+        },
+        error,
+      },
+      { runtimeConfig },
+    );
   }
 
-  const turnstileSiteKey =
-    import.meta.env.DEV || isLocalRequest(request)
-      ? TURNSTILE_TEST_SITE_KEY
-      : context.cloudflare.env.TURNSTILE_SITE_KEY;
+  const turnstileSiteKey = context.cloudflare.env.TURNSTILE_SITE_KEY?.trim() ?? '';
 
   return {
     theme,
     env: {
       TURNSTILE_SITE_KEY: turnstileSiteKey,
       ENABLE_TURNSTILE: context.cloudflare.env.ENABLE_TURNSTILE,
+      APP_ENV: runtimeConfig.appEnv,
     },
   };
 }
@@ -108,6 +127,7 @@ function AppWithProviders({ children }: { children: React.ReactNode }) {
   const env = data?.env ?? {
     TURNSTILE_SITE_KEY: '',
     ENABLE_TURNSTILE: 'false',
+    APP_ENV: 'production',
   };
   const [theme] = useTheme();
   const isMobile = useMediaQuery('(max-width: 640px)');
@@ -184,6 +204,11 @@ export default function App() {
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  const data = useRouteLoaderData<typeof loader>('root');
+  const showStack = isDevelopmentEnvironment(
+    (data?.env.APP_ENV as 'development' | 'staging' | 'production') ??
+      'production',
+  );
   let message = 'Error';
   let details = 'An unexpected error occurred.';
   let stack: string | undefined;
@@ -192,7 +217,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
     message = error.status === 404 ? '404' : 'Error';
     details =
       error.status === 404 ? 'Page not found.' : error.statusText || details;
-  } else if (import.meta.env.DEV && error && error instanceof Error) {
+  } else if (showStack && error && error instanceof Error) {
     details = error.message;
     stack = error.stack;
   }

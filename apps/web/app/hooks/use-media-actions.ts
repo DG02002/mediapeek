@@ -24,9 +24,16 @@ export function useMediaActions({ data, url }: UseMediaActionsProps) {
       if (!content) {
         const toastId = toast.loading(`Generating ${label}...`);
         try {
-          const response = await fetch(
-            `/resource/analyze?url=${encodeURIComponent(url)}&format=${format}`,
-          );
+          const response = await fetch('/resource/analyze', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              url,
+              format: [format],
+            }),
+          });
           if (!response.ok) throw new Error('Failed to generate format');
           const json: {
             success?: boolean;

@@ -1,5 +1,7 @@
 import { sValidator } from '@hono/standard-validator';
 import { AnalyzeErrorCode } from '@mediapeek/shared/analyze-contract';
+import { redactSensitiveUrl } from '@mediapeek/shared/log-redaction';
+import { resolveRuntimeConfig } from '@mediapeek/shared/runtime-config';
 import { analyzeSchema } from '@mediapeek/shared/schemas';
 import { Hono } from 'hono';
 
@@ -14,6 +16,10 @@ import {
 type Bindings = {
   ANALYZE_API_KEY?: string;
   ANALYZE_CPU_BUDGET_MS?: string;
+  APP_ENV?: string;
+  LOG_SAMPLE_RATE?: string;
+  LOG_SLOW_REQUEST_MS?: string;
+  LOG_FORCE_ALL_REQUESTS?: string;
 };
 
 const MIN_ANALYSIS_CPU_BUDGET_MS = 5_000;
@@ -61,8 +67,10 @@ const routes = app.post(
   async (c) => {
     const startTime = performance.now();
     const requestId = getRequestId(c.req.raw);
+    const runtimeConfig = resolveRuntimeConfig(c.env);
     const initialContext: LogContext = {
       requestId,
+      runtimeConfig,
       httpRequest: {
         requestMethod: c.req.method,
         requestUrl: c.req.path,
@@ -128,7 +136,7 @@ const routes = app.post(
       customContext.cpuBudgetMs = cpuBudgetMs;
 
       const { url, format } = c.req.valid('json');
-      customContext.targetUrl = url;
+      customContext.targetUrl = redactSensitiveUrl(url);
 
       try {
         // 1. Fetch

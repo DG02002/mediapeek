@@ -1,4 +1,8 @@
 import type { AnalyzeErrorCode } from '@mediapeek/shared/analyze-contract';
+import {
+  redactSensitiveUrl,
+  summarizeSensitiveToken,
+} from '@mediapeek/shared/log-redaction';
 import { analyzeSchema } from '@mediapeek/shared/schemas';
 import { hc } from 'hono/client';
 import type { AppType } from 'mediapeek-analyzer';
@@ -14,7 +18,8 @@ import type { Route } from './+types/route';
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const DEFAULT_RATE_LIMIT_PER_MINUTE = 30;
 const DEFAULT_ANALYZER_REQUEST_TIMEOUT_MS = 60_000;
-const TURNSTILE_TEST_SECRET_KEY = '1x0000000000000000000000000000000AA';
+const LEGACY_GET_WARNING =
+  '299 - "GET /resource/analyze is deprecated. Use POST /resource/analyze with JSON body."';
 const rateLimitState = new Map<string, { count: number; resetAt: number }>();
 interface RateLimitBinding {
   limit: (options: { key: string }) => Promise<{ success: boolean }>;
@@ -42,6 +47,15 @@ interface AnalyzerRpcFailure {
 }
 
 type AnalyzerRpcResponse = AnalyzerRpcSuccess | AnalyzerRpcFailure;
+type AnalyzeRouteArgs = {
+  request: Request;
+  context: Route.LoaderArgs['context'];
+};
+type ParsedAnalyzeInput = {
+  input: Record<string, unknown>;
+  legacyGet: boolean;
+  parseError?: string;
+};
 
 const getRequestId = (request: Request) =>
   request.headers.get('cf-ray') ?? crypto.randomUUID();
@@ -51,26 +65,56 @@ const getClientIp = (request: Request) =>
   request.headers.get('x-real-ip') ??
   'anonymous';
 
-const isLocalRequest = (request: Request) => {
-  const hostname = new URL(request.url).hostname;
-  return (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname === '::1' ||
-    hostname === '[::1]'
-  );
-};
+const getCompatibilityHeaders = (legacyGet: boolean) =>
+  legacyGet
+    ? {
+        Warning: LEGACY_GET_WARNING,
+        Deprecation: 'true',
+      }
+    : undefined;
 
-const resolveTurnstileSecretKey = (
+const parseAnalyzeInput = async (
   request: Request,
-  configuredSecret?: string,
-) => {
-  if (import.meta.env.DEV || isLocalRequest(request)) {
-    return TURNSTILE_TEST_SECRET_KEY;
+  url: URL,
+): Promise<ParsedAnalyzeInput> => {
+  if (request.method === 'POST') {
+    try {
+      const raw = await request.json();
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return {
+          input: {},
+          legacyGet: false,
+          parseError: 'Invalid JSON body. Expected an object payload.',
+        };
+      }
+
+      const input = { ...(raw as Record<string, unknown>) };
+      if (typeof input.format === 'string') {
+        input.format = [input.format];
+      }
+
+      return {
+        input,
+        legacyGet: false,
+      };
+    } catch {
+      return {
+        input: {},
+        legacyGet: false,
+        parseError: 'Invalid JSON body.',
+      };
+    }
   }
-  const trimmed = configuredSecret?.trim();
-  if (trimmed) return trimmed;
-  return '';
+
+  const input: Record<string, unknown> = Object.fromEntries(url.searchParams);
+  if (url.searchParams.has('format')) {
+    input.format = url.searchParams.getAll('format');
+  }
+
+  return {
+    input,
+    legacyGet: true,
+  };
 };
 
 const getApiKeyFromRequest = (request: Request): string | null => {
@@ -88,6 +132,7 @@ const buildErrorResponse = (
   code: AnalyzeErrorCode,
   message: string,
   retryable: boolean,
+  headers?: HeadersInit,
 ) => {
   const payload: {
     success: false;
@@ -102,18 +147,19 @@ const buildErrorResponse = (
     requestId,
     error: { code, message, retryable },
   };
-  return Response.json(payload, { status });
+  return Response.json(payload, { status, headers });
 };
 
 const buildSuccessResponse = (
   requestId: string,
   results: Record<string, string>,
+  headers?: HeadersInit,
 ) =>
   Response.json({
     success: true,
     requestId,
     results,
-  });
+  }, { headers });
 
 const isCpuLimitError = (error: unknown) => {
   if (!(error instanceof Error)) return false;
@@ -171,7 +217,11 @@ const getAnalyzerTimeoutMs = (env: Env) => {
   return Math.min(180_000, configured);
 };
 
-const buildTooManyRequestsResponse = (requestId: string, retryAfterSec = 60) =>
+const buildTooManyRequestsResponse = (
+  requestId: string,
+  retryAfterSec = 60,
+  headers?: HeadersInit,
+) =>
   Response.json(
     {
       success: false,
@@ -185,20 +235,23 @@ const buildTooManyRequestsResponse = (requestId: string, retryAfterSec = 60) =>
     {
       status: 429,
       headers: {
+        ...(headers ?? {}),
         'Retry-After': String(Math.max(1, Math.ceil(retryAfterSec))),
       },
     },
   );
 
-export async function loader({ request, context }: Route.LoaderArgs) {
+async function handleAnalyzeRequest({ request, context }: AnalyzeRouteArgs) {
   initTelemetry();
 
   const startTime = performance.now();
   const requestId = getRequestId(request);
   const url = new URL(request.url);
+  const runtimeConfig = context.cloudflare.runtimeConfig;
 
   const initialContext: LogContext = {
     requestId,
+    runtimeConfig,
     httpRequest: {
       requestMethod: request.method,
       requestUrl: url.pathname,
@@ -231,6 +284,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
             'AUTH_REQUIRED',
             'Missing API key.',
             false,
+            getCompatibilityHeaders(request.method !== 'POST'),
           );
         }
         if (providedApiKey !== expectedApiKey) {
@@ -243,6 +297,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
             'AUTH_INVALID',
             'Invalid API key.',
             false,
+            getCompatibilityHeaders(request.method !== 'POST'),
           );
         }
       }
@@ -260,7 +315,11 @@ export async function loader({ request, context }: Route.LoaderArgs) {
             severity = 'WARNING';
             customContext.errorClass = 'ANALYZE_RATE_LIMITED';
             customContext.rateLimitSource = 'cloudflare_binding';
-            return buildTooManyRequestsResponse(requestId, 60);
+            return buildTooManyRequestsResponse(
+              requestId,
+              60,
+              getCompatibilityHeaders(request.method !== 'POST'),
+            );
           }
         } catch (error) {
           customContext.rateLimitBindingError =
@@ -280,17 +339,33 @@ export async function loader({ request, context }: Route.LoaderArgs) {
         return buildTooManyRequestsResponse(
           requestId,
           rateLimitResult.retryAfterMs / 1000,
+          getCompatibilityHeaders(request.method !== 'POST'),
         );
       }
 
-      const input: Record<string, unknown> = Object.fromEntries(
-        url.searchParams,
-      );
-      if (url.searchParams.has('format')) {
-        input.format = url.searchParams.getAll('format');
+      const parsedInput = await parseAnalyzeInput(request, url);
+      const compatibilityHeaders = getCompatibilityHeaders(parsedInput.legacyGet);
+      if (parsedInput.legacyGet) {
+        customContext.apiContract = 'legacy_get_query';
+      } else {
+        customContext.apiContract = 'post_json';
       }
 
-      const validationResult = analyzeSchema.safeParse(input);
+      if (parsedInput.parseError) {
+        status = 422;
+        severity = 'WARNING';
+        customContext.errorClass = 'ANALYZE_VALIDATION_FAILED';
+        return buildErrorResponse(
+          requestId,
+          422,
+          'VALIDATION_FAILED',
+          parsedInput.parseError,
+          false,
+          compatibilityHeaders,
+        );
+      }
+
+      const validationResult = analyzeSchema.safeParse(parsedInput.input);
       if (!validationResult.success) {
         const errors = validationResult.error.issues;
         const urlError = errors.find((e) => e.path[0] === 'url')?.message;
@@ -313,16 +388,15 @@ export async function loader({ request, context }: Route.LoaderArgs) {
           'VALIDATION_FAILED',
           serverError,
           false,
+          compatibilityHeaders,
         );
       }
 
       const turnstileToken = request.headers.get('CF-Turnstile-Response');
       const enableTurnstile =
         (context.cloudflare.env.ENABLE_TURNSTILE as string) === 'true';
-      const secretKey = resolveTurnstileSecretKey(
-        request,
-        context.cloudflare.env.TURNSTILE_SECRET_KEY,
-      );
+      const secretKey = context.cloudflare.env.TURNSTILE_SECRET_KEY?.trim() ?? '';
+      const turnstileTokenSummary = summarizeSensitiveToken(turnstileToken);
 
       if (enableTurnstile) {
         if (!secretKey) {
@@ -335,6 +409,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
             'INTERNAL_ERROR',
             'Security verification is currently unavailable. Please try again later.',
             true,
+            compatibilityHeaders,
           );
         }
 
@@ -344,7 +419,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
           customContext.errorClass = 'ANALYZE_AUTH_FAILED';
           mediaPeekEmitter.emit('turnstile:verify', {
             success: false,
-            token: 'MISSING',
+            ...turnstileTokenSummary,
             outcome: { result: 'MISSING_TOKEN' },
           });
           return buildErrorResponse(
@@ -353,6 +428,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
             'AUTH_REQUIRED',
             'Security verification is required. Please complete the check.',
             false,
+            compatibilityHeaders,
           );
         }
 
@@ -380,6 +456,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
             'INTERNAL_ERROR',
             'Unable to validate the security check right now. Please try again.',
             true,
+            compatibilityHeaders,
           );
         }
 
@@ -392,7 +469,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
           customContext.errorClass = 'ANALYZE_AUTH_FAILED';
           mediaPeekEmitter.emit('turnstile:verify', {
             success: false,
-            token: turnstileToken,
+            ...turnstileTokenSummary,
             outcome,
           });
           return buildErrorResponse(
@@ -401,22 +478,24 @@ export async function loader({ request, context }: Route.LoaderArgs) {
             'AUTH_INVALID',
             'Security check failed. Please refresh and try again.',
             false,
+            compatibilityHeaders,
           );
         }
 
         mediaPeekEmitter.emit('turnstile:verify', {
           success: true,
-          token: turnstileToken,
+          ...turnstileTokenSummary,
           outcome,
         });
       }
 
       const initialUrl = validationResult.data.url;
       const requestedFormats = validationResult.data.format;
+      const redactedUrl = redactSensitiveUrl(initialUrl);
 
       mediaPeekEmitter.emit('request:start', {
         requestId,
-        url: initialUrl,
+        url: redactedUrl,
       });
 
       const analyzerBinding = context.cloudflare.env.ANALYZER;
@@ -430,6 +509,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
           'INTERNAL_ERROR',
           'Analyzer service binding is unavailable. Please try again shortly.',
           true,
+          compatibilityHeaders,
         );
       }
 
@@ -485,6 +565,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
             ? 'Analyzer local dev worker is unavailable. Restart `pnpm dev` and retry.'
             : 'Analyzer service returned an unexpected response. Please retry.',
           true,
+          compatibilityHeaders,
         );
       }
 
@@ -507,6 +588,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
           'INTERNAL_ERROR',
           'Analyzer service returned malformed data. Please retry.',
           true,
+          compatibilityHeaders,
         );
       }
 
@@ -523,6 +605,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
             'VALIDATION_FAILED',
             firstIssue.message || 'Invalid request data',
             false,
+            compatibilityHeaders,
           );
         }
 
@@ -550,6 +633,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
           'INTERNAL_ERROR',
           'Analyzer response was incomplete. Please retry.',
           true,
+          compatibilityHeaders,
         );
       }
 
@@ -588,7 +672,11 @@ export async function loader({ request, context }: Route.LoaderArgs) {
         diagnostics: diagnostics.analysis,
       });
 
-      return buildSuccessResponse(requestId, results);
+      return buildSuccessResponse(
+        requestId,
+        results,
+        getCompatibilityHeaders(request.method !== 'POST'),
+      );
     } catch (error) {
       status = 500;
       severity = 'ERROR';
@@ -660,6 +748,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
         code,
         errorMessage,
         retryable,
+        getCompatibilityHeaders(request.method !== 'POST'),
       );
     } finally {
       if (initialContext.httpRequest) {
@@ -673,4 +762,12 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       });
     }
   });
+}
+
+export async function loader(args: Route.LoaderArgs) {
+  return handleAnalyzeRequest(args);
+}
+
+export async function action(args: Route.ActionArgs) {
+  return handleAnalyzeRequest(args);
 }

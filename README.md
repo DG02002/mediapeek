@@ -44,7 +44,11 @@ SSRF protection blocks requests to local and private network resources.
 
 ### API Response Contract
 
-`/resource/analyze` now returns a normalized JSON envelope:
+`/resource/analyze` returns a normalized JSON envelope.
+
+- Preferred request contract: `POST /resource/analyze` with JSON body:
+  - `{ "url": "<absolute-media-url>", "format": ["object"] }`
+- Legacy compatibility: `GET /resource/analyze?url=...&format=...` remains available temporarily but is deprecated.
 
 - Success:
   - `success: true`
@@ -60,6 +64,10 @@ Optional analyzer controls:
 - `ANALYZE_API_KEY` (secret for web -> analyzer internal auth)
 - `ANALYZE_PUBLIC_API_KEY` (optional secret for public `/resource/analyze` access control)
 - `ANALYZE_RATE_LIMIT_PER_MINUTE` (default `30`)
+- `APP_ENV` (`development` | `staging` | `production`, default `production`)
+- `LOG_SAMPLE_RATE` (default `0.1`)
+- `LOG_SLOW_REQUEST_MS` (default `2000`)
+- `LOG_FORCE_ALL_REQUESTS` (`"true"`/`"false"`, default `"false"`)
 - `ENABLE_TURNSTILE` (`"true"`/`"false"`)
 - `TURNSTILE_SITE_KEY` (public site key)
 - `TURNSTILE_SECRET_KEY` (secret key)
