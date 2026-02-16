@@ -57,6 +57,7 @@ interface OptionsMenuProps {
   data: Record<string, string>;
   url: string;
   filename: string;
+  requestTurnstileToken?: () => Promise<string | null>;
   isTextView: boolean;
   setIsTextView: (val: boolean) => void;
   showOriginalTitles: boolean;
@@ -77,6 +78,7 @@ export function OptionsMenu({
   data,
   url,
   filename,
+  requestTurnstileToken,
   isTextView,
   setIsTextView,
   showOriginalTitles,
@@ -84,7 +86,11 @@ export function OptionsMenu({
   className,
   onShareSuccess,
 }: OptionsMenuProps) {
-  const { handleCopy, getShareUrl } = useMediaActions({ data, url });
+  const { handleCopy, getShareUrl } = useMediaActions({
+    data,
+    url,
+    requestTurnstileToken,
+  });
   const isDesktop = useMediaQuery('(min-width: 768px)');
   const [open, setOpen] = React.useState(false);
 

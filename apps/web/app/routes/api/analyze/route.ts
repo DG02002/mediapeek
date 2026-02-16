@@ -9,6 +9,12 @@ import type { AppType } from 'mediapeek-analyzer';
 
 import { log, type LogContext, requestStorage } from '~/lib/logger.server';
 import { TurnstileResponseSchema } from '~/lib/schemas/turnstile';
+import {
+  createTurnstileGrantToken,
+  readTurnstileGrantCookie,
+  serializeTurnstileGrantCookie,
+  verifyTurnstileGrantToken,
+} from '~/lib/turnstile-grant.server';
 import { mediaPeekEmitter } from '~/services/event-bus.server';
 import type { MediaInfoDiagnostics } from '~/services/mediainfo.server';
 import { initTelemetry } from '~/services/telemetry.server';
@@ -72,6 +78,18 @@ const getCompatibilityHeaders = (legacyGet: boolean) =>
         Deprecation: 'true',
       }
     : undefined;
+
+const mergeHeaders = (...headersList: Array<HeadersInit | undefined>) => {
+  const merged = new Headers();
+  for (const headers of headersList) {
+    if (!headers) continue;
+    const source = new Headers(headers);
+    source.forEach((value, key) => {
+      merged.append(key, value);
+    });
+  }
+  return merged;
+};
 
 const parseAnalyzeInput = async (
   request: Request,
@@ -392,14 +410,18 @@ async function handleAnalyzeRequest({ request, context }: AnalyzeRouteArgs) {
         );
       }
 
+      const initialUrl = validationResult.data.url;
       const turnstileToken = request.headers.get('CF-Turnstile-Response');
       const enableTurnstile =
         (context.cloudflare.env.ENABLE_TURNSTILE as string) === 'true';
       const secretKey = context.cloudflare.env.TURNSTILE_SECRET_KEY?.trim() ?? '';
+      const grantSecret =
+        context.cloudflare.env.TURNSTILE_GRANT_SECRET?.trim() ?? '';
       const turnstileTokenSummary = summarizeSensitiveToken(turnstileToken);
+      let grantCookieHeader: string | undefined;
 
       if (enableTurnstile) {
-        if (!secretKey) {
+        if (!secretKey || !grantSecret) {
           status = 500;
           severity = 'ERROR';
           customContext.errorClass = 'TURNSTILE_MISCONFIGURED';
@@ -413,83 +435,118 @@ async function handleAnalyzeRequest({ request, context }: AnalyzeRouteArgs) {
           );
         }
 
-        if (!turnstileToken) {
-          status = 403;
-          severity = 'WARNING';
-          customContext.errorClass = 'ANALYZE_AUTH_FAILED';
-          mediaPeekEmitter.emit('turnstile:verify', {
-            success: false,
-            ...turnstileTokenSummary,
-            outcome: { result: 'MISSING_TOKEN' },
-          });
-          return buildErrorResponse(
-            requestId,
-            403,
-            'AUTH_REQUIRED',
-            'Security verification is required. Please complete the check.',
-            false,
-            compatibilityHeaders,
-          );
-        }
-
-        const formData = new FormData();
-        formData.append('secret', secretKey);
-        formData.append('response', turnstileToken);
-        formData.append('remoteip', request.headers.get('CF-Connecting-IP') ?? '');
-        formData.append('idempotency_key', requestId);
-
-        const result = await fetch(
-          'https://challenges.cloudflare.com/turnstile/v0/siteverify',
-          {
-            method: 'POST',
-            body: formData,
-          },
+        const existingGrantToken = readTurnstileGrantCookie(
+          request.headers.get('cookie'),
         );
-
-        if (!result.ok) {
-          status = 503;
-          severity = 'ERROR';
-          customContext.errorClass = 'TURNSTILE_VERIFY_UNAVAILABLE';
-          return buildErrorResponse(
-            requestId,
-            503,
-            'INTERNAL_ERROR',
-            'Unable to validate the security check right now. Please try again.',
-            true,
-            compatibilityHeaders,
-          );
-        }
-
-        const json = await result.json();
-        const outcome = TurnstileResponseSchema.parse(json);
-
-        if (!outcome.success) {
-          status = 403;
-          severity = 'WARNING';
-          customContext.errorClass = 'ANALYZE_AUTH_FAILED';
-          mediaPeekEmitter.emit('turnstile:verify', {
-            success: false,
-            ...turnstileTokenSummary,
-            outcome,
-          });
-          return buildErrorResponse(
-            requestId,
-            403,
-            'AUTH_INVALID',
-            'Security check failed. Please refresh and try again.',
-            false,
-            compatibilityHeaders,
-          );
-        }
-
-        mediaPeekEmitter.emit('turnstile:verify', {
-          success: true,
-          ...turnstileTokenSummary,
-          outcome,
+        const grantResult = await verifyTurnstileGrantToken({
+          secret: grantSecret,
+          url: initialUrl,
+          token: existingGrantToken,
         });
+
+        customContext.turnstileGrantOutcome = grantResult.reason;
+
+        if (grantResult.valid) {
+          mediaPeekEmitter.emit('turnstile:verify', {
+            success: true,
+            tokenPresent: false,
+            tokenLength: 0,
+            outcome: { result: 'GRANT_VALID' },
+          });
+        } else {
+          if (!turnstileToken) {
+            status = 403;
+            severity = 'WARNING';
+            customContext.errorClass = 'ANALYZE_AUTH_FAILED';
+            mediaPeekEmitter.emit('turnstile:verify', {
+              success: false,
+              ...turnstileTokenSummary,
+              outcome: {
+                result: 'MISSING_TOKEN',
+                grantOutcome: grantResult.reason,
+              },
+            });
+            return buildErrorResponse(
+              requestId,
+              403,
+              'AUTH_REQUIRED',
+              'Security verification is required. Please complete the check.',
+              false,
+              compatibilityHeaders,
+            );
+          }
+
+          const formData = new FormData();
+          formData.append('secret', secretKey);
+          formData.append('response', turnstileToken);
+          formData.append(
+            'remoteip',
+            request.headers.get('CF-Connecting-IP') ?? '',
+          );
+          formData.append('idempotency_key', requestId);
+
+          const result = await fetch(
+            'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+            {
+              method: 'POST',
+              body: formData,
+            },
+          );
+
+          if (!result.ok) {
+            status = 503;
+            severity = 'ERROR';
+            customContext.errorClass = 'TURNSTILE_VERIFY_UNAVAILABLE';
+            return buildErrorResponse(
+              requestId,
+              503,
+              'INTERNAL_ERROR',
+              'Unable to validate the security check right now. Please try again.',
+              true,
+              compatibilityHeaders,
+            );
+          }
+
+          const json = await result.json();
+          const outcome = TurnstileResponseSchema.parse(json);
+
+          if (!outcome.success) {
+            status = 403;
+            severity = 'WARNING';
+            customContext.errorClass = 'ANALYZE_AUTH_FAILED';
+            mediaPeekEmitter.emit('turnstile:verify', {
+              success: false,
+              ...turnstileTokenSummary,
+              outcome,
+            });
+            return buildErrorResponse(
+              requestId,
+              403,
+              'AUTH_INVALID',
+              'Security check failed. Please refresh and try again.',
+              false,
+              compatibilityHeaders,
+            );
+          }
+
+          customContext.turnstileGrantOutcome = 'TOKEN_VERIFIED';
+          mediaPeekEmitter.emit('turnstile:verify', {
+            success: true,
+            ...turnstileTokenSummary,
+            outcome: { result: 'TOKEN_VERIFIED' },
+          });
+
+          const newGrant = await createTurnstileGrantToken({
+            secret: grantSecret,
+            url: initialUrl,
+          });
+          grantCookieHeader = serializeTurnstileGrantCookie({
+            token: newGrant.token,
+            appEnv: runtimeConfig.appEnv,
+          });
+        }
       }
 
-      const initialUrl = validationResult.data.url;
       const requestedFormats = validationResult.data.format;
       const redactedUrl = redactSensitiveUrl(initialUrl);
 
@@ -675,7 +732,10 @@ async function handleAnalyzeRequest({ request, context }: AnalyzeRouteArgs) {
       return buildSuccessResponse(
         requestId,
         results,
-        getCompatibilityHeaders(request.method !== 'POST'),
+        mergeHeaders(
+          getCompatibilityHeaders(request.method !== 'POST'),
+          grantCookieHeader ? { 'Set-Cookie': grantCookieHeader } : undefined,
+        ),
       );
     } catch (error) {
       status = 500;

@@ -23,6 +23,8 @@
     "ENABLE_TURNSTILE": "true",
     "ANALYZE_RATE_LIMIT_PER_MINUTE": "30",
   },
+  // Required secret when ENABLE_TURNSTILE=true:
+  // wrangler secret put TURNSTILE_GRANT_SECRET
   // Add a real Rate Limiting binding per environment when available:
   // "ratelimits": [
   //   {

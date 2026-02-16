@@ -71,6 +71,11 @@ Optional analyzer controls:
 - `ENABLE_TURNSTILE` (`"true"`/`"false"`)
 - `TURNSTILE_SITE_KEY` (public site key)
 - `TURNSTILE_SECRET_KEY` (secret key)
+- `TURNSTILE_GRANT_SECRET` (secret key used to sign short-lived Turnstile grant cookies)
+
+When Turnstile is enabled, MediaPeek issues an HTTP-only, URL-bound grant cookie
+(`mp_turnstile_grant`) after a successful challenge so follow-up format requests
+(Text/XML/HTML) can proceed for up to 10 minutes without repeated challenges.
 
 ## Try It
 

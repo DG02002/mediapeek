@@ -18,6 +18,7 @@ interface MediaHeaderProps {
   setShowOriginalTitles: (val: boolean) => void;
   rawData: Record<string, string>;
   url: string;
+  requestTurnstileToken?: () => Promise<string | null>;
 }
 
 export const MediaHeader = memo(function MediaHeader({
@@ -31,6 +32,7 @@ export const MediaHeader = memo(function MediaHeader({
   setShowOriginalTitles,
   rawData,
   url,
+  requestTurnstileToken,
 }: MediaHeaderProps) {
   const [_, setPrivateBinUrl] = useState<string | null>(null);
 
@@ -121,6 +123,7 @@ export const MediaHeader = memo(function MediaHeader({
                 data={rawData}
                 url={url}
                 filename={displayFilename}
+                requestTurnstileToken={requestTurnstileToken}
                 isTextView={isTextView}
                 setIsTextView={setIsTextView}
                 showOriginalTitles={showOriginalTitles}

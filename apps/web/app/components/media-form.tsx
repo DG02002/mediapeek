@@ -25,7 +25,13 @@ import {
   InputGroupInput,
 } from '@mediapeek/ui/components/input-group';
 import { AnimatePresence, motion } from 'motion/react';
-import { type SyntheticEvent, useEffect, useRef, useState } from 'react';
+import {
+  type SyntheticEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import { MediaSkeleton } from '~/components/media-skeleton';
 import { useClipboardSuggestion } from '~/hooks/use-clipboard-suggestion';
@@ -134,15 +140,27 @@ export function MediaForm() {
   const turnstileInputRef = useRef<HTMLInputElement>(null);
   const turnstileWidgetRef = useRef<TurnstileWidgetHandle>(null);
   const pendingFormDataRef = useRef<FormData | null>(null);
+  const turnstileTokenResolverRef = useRef<
+    ((token: string | null) => void) | null
+  >(null);
+  const turnstileTokenPromiseRef = useRef<Promise<string | null> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [isTurnstileVerified, setIsTurnstileVerified] = useState(false);
   const [isTurnstileDialogOpen, setIsTurnstileDialogOpen] = useState(false);
   const [state, setState] = useState<FormState>(initialState);
   const [isPending, setIsPending] = useState(false);
   const [pendingStatusMessage, setPendingStatusMessage] = useState<
     string | null
   >(null);
+
+  const enableTurnstile =
+    typeof window !== 'undefined'
+      ? (
+          window as unknown as {
+            ENV?: { ENABLE_TURNSTILE?: string };
+          }
+        ).ENV?.ENABLE_TURNSTILE === 'true'
+      : false;
 
   const {
     clipboardUrl,
@@ -168,6 +186,43 @@ export function MediaForm() {
     };
   }, [isPending, pendingStatusMessage]);
 
+  const settleTurnstileTokenRequest = useCallback((token: string | null) => {
+    const resolve = turnstileTokenResolverRef.current;
+    turnstileTokenResolverRef.current = null;
+    turnstileTokenPromiseRef.current = null;
+    if (resolve) {
+      resolve(token);
+    }
+  }, []);
+
+  const requestTurnstileToken = useCallback(async () => {
+    if (!enableTurnstile) return null;
+    if (turnstileTokenPromiseRef.current) {
+      return turnstileTokenPromiseRef.current;
+    }
+
+    turnstileWidgetRef.current?.reset();
+    if (turnstileInputRef.current) {
+      turnstileInputRef.current.value = '';
+    }
+
+    setState((prev) => ({ ...prev, error: null }));
+    setIsTurnstileDialogOpen(true);
+
+    const tokenPromise = new Promise<string | null>((resolve) => {
+      turnstileTokenResolverRef.current = resolve;
+    });
+    turnstileTokenPromiseRef.current = tokenPromise;
+    return tokenPromise;
+  }, [enableTurnstile]);
+
+  useEffect(
+    () => () => {
+      settleTurnstileTokenRequest(null);
+    },
+    [settleTurnstileTokenRequest],
+  );
+
   const submitAnalysis = async (formData: FormData) => {
     const url = formData.get('url') as string;
     const turnstileToken = formData.get('cf-turnstile-response') as string;
@@ -180,15 +235,6 @@ export function MediaForm() {
       });
       return;
     }
-
-    const enableTurnstile =
-      typeof window !== 'undefined'
-        ? (
-            window as unknown as {
-              ENV?: { ENABLE_TURNSTILE?: string };
-            }
-          ).ENV?.ENABLE_TURNSTILE === 'true'
-        : false;
 
     if (enableTurnstile && !turnstileToken) {
       setState({
@@ -324,7 +370,6 @@ export function MediaForm() {
       setIsPending(false);
       setPendingStatusMessage(null);
       pendingFormDataRef.current = null;
-      setIsTurnstileVerified(false);
       turnstileWidgetRef.current?.reset();
       if (turnstileInputRef.current) {
         turnstileInputRef.current.value = '';
@@ -336,35 +381,17 @@ export function MediaForm() {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
 
-    const enableTurnstile =
-      typeof window !== 'undefined'
-        ? (
-            window as unknown as {
-              ENV?: { ENABLE_TURNSTILE?: string };
-            }
-          ).ENV?.ENABLE_TURNSTILE === 'true'
-        : false;
-
     const turnstileToken =
       (formData.get('cf-turnstile-response') as string | null)?.trim() ?? '';
     if (enableTurnstile && !turnstileToken) {
       pendingFormDataRef.current = formData;
       setState((prev) => ({ ...prev, error: null }));
-      setIsTurnstileDialogOpen(true);
+      void requestTurnstileToken();
       return;
     }
 
     void submitAnalysis(formData);
   };
-
-  const enableTurnstile =
-    typeof window !== 'undefined'
-      ? (
-          window as unknown as {
-            ENV?: { ENABLE_TURNSTILE?: string };
-          }
-        ).ENV?.ENABLE_TURNSTILE === 'true'
-      : false;
 
   return (
     <div className="flex min-h-[50vh] w-full flex-col justify-center py-8">
@@ -467,9 +494,15 @@ export function MediaForm() {
                 open={isTurnstileDialogOpen}
                 onOpenChange={(open) => {
                   setIsTurnstileDialogOpen(open);
-                  if (!open && pendingFormDataRef.current && !isPending) {
+                  if (!open && isPending) return;
+
+                  if (!open) {
+                    const hadPendingSubmit = pendingFormDataRef.current !== null;
+                    const hadTokenRequest =
+                      turnstileTokenResolverRef.current !== null;
                     pendingFormDataRef.current = null;
-                    if (!isTurnstileVerified) {
+                    settleTurnstileTokenRequest(null);
+                    if (hadPendingSubmit || hadTokenRequest) {
                       setState((prev) => ({
                         ...prev,
                         error: 'Verification was cancelled.',
@@ -489,24 +522,26 @@ export function MediaForm() {
                     <TurnstileWidget
                       ref={turnstileWidgetRef}
                       onVerify={(token) => {
-                        setIsTurnstileVerified(true);
                         if (turnstileInputRef.current) {
                           turnstileInputRef.current.value = token;
                         }
 
                         const pendingFormData = pendingFormDataRef.current;
-                        if (!pendingFormData) return;
-
-                        pendingFormData.set('cf-turnstile-response', token);
                         pendingFormDataRef.current = null;
+                        settleTurnstileTokenRequest(token);
                         setIsTurnstileDialogOpen(false);
+
+                        if (!pendingFormData) return;
+                        pendingFormData.set('cf-turnstile-response', token);
                         void submitAnalysis(pendingFormData);
                       }}
                       onError={() => {
-                        setIsTurnstileVerified(false);
                         if (turnstileInputRef.current) {
                           turnstileInputRef.current.value = '';
                         }
+                        pendingFormDataRef.current = null;
+                        settleTurnstileTokenRequest(null);
+                        setIsTurnstileDialogOpen(false);
                         setState((prev) => ({
                           ...prev,
                           error:
@@ -514,7 +549,6 @@ export function MediaForm() {
                         }));
                       }}
                       onExpire={() => {
-                        setIsTurnstileVerified(false);
                         if (turnstileInputRef.current) {
                           turnstileInputRef.current.value = '';
                         }
@@ -552,7 +586,11 @@ export function MediaForm() {
       {state.results && !isPending && (
         <div className="w-full">
           <div className="animate-in fade-in slide-in-from-bottom-4 ease-smooth mt-2 duration-300">
-            <MediaView data={state.results} url={state.url ?? ''} />{' '}
+            <MediaView
+              data={state.results}
+              url={state.url ?? ''}
+              requestTurnstileToken={requestTurnstileToken}
+            />{' '}
             {/* Default uses JSON for formatted view */}
           </div>
         </div>

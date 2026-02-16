@@ -16,8 +16,8 @@ import {
   useState,
   useTransition,
 } from 'react';
-import { z } from 'zod';
 
+import { fetchAnalyzeFormat } from '~/lib/analyze-client';
 import { removeEmptyStrings } from '~/lib/media-utils';
 import { startNativeViewTransition } from '~/lib/view-transition';
 import type { MediaInfoJSON, MediaTrackJSON } from '~/types/media';
@@ -31,26 +31,16 @@ import { MediaHeader } from './media-view/media-header';
 import { SubtitleSection } from './media-view/subtitle-section';
 import { VideoSection } from './media-view/video-section';
 
-export const TextResponseSchema = z.object({
-  success: z.boolean().optional(),
-  results: z
-    .object({
-      text: z.string().optional(),
-    })
-    .optional(),
-  error: z
-    .union([z.string(), z.object({ message: z.string().optional() })])
-    .optional(),
-});
-
 interface MediaViewProps {
   data: Record<string, string>;
   url: string;
+  requestTurnstileToken?: () => Promise<string | null>;
 }
 
 export const MediaView = memo(function MediaView({
   data,
   url,
+  requestTurnstileToken,
 }: MediaViewProps) {
   const [isTextView, setIsTextView] = useState(false);
   const [showOriginalTitles, setShowOriginalTitles] = useState(false);
@@ -95,32 +85,22 @@ export const MediaView = memo(function MediaView({
 
   // Lazy-load text output on demand using POST to avoid exposing URLs in query strings.
   useEffect(() => {
-    if (!isTextView || data.text || fetchedText || isTextLoading) return;
+    if (!isTextView || data.text || fetchedText) return;
 
     let cancelled = false;
     const loadText = async () => {
       setIsTextLoading(true);
       try {
-        const response = await fetch('/resource/analyze', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            url,
-            format: ['text'],
-          }),
+        const result = await fetchAnalyzeFormat({
+          url,
+          format: 'text',
+          requestTurnstileToken,
         });
-        const json = TextResponseSchema.parse(await response.json());
-        if (!response.ok || json.success === false) {
-          throw new Error(
-            typeof json.error === 'string'
-              ? json.error
-              : (json.error?.message ?? 'Failed to load text output.'),
-          );
+        if (!result.ok) {
+          throw new Error(result.message);
         }
         if (!cancelled) {
-          setFetchedText(json.results?.text ?? null);
+          setFetchedText(result.content);
         }
       } catch (error) {
         console.error('Failed to lazy-load text output', error);
@@ -136,7 +116,13 @@ export const MediaView = memo(function MediaView({
     return () => {
       cancelled = true;
     };
-  }, [data.text, fetchedText, isTextLoading, isTextView, url]);
+  }, [
+    data.text,
+    fetchedText,
+    isTextView,
+    requestTurnstileToken,
+    url,
+  ]);
 
   // Handle Escape key to exit full screen
   useEffect(() => {
@@ -241,6 +227,7 @@ export const MediaView = memo(function MediaView({
         showOriginalTitles={showOriginalTitles}
         setShowOriginalTitles={handleSetShowOriginalTitles}
         rawData={fullData}
+        requestTurnstileToken={requestTurnstileToken}
       />
 
       {isTextView ? (

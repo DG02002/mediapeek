@@ -15,6 +15,7 @@ interface Env {
     limit: (options: { key: string }) => Promise<{ success: boolean }>;
   };
   TURNSTILE_SECRET_KEY?: string;
+  TURNSTILE_GRANT_SECRET?: string;
   TURNSTILE_SITE_KEY: string;
   ENABLE_TURNSTILE?: string;
   SESSION_SECRET?: string;

@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { fetchAnalyzeFormat } from '../lib/analyze-client';
 import { safeClipboardWrite } from '../lib/clipboard';
 import { uploadToPrivateBin } from '../lib/privatebin';
 import { useHapticFeedback } from './use-haptic';
@@ -8,9 +9,14 @@ import { useHapticFeedback } from './use-haptic';
 interface UseMediaActionsProps {
   data: Record<string, string>;
   url: string;
+  requestTurnstileToken?: () => Promise<string | null>;
 }
 
-export function useMediaActions({ data, url }: UseMediaActionsProps) {
+export function useMediaActions({
+  data,
+  url,
+  requestTurnstileToken,
+}: UseMediaActionsProps) {
   const fetchedData = useRef<Record<string, string>>({});
   const sharedUrls = useRef<Record<string, string>>({});
   const { triggerSuccess } = useHapticFeedback();
@@ -24,31 +30,15 @@ export function useMediaActions({ data, url }: UseMediaActionsProps) {
       if (!content) {
         const toastId = toast.loading(`Generating ${label}...`);
         try {
-          const response = await fetch('/resource/analyze', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              url,
-              format: [format],
-            }),
+          const result = await fetchAnalyzeFormat({
+            url,
+            format,
+            requestTurnstileToken,
           });
-          if (!response.ok) throw new Error('Failed to generate format');
-          const json: {
-            success?: boolean;
-            results?: Record<string, string>;
-            error?: { message?: string } | string;
-          } = await response.json();
-          if (json.success === false) {
-            throw new Error(
-              typeof json.error === 'string'
-                ? json.error
-                : (json.error?.message ?? 'Failed to generate format'),
-            );
+          if (!result.ok) {
+            throw new Error(result.message);
           }
-          content = json.results?.[format];
-          if (!content) throw new Error('No content returned');
+          content = result.content;
 
           fetchedData.current[format] = content;
           toast.dismiss(toastId);
@@ -68,7 +58,7 @@ export function useMediaActions({ data, url }: UseMediaActionsProps) {
       }
       return content;
     },
-    [data, url],
+    [data, requestTurnstileToken, url],
   );
 
   const handleCopy = useCallback(

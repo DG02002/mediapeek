@@ -73,6 +73,7 @@ To ensure seamless integration with the Cloudflare Dashboard and `wrangler tail`
 - Never log raw Turnstile tokens, API keys, auth headers, cookies, or URL query signatures.
 - Redact signed URL query params before writing request context (`token`, `sig`, `signature`, `key`, `auth`, `expires`, `X-Amz-*`, `X-Goog-*`).
 - Prefer metadata (`tokenPresent`, `tokenLength`) instead of raw token values.
+- For Turnstile grant cookies, log only normalized outcomes (for example `GRANT_VALID`, `GRANT_EXPIRED`, `TOKEN_VERIFIED`) and never cookie payload/signatures.
 
 ## Standard Schema (`LogEvent`)
 
