@@ -21,7 +21,7 @@
     "@hono/standard-validator": "^0.2.2",
     "@mediapeek/shared": "workspace:*",
     "@standard-schema/spec": "^1.1.0",
-    "hono": "^4.11.9",
+    "hono": "^4.11.10",
     "zod": "^4.3.6"
   },
   "devDependencies": {
