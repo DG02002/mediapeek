@@ -87,17 +87,24 @@ const readFirstChunkWithTimeout = async (
   sourceReader: ReadableStreamDefaultReader<Uint8Array>,
   timeoutMs: number,
 ) => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => {
+    (timeoutId = setTimeout(() => {
       reject(new Error('Fetch stream read timed out'));
-    }, timeoutMs),
+    }, timeoutMs)),
   );
 
-  const { done, value } = await Promise.race([
-    sourceReader.read(),
-    timeoutPromise,
-  ]);
-  return done ? null : value;
+  try {
+    const { done, value } = await Promise.race([
+      sourceReader.read(),
+      timeoutPromise,
+    ]);
+    return done ? null : value;
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  }
 };
 
 const readStreamIntoBuffer = async (
