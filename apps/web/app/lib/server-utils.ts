@@ -1,4 +1,4 @@
-import path from 'node:path';
+export { extractFilenameFromUrl } from '@mediapeek/shared/filename-resolution';
 
 const LOCALHOST_IPS = new Set(['::1', '127.0.0.1']);
 const META_DATA_HOSTS = new Set([
@@ -78,25 +78,6 @@ export const getEmulationHeaders = (range?: string): Headers => {
   const headers = new Headers(EMULATION_HEADERS_INIT);
   if (range) headers.set('Range', range);
   return headers;
-};
-
-export const extractFilenameFromUrl = (url: string): string => {
-  try {
-    const urlObj = new URL(url);
-    const pathname = urlObj.pathname;
-    // Use Node.js path module for robust filename extraction
-    // We use POSIX because URLs are always forward-slash separated
-    const basename = path.posix.basename(pathname);
-
-    // Decode URI component to handle encoded characters (e.g. %20)
-    // and check if it's not empty or just a slash
-    if (basename && basename !== '/' && basename !== '.') {
-      return decodeURIComponent(basename);
-    }
-  } catch {
-    // Fallback if parsing fails or URL is invalid
-  }
-  return url;
 };
 
 /**

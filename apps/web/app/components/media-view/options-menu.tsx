@@ -5,7 +5,6 @@ import {
   QuoteDownIcon,
   Share01Icon,
 } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +34,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@mediapeek/ui/components/dropdown-menu';
+import { Icon } from '@mediapeek/ui/components/icon';
 import { Input } from '@mediapeek/ui/components/input';
 import { Label } from '@mediapeek/ui/components/label';
 import { Separator } from '@mediapeek/ui/components/separator';
@@ -199,7 +199,7 @@ export function OptionsMenu({
               className,
             )}
           >
-            <HugeiconsIcon icon={MoreVerticalIcon} size={20} />
+            <Icon icon={MoreVerticalIcon} size={20} />
             <span className="sr-only">Options</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
@@ -211,15 +211,11 @@ export function OptionsMenu({
             >
               <div className="flex flex-1 items-center justify-between gap-2">
                 <span className="flex items-center gap-2">
-                  {isTextView ? (
-                    <HugeiconsIcon icon={File01Icon} size={16} />
-                  ) : (
-                    <HugeiconsIcon
-                      icon={File01Icon}
-                      size={16}
-                      className="opacity-50"
-                    />
-                  )}
+                  <Icon
+                    icon={File01Icon}
+                    size={16}
+                    className={isTextView ? undefined : 'opacity-50'}
+                  />
                   View as Text
                 </span>
                 {/* Use pointer-events-none to let the parent DropdownMenuItem handle the click/toggle */}
@@ -238,15 +234,11 @@ export function OptionsMenu({
             >
               <div className="flex flex-1 items-center justify-between gap-2">
                 <span className="flex items-center gap-2">
-                  {showOriginalTitles ? (
-                    <HugeiconsIcon icon={QuoteDownIcon} size={16} />
-                  ) : (
-                    <HugeiconsIcon
-                      icon={QuoteDownIcon}
-                      size={16}
-                      className="opacity-50"
-                    />
-                  )}
+                  <Icon
+                    icon={QuoteDownIcon}
+                    size={16}
+                    className={showOriginalTitles ? undefined : 'opacity-50'}
+                  />
                   Show Original Titles
                 </span>
                 <Switch
@@ -261,7 +253,7 @@ export function OptionsMenu({
 
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
-                <HugeiconsIcon icon={Copy01Icon} size={16} className="mr-2" />
+                <Icon icon={Copy01Icon} size={16} className="mr-2" />
                 <span>Copy Metadata</span>
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-48">
@@ -280,7 +272,7 @@ export function OptionsMenu({
 
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
-                <HugeiconsIcon icon={Share01Icon} size={16} className="mr-2" />
+                <Icon icon={Share01Icon} size={16} className="mr-2" />
                 <span>Share Metadata</span>
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-48">
@@ -306,7 +298,7 @@ export function OptionsMenu({
               className,
             )}
           >
-            <HugeiconsIcon icon={MoreVerticalIcon} size={20} />
+            <Icon icon={MoreVerticalIcon} size={20} />
             <span className="sr-only">Options</span>
           </DrawerTrigger>
           <DrawerContent>
@@ -322,7 +314,7 @@ export function OptionsMenu({
                   htmlFor={viewTextId}
                   className="flex flex-1 cursor-pointer items-center gap-2 py-2 font-normal"
                 >
-                  <HugeiconsIcon icon={File01Icon} size={16} />
+                  <Icon icon={File01Icon} size={16} />
                   View as Text
                 </Label>
                 <Switch
@@ -336,7 +328,7 @@ export function OptionsMenu({
                   htmlFor={showTitlesId}
                   className="flex flex-1 cursor-pointer items-center gap-2 py-2 font-normal"
                 >
-                  <HugeiconsIcon icon={QuoteDownIcon} size={16} />
+                  <Icon icon={QuoteDownIcon} size={16} />
                   Show Original Titles
                 </Label>
                 <Switch

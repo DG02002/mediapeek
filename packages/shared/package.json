@@ -13,8 +13,8 @@
     "@eslint/js": "^10.0.1",
     "@mediapeek/config-eslint": "workspace:*",
     "@mediapeek/config-typescript": "workspace:*",
-    "eslint": "^10.0.0",
-    "globals": "^17.3.0",
+    "eslint": "^10.0.2",
+    "globals": "^17.4.0",
     "vitest": "^4.0.18"
   },
   "exports": {
@@ -22,6 +22,7 @@
     "./telemetry": "./src/telemetry.ts",
     "./schemas": "./src/schemas.ts",
     "./media": "./src/media.ts",
+    "./filename-resolution": "./src/filename-resolution.ts",
     "./media-info-result": "./src/media-info-result.ts",
     "./runtime-config": "./src/runtime-config.ts",
     "./log-redaction": "./src/log-redaction.ts"

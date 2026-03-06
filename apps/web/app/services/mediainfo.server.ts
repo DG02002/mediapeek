@@ -1,8 +1,12 @@
+import {
+  type FilenameSource,
+  getMediaInfoMetadataFilename,
+} from '@mediapeek/shared/filename-resolution';
+
 import { DiagnosticsError } from '~/lib/error-utils';
 import {
   extractFirstFileFromArchive,
   isArchiveExtension,
-  isValidFilename,
   normalizeMediaInfo,
 } from '~/lib/media-utils';
 import {
@@ -18,6 +22,9 @@ export interface MediaInfoResult extends Record<string, unknown> {
       CompleteName?: string;
       Complete_name?: string;
       File_Name?: string;
+      Title?: string;
+      Movie?: string;
+      Archive_Name?: string;
       [key: string]: unknown;
     }[];
   };
@@ -36,6 +43,8 @@ export interface MediaInfoDiagnostics {
 export interface MediaInfoAnalysis {
   results: Record<string, string>;
   diagnostics: MediaInfoDiagnostics;
+  resolvedFilename: string;
+  resolvedFilenameSource: FilenameSource;
 }
 
 export type MediaInfoFormat = 'object' | 'Text' | 'XML' | 'HTML';
@@ -59,6 +68,7 @@ export async function analyzeMediaBuffer(
   fileBuffer: Uint8Array,
   fileSize: number | undefined,
   filename: string,
+  filenameSource: FilenameSource = 'url',
   requestedFormats: string[] = [],
 ): Promise<MediaInfoAnalysis> {
   const tStart = performance.now();
@@ -83,7 +93,11 @@ export async function analyzeMediaBuffer(
 
   // Prefer the archive inner name if detected (Prong B)
   // Otherwise, use the filename passed to us (Prong A might have set this to the inner name already, or it's just the URL filename)
-  const displayFilename = archiveInnerName ?? filename;
+  let displayFilename = archiveInnerName ?? filename;
+  let resolvedFilenameSource: FilenameSource = archiveInnerName
+    ? 'archive-inner'
+    : filenameSource;
+  const archiveName = archiveInnerName ? filename : undefined;
 
   const readChunk = (chunkSize: number, offset: number) => {
     if (offset >= fileBuffer.byteLength) {
@@ -164,33 +178,20 @@ export async function analyzeMediaBuffer(
               );
 
               if (generalTrack) {
-                // Get the first valid filename from MediaInfo, or undefined
-                const getValidFilename = (): string | undefined => {
-                  if (isValidFilename(generalTrack.CompleteName))
-                    return generalTrack.CompleteName;
-                  if (isValidFilename(generalTrack.Complete_name))
-                    return generalTrack.Complete_name;
-                  if (isValidFilename(generalTrack.File_Name))
-                    return generalTrack.File_Name;
-                  return undefined;
-                };
+                const metadataFallback =
+                  !archiveInnerName && filenameSource === 'url'
+                    ? getMediaInfoMetadataFilename(generalTrack)
+                    : undefined;
 
-                const mediaInfoFilename = getValidFilename();
-
-                if (!mediaInfoFilename) {
-                  // No valid filename from MediaInfo (likely binary garbage), use our resolved filename
-                  generalTrack.CompleteName = displayFilename;
-                } else if (archiveInnerName) {
-                  // If we specifically found an inner name from archive peeking, force use it
-                  // because MediaInfo likely returned the OUTER zip name or nothing useful.
-                  generalTrack.CompleteName = displayFilename;
+                if (metadataFallback) {
+                  displayFilename = metadataFallback.filename;
+                  resolvedFilenameSource = metadataFallback.source;
                 }
 
-                // If detected name differs from URL name, preserve URL name as Archive Name
-                // This typically happens for archives: `displayFilename` (inner) != `filename` (outer zip)
-                // For direct links: `displayFilename` == `filename`, so Archive_Name is NOT set.
-                if (displayFilename !== filename) {
-                  generalTrack.Archive_Name = filename;
+                generalTrack.CompleteName = displayFilename;
+
+                if (archiveName) {
+                  generalTrack.Archive_Name = archiveName;
                 }
               }
             }
@@ -249,5 +250,10 @@ export async function analyzeMediaBuffer(
   }
 
   diagnostics.totalAnalysisTimeMs = Math.round(performance.now() - tStart);
-  return { results, diagnostics };
+  return {
+    results,
+    diagnostics,
+    resolvedFilename: displayFilename,
+    resolvedFilenameSource,
+  };
 }

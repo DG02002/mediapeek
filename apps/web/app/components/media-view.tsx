@@ -1,8 +1,8 @@
 'use client';
 
 import { ArrowExpandIcon, ArrowShrink02Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
 import { Button } from '@mediapeek/ui/components/button';
+import { Icon } from '@mediapeek/ui/components/icon';
 import { Skeleton } from '@mediapeek/ui/components/skeleton';
 import { SmoothTransition } from '@mediapeek/ui/lib/animation';
 import { cn } from '@mediapeek/ui/lib/utils';
@@ -259,25 +259,14 @@ export const MediaView = memo(function MediaView({
                 }}
                 title={isFullScreen ? 'Exit Full Screen (Esc)' : 'Full Screen'}
               >
-                {isFullScreen ? (
-                  <>
-                    <HugeiconsIcon
-                      icon={ArrowShrink02Icon}
-                      size={14}
-                      className="mr-1.5 opacity-70"
-                    />
-                    Minimize
-                  </>
-                ) : (
-                  <>
-                    <HugeiconsIcon
-                      icon={ArrowExpandIcon}
-                      size={14}
-                      className="mr-1.5 opacity-70"
-                    />
-                    Maximize
-                  </>
-                )}
+                <Icon
+                  icon={ArrowExpandIcon}
+                  altIcon={ArrowShrink02Icon}
+                  showAlt={isFullScreen}
+                  size={14}
+                  className="mr-1.5 opacity-70"
+                />
+                {isFullScreen ? 'Minimize' : 'Maximize'}
               </Button>
             </motion.div>
             <div className="relative min-h-[200px]">

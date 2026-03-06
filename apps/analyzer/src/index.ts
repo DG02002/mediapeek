@@ -144,6 +144,7 @@ const routes = app.post(
           buffer,
           fileSize,
           filename,
+          filenameSource,
           diagnostics: fetchDiag,
         } = await fetchMediaChunk(url);
         customContext.fetch = fetchDiag;
@@ -151,15 +152,23 @@ const routes = app.post(
         customContext.filename = fetchDiag.resolvedFilename ?? filename;
 
         // 2. Analyze (with explicit CPU budget check)
-        const { results, diagnostics: analysisDiag } = await analyzeMediaBuffer(
+        const {
+          results,
+          diagnostics: analysisDiag,
+          resolvedFilename,
+          resolvedFilenameSource,
+        } = await analyzeMediaBuffer(
           buffer,
           fileSize,
           filename,
+          filenameSource,
           format,
           cpuBudgetMs,
         );
 
         customContext.analysis = analysisDiag;
+        customContext.filename = resolvedFilename;
+        customContext.filenameSource = resolvedFilenameSource;
         customContext.cpuBudgetRemainingMs = Math.max(
           0,
           cpuBudgetMs - analysisDiag.totalAnalysisTimeMs,
@@ -172,7 +181,11 @@ const routes = app.post(
           results,
           diagnostics: {
             fetch: fetchDiag,
-            analysis: analysisDiag,
+            analysis: {
+              ...analysisDiag,
+              resolvedFilename,
+              resolvedFilenameSource,
+            },
           },
         });
       } catch (error) {

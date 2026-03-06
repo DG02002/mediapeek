@@ -6,12 +6,12 @@
     ".": "./tailwind.config.ts"
   },
   "dependencies": {
-    "tailwindcss": "^4.1.18",
+    "tailwindcss": "^4.2.1",
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^25.2.3",
-    "eslint": "^10.0.0"
+    "@types/node": "^25.3.5",
+    "eslint": "^10.0.2"
   }
 }

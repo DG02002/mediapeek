@@ -1,5 +1,10 @@
 import { Buffer } from 'node:buffer';
 
+import {
+  type FilenameSource,
+  parseContentDispositionFilename,
+} from '@mediapeek/shared/filename-resolution';
+
 import { DiagnosticsError } from '~/lib/error-utils';
 import {
   extractFilenameFromUrl,
@@ -16,6 +21,7 @@ export interface FetchDiagnostics {
   totalDurationMs: number;
   isGoogleDrive: boolean;
   resolvedFilename: string;
+  resolvedFilenameSource: FilenameSource;
   responseStatus: number;
   probeMethod: string;
   streamCloseError?: string;
@@ -24,6 +30,7 @@ export interface FetchDiagnostics {
 export interface MediaFetchResult {
   buffer: Uint8Array;
   filename: string;
+  filenameSource: FilenameSource;
   fileSize?: number;
   diagnostics: FetchDiagnostics;
   hash?: string;
@@ -117,23 +124,16 @@ export async function fetchMediaChunk(
 
   // 2. Determine Filename
   let filename = extractFilenameFromUrl(targetUrl);
-  const contentDisposition = headRes.headers.get('content-disposition');
-  if (contentDisposition) {
-    const starMatch = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition);
-    if (starMatch?.[1]) {
-      try {
-        filename = decodeURIComponent(starMatch[1]);
-      } catch {
-        // failed to decode, keep original
-      }
-    } else {
-      const normalMatch = /filename="?([^";]+)"?/i.exec(contentDisposition);
-      if (normalMatch?.[1]) {
-        filename = normalMatch[1];
-      }
-    }
+  let filenameSource: FilenameSource = 'url';
+  const headFilename = parseContentDispositionFilename(
+    headRes.headers.get('content-disposition'),
+  );
+  if (headFilename) {
+    filename = headFilename;
+    filenameSource = 'content-disposition-head';
   }
   diagnostics.resolvedFilename = filename;
+  diagnostics.resolvedFilenameSource = filenameSource;
 
   // 3. Fetch Content Chunk
   // If fileSize is known, use it to clamp range. If not, just request up to chunkSize.
@@ -149,6 +149,18 @@ export async function fetchMediaChunk(
   });
   diagnostics.fetchRequestDurationMs = Math.round(performance.now() - tFetch);
   diagnostics.responseStatus = response.status;
+
+  if (filenameSource === 'url') {
+    const getFilename = parseContentDispositionFilename(
+      response.headers.get('content-disposition'),
+    );
+    if (getFilename) {
+      filename = getFilename;
+      filenameSource = 'content-disposition-get';
+      diagnostics.resolvedFilename = filename;
+      diagnostics.resolvedFilenameSource = filenameSource;
+    }
+  }
 
   const SAFE_LIMIT = 10 * 1024 * 1024; // 10MB "Eco Mode" limit
   const tempBuffer = new Uint8Array(SAFE_LIMIT); // Pre-allocate: Zero GC overhead
@@ -220,6 +232,7 @@ export async function fetchMediaChunk(
           // If we are unzipping effectively a "single file", this name is the real name.
           if (innerName && !innerName.endsWith('/')) {
             diagnostics.resolvedFilename = innerName; // Upstream prefers this name
+            diagnostics.resolvedFilenameSource = 'archive-inner';
           }
         }
 
@@ -329,6 +342,7 @@ export async function fetchMediaChunk(
   const result: MediaFetchResult = {
     buffer: fileBuffer,
     filename,
+    filenameSource,
     fileSize,
     diagnostics: diagnostics as FetchDiagnostics,
     innerFilename:

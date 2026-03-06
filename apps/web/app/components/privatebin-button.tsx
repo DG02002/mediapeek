@@ -3,8 +3,8 @@ import {
   Shield01Icon,
   Tick01Icon,
 } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
 import { Button } from '@mediapeek/ui/components/button';
+import { Icon } from '@mediapeek/ui/components/icon';
 import { QuickTransition } from '@mediapeek/ui/lib/animation';
 import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
@@ -83,7 +83,7 @@ export function PrivateBinButton({ content }: PrivateBinButtonProps) {
               onClick={handleShare}
               title="Share secure, self-destructing link via PrivateBin"
             >
-              <HugeiconsIcon icon={Shield01Icon} size={16} className="mr-2" />
+              <Icon icon={Shield01Icon} size={16} className="mr-2" />
               Share with PrivateBin
             </Button>
           </motion.div>
@@ -120,7 +120,7 @@ export function PrivateBinButton({ content }: PrivateBinButtonProps) {
               }}
               className="text-primary hover:text-primary/80"
             >
-              <HugeiconsIcon icon={Tick01Icon} size={16} className="mr-2" />
+              <Icon icon={Tick01Icon} size={16} className="mr-2" />
               Copy PrivateBin Link
             </Button>
           </motion.div>
@@ -135,7 +135,7 @@ export function PrivateBinButton({ content }: PrivateBinButtonProps) {
             transition={QuickTransition}
           >
             <Button variant="destructive" size="sm" disabled>
-              <HugeiconsIcon
+              <Icon
                 icon={AlertCircleIcon}
                 size={16}
                 className="mr-2"

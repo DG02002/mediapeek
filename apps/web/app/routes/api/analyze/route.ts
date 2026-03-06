@@ -34,9 +34,13 @@ interface RateLimitBinding {
 interface AnalyzerDiagnostics {
   fetch: {
     resolvedFilename?: string;
+    resolvedFilenameSource?: string;
     [key: string]: unknown;
   };
-  analysis: MediaInfoDiagnostics;
+  analysis: MediaInfoDiagnostics & {
+    resolvedFilename?: string;
+    resolvedFilenameSource?: string;
+  };
 }
 
 interface AnalyzerRpcSuccess {
@@ -709,7 +713,11 @@ async function handleAnalyzeRequest({ request, context }: AnalyzeRouteArgs) {
       if (rpcData.fileSize) {
         customContext.fileSize = rpcData.fileSize;
       }
-      customContext.filename = diagnostics.fetch.resolvedFilename;
+      customContext.filename =
+        diagnostics.analysis.resolvedFilename ?? diagnostics.fetch.resolvedFilename;
+      customContext.filenameSource =
+        diagnostics.analysis.resolvedFilenameSource ??
+        diagnostics.fetch.resolvedFilenameSource;
 
       try {
         const json = JSON.parse(results.json || '{}') as {
@@ -718,7 +726,9 @@ async function handleAnalyzeRequest({ request, context }: AnalyzeRouteArgs) {
         const general = json.media?.track.find((t) => t['@type'] === 'General');
         if (general?.Archive_Name) {
           customContext.archiveName = general.Archive_Name;
-          customContext.innerFilename = diagnostics.fetch.resolvedFilename;
+          customContext.innerFilename =
+            diagnostics.analysis.resolvedFilename ??
+            diagnostics.fetch.resolvedFilename;
         }
       } catch {
         // Ignore parse error

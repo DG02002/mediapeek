@@ -6,7 +6,6 @@ import {
   ClipboardIcon,
   Loading03Icon,
 } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
 import {
   Alert,
   AlertDescription,
@@ -19,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@mediapeek/ui/components/dialog';
+import { Icon } from '@mediapeek/ui/components/icon';
 import {
   InputGroup,
   InputGroupButton,
@@ -47,13 +47,13 @@ function SubmitButton({ pending }: { pending: boolean }) {
   return (
     <InputGroupButton type="submit" disabled={pending}>
       {pending ? (
-        <HugeiconsIcon
+        <Icon
           icon={Loading03Icon}
           size={16}
           className="animate-spin"
         />
       ) : (
-        <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
+        <Icon icon={ArrowRight01Icon} size={16} />
       )}
       <span className="sr-only">Analyze</span>
     </InputGroupButton>
@@ -90,7 +90,7 @@ function PasteButton({ onPaste }: { onPaste: (text: string) => void }) {
       }}
       title="Paste from clipboard"
     >
-      <HugeiconsIcon icon={ClipboardIcon} size={16} />
+      <Icon icon={ClipboardIcon} size={16} />
       <span className="sr-only">Paste</span>
     </InputGroupButton>
   );
@@ -438,7 +438,7 @@ export function MediaForm() {
                       <span className="line-clamp-2 text-sm font-medium break-all">
                         {clipboardUrl}
                       </span>
-                      <HugeiconsIcon
+                      <Icon
                         icon={ArrowRight01Icon}
                         size={16}
                         className="text-muted-foreground group-hover:text-foreground shrink-0 -rotate-45 transition-colors group-hover:rotate-0"
@@ -563,7 +563,7 @@ export function MediaForm() {
           {!isPending && state.error && (
             <div>
               <Alert variant="destructive">
-                <HugeiconsIcon icon={AlertCircleIcon} size={16} />
+                <Icon icon={AlertCircleIcon} size={16} />
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>{state.error}</AlertDescription>
               </Alert>
