@@ -34,7 +34,7 @@ importers:
     dependencies:
       '@hono/standard-validator':
         specifier: ^0.2.2
-        version: 0.2.2(@standard-schema/spec@1.1.0)(hono@4.12.5)
+        version: 0.2.2(@standard-schema/spec@1.1.0)(hono@4.12.7)
       '@mediapeek/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -42,8 +42,8 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       hono:
-        specifier: ^4.12.5
-        version: 4.12.5
+        specifier: ^4.12.7
+        version: 4.12.7
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -106,8 +106,8 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       hono:
-        specifier: ^4.12.5
-        version: 4.12.5
+        specifier: ^4.12.7
+        version: 4.12.7
       isbot:
         specifier: ^5.1.35
         version: 5.1.35
@@ -162,7 +162,7 @@ importers:
         version: 10.0.1(eslint@10.0.2(jiti@2.6.1))
       '@hono/zod-validator':
         specifier: ^0.7.6
-        version: 0.7.6(hono@4.12.5)(zod@4.3.6)
+        version: 0.7.6(hono@4.12.7)(zod@4.3.6)
       '@mediapeek/config-eslint':
         specifier: workspace:*
         version: link:../../packages/config-eslint
@@ -2876,8 +2876,8 @@ packages:
   hermes-parser@0.25.1:
     resolution: {integrity: sha512-6pEjquH3rqaI6cYAXYPcz9MS4rY6R4ngRgrgfDshRptUZIc3lw0MCIJIGDj9++mfySOuPTHB4nrSW99BCvOPIA==}
 
-  hono@4.12.5:
-    resolution: {integrity: sha512-3qq+FUBtlTHhtYxbxheZgY8NIFnkkC/MR8u5TTsr7YZ3wixryQ3cCwn3iZbg8p8B88iDBBAYSfZDS75t8MN7Vg==}
+  hono@4.12.7:
+    resolution: {integrity: sha512-jq9l1DM0zVIvsm3lv9Nw9nlJnMNPOcAtsbsgiUhWcFzPE99Gvo6yRTlszSLLYacMeQ6quHD6hMfId8crVHvexw==}
     engines: {node: '>=16.9.0'}
 
   html-encoding-sniffer@6.0.0:
@@ -5107,18 +5107,18 @@ snapshots:
 
   '@fontsource-variable/inter@5.2.8': {}
 
-  '@hono/node-server@1.19.11(hono@4.12.5)':
+  '@hono/node-server@1.19.11(hono@4.12.7)':
     dependencies:
-      hono: 4.12.5
+      hono: 4.12.7
 
-  '@hono/standard-validator@0.2.2(@standard-schema/spec@1.1.0)(hono@4.12.5)':
+  '@hono/standard-validator@0.2.2(@standard-schema/spec@1.1.0)(hono@4.12.7)':
     dependencies:
       '@standard-schema/spec': 1.1.0
-      hono: 4.12.5
+      hono: 4.12.7
 
-  '@hono/zod-validator@0.7.6(hono@4.12.5)(zod@4.3.6)':
+  '@hono/zod-validator@0.7.6(hono@4.12.7)(zod@4.3.6)':
     dependencies:
-      hono: 4.12.5
+      hono: 4.12.7
       zod: 4.3.6
 
   '@hugeicons/core-free-icons@4.0.0': {}
@@ -5290,7 +5290,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.27.1(zod@3.25.76)':
     dependencies:
-      '@hono/node-server': 1.19.11(hono@4.12.5)
+      '@hono/node-server': 1.19.11(hono@4.12.7)
       ajv: 8.18.0
       ajv-formats: 3.0.1(ajv@8.18.0)
       content-type: 1.0.5
@@ -5300,7 +5300,7 @@ snapshots:
       eventsource-parser: 3.0.6
       express: 5.2.1
       express-rate-limit: 8.3.0(express@5.2.1)
-      hono: 4.12.5
+      hono: 4.12.7
       jose: 6.2.0
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -7044,7 +7044,7 @@ snapshots:
     dependencies:
       hermes-estree: 0.25.1
 
-  hono@4.12.5: {}
+  hono@4.12.7: {}
 
   html-encoding-sniffer@6.0.0(@noble/hashes@1.8.0):
     dependencies:
