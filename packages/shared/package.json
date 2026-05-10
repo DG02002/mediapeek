@@ -12,8 +12,8 @@
   },
   "devDependencies": {
     "@mediapeek/config-typescript": "workspace:*",
-    "@types/node": "^25.6.0",
-    "vitest": "^4.1.4"
+    "@types/node": "^25.6.2",
+    "vitest": "^4.1.5"
   },
   "exports": {
     "./analyze-contract": {
@@ -58,6 +58,6 @@
     }
   },
   "dependencies": {
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   }
 }

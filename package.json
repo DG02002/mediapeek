@@ -15,12 +15,12 @@
     "approve-builds": "pnpm approve-builds"
   },
   "devDependencies": {
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "oxfmt": "^0.45.0",
-    "oxlint": "^1.60.0",
-    "oxlint-tsgolint": "^0.21.0",
-    "typescript": "^6.0.2",
-    "vitest": "^4.1.4"
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "oxfmt": "^0.48.0",
+    "oxlint": "^1.63.0",
+    "oxlint-tsgolint": "^0.22.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
