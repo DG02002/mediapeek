@@ -94,7 +94,7 @@ jobs:
             );
             core.info(`PR #${pullRequestNumber}: ${changedLines} changed lines -> ${nextLabelName}`);
       - name: Apply PR size label
-        uses: ./.github/actions/sync-issue-labels
+        uses: $/.github/actions/sync-issue-labels
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           managed-labels: ${{ steps.size.outputs.managed-labels }}

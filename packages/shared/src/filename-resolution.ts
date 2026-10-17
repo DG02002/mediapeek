@@ -104,13 +104,13 @@ export function parseContentDispositionFilename(
     }
   }
 
-  const plainMatch = /filename\s*=\s*("?)([^";]+)\1/i.exec(contentDisposition)
+  const plainMatch = /filename\s*=\s*"?([^";]+)"?/i.exec(contentDisposition)
 
-  if (!plainMatch?.[2]) {
+  if (!plainMatch?.[1]) {
     return undefined
   }
 
-  const candidate = normalizeFilenameCandidate(plainMatch[2])
+  const candidate = normalizeFilenameCandidate(plainMatch[1])
 
   return isValidFilename(candidate) ? candidate : undefined
 }

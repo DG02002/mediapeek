@@ -281,6 +281,40 @@ const getSampleRate = (value: string | number | undefined): number => {
   return 0
 }
 
+const TITLE_WHITESPACE = new Set([" ", "\t", "\n", "\r", "\f", "\v", "\u00a0"])
+
+const findBitDepthInTitle = (title: string): number | undefined => {
+  const lowered = title.toLowerCase()
+  let bitIndex = lowered.indexOf("bit")
+
+  while (bitIndex >= 0) {
+    let digitsEnd = bitIndex
+
+    while (digitsEnd > 0 && TITLE_WHITESPACE.has(title[digitsEnd - 1] ?? "")) {
+      digitsEnd -= 1
+    }
+
+    let digitsStart = digitsEnd
+
+    while (
+      digitsStart > 0 &&
+      title[digitsStart - 1] !== undefined &&
+      title[digitsStart - 1] >= "0" &&
+      title[digitsStart - 1] <= "9"
+    ) {
+      digitsStart -= 1
+    }
+
+    if (digitsStart < digitsEnd) {
+      return Number.parseInt(title.slice(digitsStart, digitsEnd), 10)
+    }
+
+    bitIndex = lowered.indexOf("bit", bitIndex + 1)
+  }
+
+  return undefined
+}
+
 const getBitDepth = (
   value: string | number | undefined,
   title?: string
@@ -297,10 +331,12 @@ const getBitDepth = (
     }
   }
 
-  const titleMatch = title ? /(\d+)\s*bits?/i.exec(title) : null
+  if (title) {
+    const titleDepth = findBitDepthInTitle(title)
 
-  if (titleMatch) {
-    return Number.parseInt(titleMatch[1], 10)
+    if (titleDepth !== undefined) {
+      return titleDepth
+    }
   }
 
   return 0
