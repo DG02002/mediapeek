@@ -50,7 +50,6 @@ worker-configuration.d.ts
 
 # Editor
 .idea/
-.agents/
 # We keep .vscode tracked for shared settings
 
 # Cache & Stores
@@ -68,3 +67,7 @@ coverage/
 # Temporary
 temp/
 tmp/
+
+# Agent plans and vendored read-only references
+.plans/
+.repos/
