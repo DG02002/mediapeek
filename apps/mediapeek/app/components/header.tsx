@@ -1,7 +1,7 @@
 import { Link, NavLink } from "react-router"
 
-import { ModeToggle } from "~/components/mode-toggle"
 import { buttonVariants } from "~/components/ui/button"
+import { ModeToggle } from "~/features/settings/mode-toggle"
 import { cn } from "~/lib/utils"
 
 interface HeaderProps {

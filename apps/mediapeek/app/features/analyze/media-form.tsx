@@ -21,6 +21,11 @@ import {
 } from "react"
 
 import { MediaSkeleton } from "~/components/media-skeleton"
+import { MediaView } from "~/components/media-view"
+import {
+  TurnstileWidget,
+  type TurnstileWidgetHandle,
+} from "~/components/turnstile-widget"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import {
   Dialog,
@@ -35,15 +40,12 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "~/components/ui/input-group"
-import { useClipboardSuggestion } from "~/hooks/use-clipboard-suggestion"
+import { useClipboardSuggestion } from "~/features/analyze/use-clipboard-suggestion"
+import { useHapticFeedback } from "~/hooks/use-haptic"
 import {
   isAnalyzeProgressStreamResponse,
   readAnalyzeStreamResponse,
 } from "~/lib/analyze-stream"
-
-import { useHapticFeedback } from "../hooks/use-haptic"
-import { MediaView } from "./media-view"
-import { TurnstileWidget, type TurnstileWidgetHandle } from "./turnstile-widget"
 
 function SubmitButton({ pending }: { pending: boolean }) {
   return (

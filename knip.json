@@ -7,7 +7,7 @@
       "project": ["scripts/**/*.{ts,mjs}"]
     },
     "apps/mediapeek": {
-      "entry": ["*.{ts,tsx,mjs}", "app/lib/analysis-session.ts"],
+      "entry": ["*.{ts,tsx,mjs}", "app/features/analyze/analysis-session.ts"],
       "paths": {
         "~/*": ["./app/*"]
       },
