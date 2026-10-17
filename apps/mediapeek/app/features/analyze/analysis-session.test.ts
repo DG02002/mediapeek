@@ -95,6 +95,24 @@ describe("browser Analysis session", () => {
     expect(session.getSnapshot()).toMatchObject({ phase: "ready", analysis })
   })
 
+  it("attaches an optional Turnstile token to the initial request", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      jsonResponse({
+        success: true,
+        requestId: "request-turnstile",
+        results: { json: '{"media":{}}' },
+      })
+    )
+
+    const session = createBrowserAnalysisSession()
+
+    await session.analyze("https://example.com/video.mp4", "turnstile-token")
+
+    const requestHeaders = new Headers(fetchMock.mock.calls[0]?.[1]?.headers)
+
+    expect(requestHeaders.get("CF-Turnstile-Response")).toBe("turnstile-token")
+  })
+
   it("fails closed when the JSON fallback is malformed", async () => {
     vi.useFakeTimers()
     vi.spyOn(globalThis, "fetch").mockImplementation(

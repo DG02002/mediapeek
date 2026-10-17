@@ -76,7 +76,7 @@ export type AnalysisSessionSnapshot =
 export interface AnalysisSession {
   getSnapshot(): AnalysisSessionSnapshot
   subscribe(listener: () => void): () => void
-  analyze(url: string): Promise<AnalysisResult>
+  analyze(url: string, turnstileToken?: string): Promise<AnalysisResult>
   output(format: AnalysisOutputId): Promise<string>
   cancel(): void
   dispose(): void
@@ -165,15 +165,22 @@ const readStream = (
 const requestInitialAnalysis = async (input: {
   readonly url: string
   readonly operationId: string
+  readonly turnstileToken?: string
   readonly controller: AbortController
   readonly onProgress: (progress: AnalysisProgress) => void
 }) => {
+  const headers = new Headers({
+    "Content-Type": "application/json",
+    Accept: ANALYZE_PROGRESS_STREAM_CONTENT_TYPE,
+  })
+
+  if (input.turnstileToken) {
+    headers.set("CF-Turnstile-Response", input.turnstileToken)
+  }
+
   const response = await fetch("/resource/analyze", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: ANALYZE_PROGRESS_STREAM_CONTENT_TYPE,
-    },
+    headers,
     body: JSON.stringify({
       url: input.url,
       format: ["json"],
@@ -240,6 +247,7 @@ interface AnalysisOutcome {
 
 interface AnalysisRetryInput {
   readonly url: string
+  readonly turnstileToken?: string
   readonly operationId: string
   readonly attempt: number
   readonly onProgress: (progress: AnalysisProgress) => void
@@ -264,6 +272,7 @@ const requestAnalysisWithRetries = async (
     return await requestInitialAnalysis({
       url: input.url,
       operationId: input.operationId,
+      turnstileToken: input.turnstileToken,
       controller,
       onProgress: input.onProgress,
     })
@@ -312,7 +321,7 @@ export const createBrowserAnalysisSession = (): AnalysisSession => {
     }
   }
 
-  const analyze = async (url: string) => {
+  const analyze = async (url: string, turnstileToken?: string) => {
     activeController?.abort()
     analysisGeneration += 1
     const generation = analysisGeneration
@@ -323,6 +332,7 @@ export const createBrowserAnalysisSession = (): AnalysisSession => {
     try {
       const outcome = await requestAnalysisWithRetries({
         url,
+        turnstileToken,
         operationId: crypto.randomUUID(),
         attempt: 0,
         onProgress: (progress) => {
