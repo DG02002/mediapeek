@@ -9,10 +9,6 @@
       "types": "./dist/components/*.d.ts",
       "default": "./src/components/*.tsx"
     },
-    "./hooks/*": {
-      "types": "./dist/hooks/*.d.ts",
-      "default": "./src/hooks/*.ts"
-    },
     "./lib/*": {
       "types": "./dist/lib/*.d.ts",
       "default": "./src/lib/*.ts"
@@ -20,7 +16,10 @@
     "./styles/*": "./src/styles/*.css"
   },
   "scripts": {
+    "check": "pnpm run fmt:check && pnpm run lint && pnpm run typecheck",
     "build": "tsc -p tsconfig.build.json",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
     "lint": "cd ../.. && oxlint packages/ui",
     "typecheck": "tsc --noEmit",
     "test": "vitest"
@@ -32,7 +31,6 @@
     "@hugeicons/react": "^1.1.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "motion": "^12.38.0",
     "remix-themes": "^2.0.4",
     "shadcn": "^4.7.0",
     "sonner": "^2.0.7",
@@ -51,9 +49,9 @@
     "jsdom": "^29.1.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "typescript": "^6.0.3",
-    "vite": "8.0.11",
-    "vitest": "^4.1.5"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "react": "^19.0.0",

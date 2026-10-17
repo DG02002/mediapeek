@@ -12,17 +12,19 @@ pnpm install --frozen-lockfile
 
 ## Local secrets
 
-Create each app's local variables file from its example when needed:
+Create the web app's local variables file from its example:
 
 ```sh
 cp apps/mediapeek/.dev.vars.example apps/mediapeek/.dev.vars
-cp apps/mediapeek-analyzer/.dev.vars.example apps/mediapeek-analyzer/.dev.vars
 ```
 
-Keep real values in the per-app `.dev.vars` files. Do not commit those files or
-the root `.env`. The web app runs with Turnstile disabled by default and needs
-no Turnstile keys in that mode. To exercise the enabled path locally, set the
-flag and provide the local site and secret keys in the web app's `.dev.vars`.
+Generate a local `SESSION_SECRET` with `openssl rand -base64 32`. Keep real
+values in per-app `.dev.vars` files and never commit them. The analyzer Worker
+currently needs no local secrets, so it does not need a `.dev.vars` file.
+
+The web app runs with Turnstile disabled by default and needs no Turnstile keys
+in that mode. To exercise the enabled path locally, set the flag and provide
+the local site and secret keys in the web app's `.dev.vars`.
 
 ## Run the Workers
 

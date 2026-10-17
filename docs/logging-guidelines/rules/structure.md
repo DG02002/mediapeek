@@ -6,7 +6,7 @@ tags: logging, json, structured-logging, schema, middleware
 
 ## Structure and Format
 
-**Impact: HIGH**
+### Impact: HIGH
 
 Structured logging with consistent formats enables efficient querying and analysis. The right structure transforms logs from text files into queryable data.
 

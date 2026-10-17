@@ -1,3 +1,41 @@
 packages:
   - apps/*
   - packages/*
+
+allowBuilds:
+  esbuild: true
+  msw: true
+  sharp: true
+  workerd: true
+
+blockExoticSubdeps: true
+
+minimumReleaseAge: 10080
+minimumReleaseAgeStrict: true
+
+strictDepBuilds: true
+
+catalog:
+  "@cloudflare/workers-types": 4.20260510.1
+  "@oxlint/plugins": 1.82.0
+  evlog: 2.21.0
+  effect: rc
+  husky: 9.1.7
+  knip: ^6.35.1
+  lint-staged: 17.5.1
+  markdownlint-cli2: ^0.23.2
+  oxfmt: ^0.67.0
+  oxlint: 1.82.0
+  oxlint-tsgolint: 7.0.2001
+  tsx: ^4.23.13
+  typescript: 6.0.3
+  vite: 8.0.11
+  vitest: 4.1.5
+  wrangler: 4.90.0
+
+saveWorkspaceProtocol: rolling
+
+sharedWorkspaceLockfile: true
+
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 10080

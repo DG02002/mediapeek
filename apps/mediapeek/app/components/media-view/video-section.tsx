@@ -1,17 +1,18 @@
-import type { MediaTrackJSON } from '~/types/media';
+import { memo } from "react"
 
-import { memo } from 'react';
-
-import { VideoTrackItem } from '~/components/media-view/video-track-item';
+import { VideoTrackItem } from "~/components/media-view/video-track-item"
+import type { MediaTrackJSON } from "~/types/media"
 
 export const VideoSection = memo(function VideoSection({
   videoTracks,
   archiveSizingWarning,
 }: {
-  videoTracks: MediaTrackJSON[];
-  archiveSizingWarning?: string;
+  videoTracks: MediaTrackJSON[]
+  archiveSizingWarning?: string
 }) {
-  if (videoTracks.length === 0) return null;
+  if (videoTracks.length === 0) {
+    return null
+  }
 
   return (
     <section className="space-y-4">
@@ -28,5 +29,5 @@ export const VideoSection = memo(function VideoSection({
         ))}
       </div>
     </section>
-  );
-});
+  )
+})

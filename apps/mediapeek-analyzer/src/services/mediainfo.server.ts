@@ -1,333 +1,542 @@
-import type { AnalyzeProgressStage } from '@mediapeek/shared/analyze-progress';
-
+import type { AnalyzeProgressStage } from "@mediapeek/shared/analyze-progress"
 import {
   ARCHIVE_SIZING_WARNING,
   type ArchiveEntryInspection,
-} from '@mediapeek/shared/archive-inspection';
+} from "@mediapeek/shared/archive-inspection"
 import {
   type FilenameSource,
   getMediaInfoMetadataFilename,
-} from '@mediapeek/shared/filename-resolution';
+} from "@mediapeek/shared/filename-resolution"
 
-import { DiagnosticsError } from '../lib/error-utils';
+import { DiagnosticsError } from "../lib/error-utils"
 import {
+  MediaInfoDataSchema,
+  type MediaInfoData,
   extractFirstFileFromArchive,
   isArchiveExtension,
+  mediaInfoResultSchema,
   normalizeMediaInfo,
-} from '../lib/media-utils';
-import { createMediaInfo, type MediaInfo } from './mediainfo-factory.server';
+  type MediaInfoResult,
+} from "../lib/media-utils"
+import { createMediaInfo, type MediaInfo } from "./mediainfo-factory.server"
 
 export class CpuBudgetExceededError extends Error {
-  constructor(message = 'CPU budget exceeded') {
-    super(message);
-    this.name = 'CpuBudgetExceededError';
+  constructor(message = "CPU budget exceeded") {
+    super(message)
+    this.name = "CpuBudgetExceededError"
   }
 }
 
-export const DEFAULT_ANALYSIS_CPU_BUDGET_MS = 25_000;
+export const DEFAULT_ANALYSIS_CPU_BUDGET_MS = 25_000
 
 const checkCpuBudget = (
   start: number,
-  limitMs = DEFAULT_ANALYSIS_CPU_BUDGET_MS,
+  limitMs = DEFAULT_ANALYSIS_CPU_BUDGET_MS
 ) => {
   if (performance.now() - start > limitMs) {
-    throw new CpuBudgetExceededError();
+    throw new CpuBudgetExceededError()
   }
-};
-
-// Strict typing for MediaInfo results, removing 'any' usage
-export interface MediaInfoResult extends Record<string, unknown> {
-  media?: {
-    track?: {
-      '@type': string;
-      CompleteName?: string;
-      Complete_name?: string;
-      File_Name?: string;
-      Title?: string;
-      Movie?: string;
-      Archive_Name?: string;
-      Archive_Sizing_Status?: 'verified' | 'estimated';
-      Archive_Sizing_Source?:
-        | 'zip-local-header'
-        | 'zip-central-directory'
-        | 'tar-header'
-        | 'unknown';
-      Archive_Sizing_Warning?: string;
-      [key: string]: unknown;
-    }[];
-  };
 }
 
 export interface MediaInfoDiagnostics {
-  wasmLoadTimeMs: number;
-  factoryCreateTimeMs: number;
-  formatGenerationTimes: Record<string, number>;
-  totalAnalysisTimeMs: number;
-  wasmLoadError?: string;
-  objectProcessError?: string;
-  formatErrors: Record<string, string>;
+  wasmLoadTimeMs: number
+  factoryCreateTimeMs: number
+  formatGenerationTimes: Record<string, number>
+  totalAnalysisTimeMs: number
+  wasmLoadError?: string
+  objectProcessError?: string
+  formatErrors: Record<string, string>
 }
 
 export interface MediaInfoAnalysis {
-  results: Record<string, string>;
-  diagnostics: MediaInfoDiagnostics;
-  resolvedFilename: string;
-  resolvedFilenameSource: FilenameSource;
+  results: Record<string, string>
+  diagnostics: MediaInfoDiagnostics
+  resolvedFilename: string
+  resolvedFilenameSource: FilenameSource
 }
 
-export type MediaInfoFormat = 'object' | 'Text' | 'XML' | 'HTML';
-export type AnalysisProgressReporter = (
+type MediaInfoFormat = "object" | "Text" | "XML" | "HTML"
+
+type AnalysisProgressReporter = (
   stage: AnalyzeProgressStage,
   title: string,
-  message: string,
-) => Promise<void> | void;
+  message: string
+) => Promise<void> | void
 
-/**
- * Wrapper to make MediaInfo compatible with 'using' keyword (Explicit Resource Management)
- */
-class DisposableMediaInfo implements Disposable {
-  public instance: MediaInfo;
+type ReadChunk = (size: number, offset: number) => Promise<Uint8Array>
 
-  constructor(instance: MediaInfo) {
-    this.instance = instance;
+type AnalyzeMediaBufferOptions = {
+  fileBuffer: Uint8Array
+  fileSize?: number
+  filename: string
+  filenameSource?: FilenameSource
+  requestedFormats?: string[]
+  cpuBudgetMs?: number
+  archiveEntry?: ArchiveEntryInspection
+  remoteReadChunk?: ReadChunk
+  reportProgress?: AnalysisProgressReporter
+}
+
+type FormatRequest = { type: MediaInfoFormat; key: string }
+
+type FormatState = {
+  results: Record<string, string>
+  diagnostics: MediaInfoDiagnostics
+  displayFilename: string
+  resolvedFilenameSource: FilenameSource
+}
+
+type MediaInfoTrack = NonNullable<
+  NonNullable<MediaInfoResult["media"]>["track"]
+>[number]
+
+const allFormats: FormatRequest[] = [
+  { type: "object", key: "json" },
+  { type: "Text", key: "text" },
+  { type: "XML", key: "xml" },
+  { type: "HTML", key: "html" },
+]
+
+const selectFormats = (requestedFormats: string[]): FormatRequest[] => {
+  const selected = allFormats.filter(
+    (format) =>
+      requestedFormats.includes("all") ||
+      requestedFormats.includes(format.key) ||
+      requestedFormats.includes(format.type.toLowerCase())
+  )
+
+  return selected.length > 0 ? selected : [{ type: "object", key: "json" }]
+}
+
+const getArchiveFilename = (
+  fileBuffer: Uint8Array,
+  filename: string,
+  archiveEntry?: ArchiveEntryInspection
+) =>
+  archiveEntry?.name ??
+  (isArchiveExtension(filename)
+    ? extractFirstFileFromArchive(fileBuffer)
+    : null)
+
+const readLocalChunk = (
+  fileBuffer: Uint8Array,
+  chunkSize: number,
+  offset: number
+) => {
+  if (offset >= fileBuffer.byteLength) {
+    return new Uint8Array(0)
   }
 
-  [Symbol.dispose]() {
-    this.instance.close();
+  const end = Math.min(offset + chunkSize, fileBuffer.byteLength)
+
+  return fileBuffer.subarray(offset, end)
+}
+
+const createReadChunk =
+  (options: {
+    fileBuffer: Uint8Array
+    startTime: number
+    cpuBudgetMs: number
+    remoteReadChunk?: ReadChunk
+  }): ReadChunk =>
+  async (size, offset) => {
+    checkCpuBudget(options.startTime, options.cpuBudgetMs)
+
+    return options.remoteReadChunk
+      ? options.remoteReadChunk(size, offset)
+      : readLocalChunk(options.fileBuffer, size, offset)
   }
 
-  dispose() {
-    this.instance.close();
+const resolveMediaInfoFormat = (
+  type: MediaInfoFormat
+): MediaInfo["options"]["format"] => {
+  switch (type) {
+    case "object":
+      return "object"
+    case "Text":
+      return "Text"
+    case "XML":
+      return "XML"
+    case "HTML":
+      return "HTML"
+  }
+
+  return unsupportedMediaInfoFormat(type)
+}
+
+const unsupportedMediaInfoFormat = (type: never): never => {
+  throw new Error("Unsupported MediaInfo format: " + String(type))
+}
+
+const findTextFilenameInsertIndex = (lines: string[], generalIndex: number) => {
+  for (let index = generalIndex + 1; index < lines.length; index += 1) {
+    if (lines[index].trim().startsWith("Unique ID")) {
+      return index + 1
+    }
+
+    if (lines[index].trim() === "") {
+      break
+    }
+  }
+
+  return generalIndex + 1
+}
+
+const insertTextFilename = (result: string, filename: string) => {
+  if (result.includes("Complete name")) {
+    return result
+  }
+
+  const lines = result.split("\n")
+
+  const generalIndex = lines.findIndex((line) =>
+    line.trim().startsWith("General")
+  )
+
+  if (generalIndex === -1) {
+    return result
+  }
+
+  const insertIndex = findTextFilenameInsertIndex(lines, generalIndex)
+  const padding = " ".repeat(41 - "Complete name".length)
+  lines.splice(insertIndex, 0, "Complete name" + padding + ": " + filename)
+
+  return lines.join("\n")
+}
+
+const setArchiveFields = (
+  generalTrack: MediaInfoTrack,
+  archiveEntry?: ArchiveEntryInspection
+) => {
+  if (!archiveEntry) {
+    return
+  }
+
+  generalTrack.Archive_Sizing_Status = archiveEntry.sizeStatus
+  generalTrack.Archive_Sizing_Source = archiveEntry.sizeSource
+
+  if (archiveEntry.sizeStatus === "estimated") {
+    generalTrack.Archive_Sizing_Warning = ARCHIVE_SIZING_WARNING
   }
 }
 
-export async function analyzeMediaBuffer(
-  fileBuffer: Uint8Array,
-  fileSize: number | undefined,
-  filename: string,
-  filenameSource: FilenameSource = 'url',
-  requestedFormats: string[] = [],
-  cpuBudgetMs: number = DEFAULT_ANALYSIS_CPU_BUDGET_MS,
-  archiveEntry?: ArchiveEntryInspection,
-  remoteReadChunk?: (size: number, offset: number) => Promise<Uint8Array>,
-  reportProgress?: AnalysisProgressReporter,
-): Promise<MediaInfoAnalysis> {
-  const tStart = performance.now();
+const processObjectResult = (options: {
+  resultData: MediaInfoData
+  filename: string
+  filenameSource: FilenameSource
+  archiveName?: string
+  archiveEntry?: ArchiveEntryInspection
+  state: FormatState
+}) => {
+  try {
+    const normalizedResult = normalizeMediaInfo(options.resultData)
+    const json: MediaInfoResult = mediaInfoResultSchema.parse(normalizedResult)
 
-  const effectiveFileSize = fileSize ?? fileBuffer.byteLength;
+    const generalTrack = json.media?.track?.find(
+      (track) => track["@type"] === "General"
+    )
 
-  const diagnostics: MediaInfoDiagnostics = {
-    wasmLoadTimeMs: 0,
-    factoryCreateTimeMs: 0,
-    formatGenerationTimes: {},
-    totalAnalysisTimeMs: 0,
-    formatErrors: {},
-  };
+    if (generalTrack) {
+      const metadataFallback =
+        options.state.resolvedFilenameSource === "url" &&
+        options.filenameSource === "url"
+          ? getMediaInfoMetadataFilename(generalTrack)
+          : undefined
 
-  // Attempt to detect inner file from archive (Container Peeking)
-  // OPTIMIZATION: Only scan for inner files if the filename extension suggests an archive.
-  // This prevents wasting CPU scanning every MKV/MP4 file for zip headers.
-  let archiveInnerName: string | null = archiveEntry?.name ?? null;
-  if (!archiveInnerName && isArchiveExtension(filename)) {
-    archiveInnerName = extractFirstFileFromArchive(fileBuffer);
-  }
+      if (metadataFallback) {
+        options.state.displayFilename = metadataFallback.filename
+        options.state.resolvedFilenameSource = metadataFallback.source
+      }
 
-  // Prefer the archive inner name if detected (Prong B)
-  // Otherwise, use the filename passed to us (Prong A might have set this to the inner name already, or it's just the URL filename)
-  let displayFilename = archiveInnerName ?? filename;
-  let resolvedFilenameSource: FilenameSource = archiveInnerName
-    ? 'archive-inner'
-    : filenameSource;
-  const archiveName = archiveInnerName ? filename : undefined;
+      generalTrack.CompleteName = options.state.displayFilename
 
-  const readChunk = (chunkSize: number, offset: number) => {
-    if (offset >= fileBuffer.byteLength) {
-      return new Uint8Array(0);
+      if (options.archiveName) {
+        generalTrack.Archive_Name = options.archiveName
+      }
+
+      setArchiveFields(generalTrack, options.archiveEntry)
     }
-    const end = Math.min(offset + chunkSize, fileBuffer.byteLength);
-    return fileBuffer.subarray(offset, end);
-  };
 
-  const shouldGenerateAll = requestedFormats.includes('all');
+    return JSON.stringify(json)
+  } catch (error) {
+    options.state.diagnostics.objectProcessError =
+      error instanceof Error ? error.message : String(error)
 
-  const allFormats: { type: MediaInfoFormat; key: string }[] = [
-    { type: 'object', key: 'json' },
-    { type: 'Text', key: 'text' },
-    { type: 'XML', key: 'xml' },
-    { type: 'HTML', key: 'html' },
-  ];
+    return "{}"
+  }
+}
 
-  const formatsToGenerate = allFormats.filter(
-    (f) =>
-      shouldGenerateAll ||
-      requestedFormats.includes(f.key) ||
-      requestedFormats.includes(f.type.toLowerCase()),
-  );
+type FormatAnalysisResult =
+  | { kind: "object"; data: MediaInfoData }
+  | { kind: "object_error"; message: string }
+  | { kind: "text"; value: string }
 
-  const results: Record<string, string> = {};
+const analyzeRawFormat = async (options: {
+  infoInstance: MediaInfo
+  format: FormatRequest
+  fileSize: number
+  readChunk: ReadChunk
+}): Promise<FormatAnalysisResult> => {
+  options.infoInstance.options.format = resolveMediaInfoFormat(
+    options.format.type
+  )
+  options.infoInstance.options.full =
+    options.format.type === "object" || options.format.type === "Text"
+  options.infoInstance.reset()
 
-  // Default to JSON if no format specified effectively
-  if (formatsToGenerate.length === 0) {
-    formatsToGenerate.push({ type: 'object', key: 'json' });
+  const resultData = await options.infoInstance.analyzeData(
+    () => options.fileSize,
+    options.readChunk
+  )
+
+  if (options.format.type !== "object") {
+    return { kind: "text", value: options.infoInstance.inform() }
   }
 
   try {
-    const tFactory = performance.now();
-
-    // Explicit Resource Management: Manually close 'info' in finally block
-    // 'using' requires ESNext target and polyfills which may not be present in CF Workers environment
-    const rawInstance = await createMediaInfo();
-    const disposableInfo = new DisposableMediaInfo(rawInstance);
-    const infoInstance = disposableInfo.instance;
-
-    try {
-      // Set initial options
-      infoInstance.options.chunkSize = 5 * 1024 * 1024;
-      infoInstance.options.coverData = false;
-
-      diagnostics.factoryCreateTimeMs = Math.round(
-        performance.now() - tFactory,
-      );
-
-      await reportProgress?.(
-        'analysis_started',
-        'Running Media Analysis',
-        'MediaInfo is parsing the bytes fetched from the source.',
-      );
-
-      for (const { type, key } of formatsToGenerate) {
-        const tFormat = performance.now();
-        try {
-          const formatStr = type === 'Text' ? 'text' : type;
-
-          infoInstance.options.format = formatStr as 'object';
-          infoInstance.options.full = type === 'object' || type === 'Text';
-
-          infoInstance.reset();
-
-          const resultData = await infoInstance.analyzeData(
-            () => effectiveFileSize,
-            async (size: number, offset: number) => {
-              checkCpuBudget(tStart, cpuBudgetMs);
-              if (remoteReadChunk) {
-                return remoteReadChunk(size, offset);
-              }
-              return readChunk(size, offset);
-            },
-          );
-          let resultStr = '';
-
-          if (type !== 'object') {
-            resultStr = infoInstance.inform();
-          }
-
-          if (type === 'object') {
-            try {
-              // Normalize the data (unwrap { #value } objects)
-              const json = normalizeMediaInfo(resultData) as MediaInfoResult;
-
-              if (json.media?.track) {
-                const generalTrack = json.media.track.find(
-                  (t) => t['@type'] === 'General',
-                );
-
-                if (generalTrack) {
-                  const metadataFallback =
-                    !archiveInnerName && filenameSource === 'url'
-                      ? getMediaInfoMetadataFilename(generalTrack)
-                      : undefined;
-
-                  if (metadataFallback) {
-                    displayFilename = metadataFallback.filename;
-                    resolvedFilenameSource = metadataFallback.source;
-                  }
-
-                  generalTrack.CompleteName = displayFilename;
-
-                  if (archiveName) {
-                    generalTrack.Archive_Name = archiveName;
-                  }
-                  if (archiveEntry) {
-                    generalTrack.Archive_Sizing_Status =
-                      archiveEntry.sizeStatus;
-                    generalTrack.Archive_Sizing_Source =
-                      archiveEntry.sizeSource;
-                    if (archiveEntry.sizeStatus === 'estimated') {
-                      generalTrack.Archive_Sizing_Warning =
-                        ARCHIVE_SIZING_WARNING;
-                    }
-                  }
-                }
-              }
-              results[key] = JSON.stringify(json);
-            } catch (e) {
-              diagnostics.objectProcessError =
-                e instanceof Error ? e.message : String(e);
-              results[key] = '{}';
-            }
-          } else if (type === 'Text') {
-            if (!resultStr.includes('Complete name')) {
-              // Injection logic for text
-              const lines = resultStr.split('\n');
-              const generalIndex = lines.findIndex((l: string) =>
-                l.trim().startsWith('General'),
-              );
-              if (generalIndex !== -1) {
-                let insertIndex = generalIndex + 1;
-                for (let i = generalIndex + 1; i < lines.length; i++) {
-                  if (lines[i].trim().startsWith('Unique ID')) {
-                    insertIndex = i + 1;
-                    break;
-                  }
-                  if (lines[i].trim() === '') break;
-                }
-                const padding = ' '.repeat(41 - 'Complete name'.length);
-                lines.splice(
-                  insertIndex,
-                  0,
-                  `Complete name${padding}: ${displayFilename}`,
-                );
-                resultStr = lines.join('\n');
-              }
-            }
-            results[key] = resultStr;
-          } else {
-            results[key] = resultStr;
-          }
-
-          diagnostics.formatGenerationTimes[key] = Math.round(
-            performance.now() - tFormat,
-          );
-        } catch (err) {
-          diagnostics.formatErrors[key] =
-            err instanceof Error ? err.message : String(err);
-          results[key] = `Error generating ${type} view.`;
-        }
-      }
-    } finally {
-      // Clean up MediaInfo instance
-      infoInstance.close();
-      disposableInfo.dispose();
+    return { kind: "object", data: MediaInfoDataSchema.parse(resultData) }
+  } catch (error) {
+    return {
+      kind: "object_error",
+      message: error instanceof Error ? error.message : String(error),
     }
-  } catch (err) {
-    // Catch factory errors or other failures not caught in loop
-    diagnostics.wasmLoadError =
-      err instanceof Error ? err.message : String(err);
+  }
+}
 
-    // Propagate up with partial diagnostics
-    throw new DiagnosticsError(diagnostics.wasmLoadError, diagnostics, err);
+const generateFormat = async (options: {
+  infoInstance: MediaInfo
+  format: FormatRequest
+  fileSize: number
+  readChunk: ReadChunk
+  filename: string
+  filenameSource: FilenameSource
+  archiveName?: string
+  archiveEntry?: ArchiveEntryInspection
+  state: FormatState
+}) => {
+  const formatStart = performance.now()
+
+  try {
+    const resultData = await analyzeRawFormat({
+      infoInstance: options.infoInstance,
+      format: options.format,
+      fileSize: options.fileSize,
+      readChunk: options.readChunk,
+    })
+
+    const output = renderFormatResult(resultData, options)
+
+    return {
+      key: options.format.key,
+      output,
+      durationMs: Math.round(performance.now() - formatStart),
+    }
+  } catch (error) {
+    return {
+      key: options.format.key,
+      output: "Error generating " + options.format.type + " view.",
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+const renderFormatResult = (
+  resultData: FormatAnalysisResult,
+  options: {
+    infoInstance: MediaInfo
+    format: FormatRequest
+    filename: string
+    filenameSource: FilenameSource
+    archiveName?: string
+    archiveEntry?: ArchiveEntryInspection
+    state: FormatState
+  }
+) => {
+  if (resultData.kind === "object_error") {
+    options.state.diagnostics.objectProcessError = resultData.message
+
+    return "{}"
   }
 
-  diagnostics.totalAnalysisTimeMs = Math.round(performance.now() - tStart);
+  if (resultData.kind === "object") {
+    return processObjectResult({
+      resultData: resultData.data,
+      filename: options.filename,
+      filenameSource: options.filenameSource,
+      archiveName: options.archiveName,
+      archiveEntry: options.archiveEntry,
+      state: options.state,
+    })
+  }
+
+  return options.format.type === "Text"
+    ? insertTextFilename(resultData.value, options.state.displayFilename)
+    : resultData.value
+}
+
+const generateFormatsSequentially = async (parameters: {
+  index: number
+  formats: FormatRequest[]
+  infoInstance: MediaInfo
+  options: {
+    fileSize: number
+    readChunk: ReadChunk
+    filename: string
+    filenameSource: FilenameSource
+    archiveName?: string
+    archiveEntry?: ArchiveEntryInspection
+  }
+  state: FormatState
+}): Promise<void> => {
+  const format = parameters.formats[parameters.index]
+
+  if (!format) {
+    return
+  }
+
+  const result = await generateFormat({
+    infoInstance: parameters.infoInstance,
+    format,
+    fileSize: parameters.options.fileSize,
+    readChunk: parameters.options.readChunk,
+    filename: parameters.options.filename,
+    filenameSource: parameters.options.filenameSource,
+    archiveName: parameters.options.archiveName,
+    archiveEntry: parameters.options.archiveEntry,
+    state: parameters.state,
+  })
+
+  parameters.state.results[result.key] = result.output
+
+  if (result.error !== undefined) {
+    parameters.state.diagnostics.formatErrors[result.key] = result.error
+  } else {
+    parameters.state.diagnostics.formatGenerationTimes[result.key] =
+      result.durationMs
+  }
+
+  await generateFormatsSequentially({
+    ...parameters,
+    index: parameters.index + 1,
+  })
+}
+
+const runMediaInfo = async (
+  formats: FormatRequest[],
+  options: {
+    fileSize: number
+    readChunk: ReadChunk
+    filename: string
+    filenameSource: FilenameSource
+    archiveName?: string
+    archiveEntry?: ArchiveEntryInspection
+    reportProgress?: AnalysisProgressReporter
+  },
+  state: FormatState
+) => {
+  const factoryStart = performance.now()
+  const infoInstance = await createMediaInfo()
+  state.diagnostics.factoryCreateTimeMs = Math.round(
+    performance.now() - factoryStart
+  )
+
+  try {
+    infoInstance.options.chunkSize = 5 * 1024 * 1024
+    infoInstance.options.coverData = false
+    await options.reportProgress?.(
+      "analysis_started",
+      "Running Media Analysis",
+      "MediaInfo is parsing the bytes fetched from the source."
+    )
+    await generateFormatsSequentially({
+      index: 0,
+      formats,
+      infoInstance,
+      options,
+      state,
+    })
+  } finally {
+    infoInstance.close()
+  }
+}
+
+export async function analyzeMediaBuffer({
+  fileBuffer,
+  fileSize,
+  filename,
+  filenameSource = "url",
+  requestedFormats = [],
+  cpuBudgetMs = DEFAULT_ANALYSIS_CPU_BUDGET_MS,
+  archiveEntry,
+  remoteReadChunk,
+  reportProgress,
+}: AnalyzeMediaBufferOptions): Promise<MediaInfoAnalysis> {
+  const startTime = performance.now()
+  const effectiveFileSize = fileSize ?? fileBuffer.byteLength
+
+  const archiveInnerName = getArchiveFilename(
+    fileBuffer,
+    filename,
+    archiveEntry
+  )
+
+  const archiveName = archiveInnerName ? filename : undefined
+
+  const state: FormatState = {
+    results: {},
+    diagnostics: {
+      wasmLoadTimeMs: 0,
+      factoryCreateTimeMs: 0,
+      formatGenerationTimes: {},
+      totalAnalysisTimeMs: 0,
+      formatErrors: {},
+    },
+    displayFilename: archiveInnerName ?? filename,
+    resolvedFilenameSource: archiveInnerName ? "archive-inner" : filenameSource,
+  }
+
+  try {
+    await runMediaInfo(
+      selectFormats(requestedFormats),
+      {
+        fileSize: effectiveFileSize,
+        readChunk: createReadChunk({
+          fileBuffer,
+          startTime,
+          cpuBudgetMs,
+          remoteReadChunk,
+        }),
+        filename,
+        filenameSource,
+        archiveName,
+        archiveEntry,
+        reportProgress,
+      },
+      state
+    )
+  } catch (error) {
+    state.diagnostics.wasmLoadError =
+      error instanceof Error ? error.message : String(error)
+    throw new DiagnosticsError(
+      state.diagnostics.wasmLoadError,
+      state.diagnostics,
+      error
+    )
+  }
+
+  state.diagnostics.totalAnalysisTimeMs = Math.round(
+    performance.now() - startTime
+  )
   await reportProgress?.(
-    'analysis_completed',
-    'Analysis Complete',
-    'Media analysis finished. Preparing the final response.',
-  );
+    "analysis_completed",
+    "Analysis Complete",
+    "Media analysis finished. Preparing the final response."
+  )
+
   return {
-    results,
-    diagnostics,
-    resolvedFilename: displayFilename,
-    resolvedFilenameSource,
-  };
+    results: state.results,
+    diagnostics: state.diagnostics,
+    resolvedFilename: state.displayFilename,
+    resolvedFilenameSource: state.resolvedFilenameSource,
+  }
 }

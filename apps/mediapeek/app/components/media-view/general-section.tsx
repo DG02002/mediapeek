@@ -1,17 +1,19 @@
-import type { MediaTrackJSON } from '~/types/media';
+import { memo } from "react"
 
-import { memo } from 'react';
+import type { MediaTrackJSON } from "~/types/media"
 
-import { MediaDetailItem } from './media-detail-item';
+import { MediaDetailItem } from "./media-detail-item"
 
 interface GeneralSectionProps {
-  generalTrack?: MediaTrackJSON;
+  generalTrack?: MediaTrackJSON
 }
 
 export const GeneralSection = memo(function GeneralSection({
   generalTrack,
 }: GeneralSectionProps) {
-  if (!generalTrack) return null;
+  if (!generalTrack) {
+    return null
+  }
 
   return (
     <section className="space-y-4">
@@ -81,5 +83,5 @@ export const GeneralSection = memo(function GeneralSection({
         )}
       </div>
     </section>
-  );
-});
+  )
+})

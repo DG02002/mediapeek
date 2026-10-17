@@ -1,0 +1,55 @@
+{
+  // Markdown hygiene for repo-owned docs. The VS Code extension
+  // (DavidAnson.vscode-markdownlint) reads this same file, so editor, pre-commit,
+  // and CI all enforce one config.
+  "config": {
+    // Line length is not enforced; prose wrapping stays manual.
+    "MD013": false,
+  },
+  "globs": ["**/*.md", "**/*.mdx"],
+  "ignores": [
+    "**/node_modules/**",
+    ".plans/**",
+    ".agents/**",
+    ".repos/**",
+    ".claude/**",
+    ".wrangler/**",
+    ".react-router/**",
+    ".cache/**",
+    "build/**",
+    "**/build/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "temp/**",
+    "tools/oxlint/anti-slop/**",
+  ],
+  "overrides": [
+    {
+      "filter": ["**/*.mdx"],
+      "config": {
+        // MDX component tags are JSX, not inline HTML.
+        "MD033": false,
+        // In-app docs are embedded under composed section titles, so their
+        // starting heading level is a composition decision.
+        "MD001": false,
+      },
+      "combine": "merge",
+    },
+    {
+      "filter": [".github/**/*.md"],
+      "config": {
+        // PR and triage docs start with sections, not a title.
+        "MD041": false,
+      },
+      "combine": "merge",
+    },
+    {
+      "filter": ["**/CHANGELOG.md"],
+      "config": {
+        // Keep a Changelog repeats Added/Fixed per release.
+        "MD024": false,
+      },
+      "combine": "merge",
+    },
+  ],
+}

@@ -1,34 +1,46 @@
-import { analyzeSchema } from '@mediapeek/shared/schemas';
-import { describe, expect, it } from 'vitest';
+import { analyzeSchema } from "@mediapeek/shared/schemas"
+import { describe, expect, it } from "vitest"
 
-describe('analyzeSchema', () => {
-  it('validates a correct URL and applies default format', () => {
+describe("analyzeSchema", () => {
+  it("validates a correct URL and applies default format", () => {
     const result = analyzeSchema.safeParse({
-      url: 'https://example.com/video.mp4',
-    });
+      url: "https://example.com/video.mp4",
+    })
 
-    expect(result.success).toBe(true);
-    if (!result.success) throw new Error('Expected schema parsing to succeed');
-    expect(result.data.url).toBe('https://example.com/video.mp4');
-    expect(result.data.format).toEqual(['JSON']);
-  });
+    expect(result.success).toBe(true)
 
-  it('rejects an invalid URL', () => {
-    const result = analyzeSchema.safeParse({ url: 'not-a-url' });
+    if (!result.success) {
+      throw new Error("Expected schema parsing to succeed")
+    }
 
-    expect(result.success).toBe(false);
-    if (result.success) throw new Error('Expected schema parsing to fail');
-    expect(result.error.issues[0]?.message).toBe('Invalid URL provided.');
-  });
+    expect(result.data.url).toBe("https://example.com/video.mp4")
+    expect(result.data.format).toEqual(["JSON"])
+  })
 
-  it('accepts array-based formats', () => {
+  it("rejects an invalid URL", () => {
+    const result = analyzeSchema.safeParse({ url: "not-a-url" })
+
+    expect(result.success).toBe(false)
+
+    if (result.success) {
+      throw new Error("Expected schema parsing to fail")
+    }
+
+    expect(result.error.issues[0]?.message).toBe("Invalid URL provided.")
+  })
+
+  it("accepts array-based formats", () => {
     const result = analyzeSchema.safeParse({
-      url: 'https://example.com',
-      format: ['object', 'text'],
-    });
+      url: "https://example.com",
+      format: ["object", "text"],
+    })
 
-    expect(result.success).toBe(true);
-    if (!result.success) throw new Error('Expected schema parsing to succeed');
-    expect(result.data.format).toEqual(['object', 'text']);
-  });
-});
+    expect(result.success).toBe(true)
+
+    if (!result.success) {
+      throw new Error("Expected schema parsing to succeed")
+    }
+
+    expect(result.data.format).toEqual(["object", "text"])
+  })
+})

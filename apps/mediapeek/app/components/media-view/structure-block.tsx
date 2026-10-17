@@ -3,132 +3,178 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from '@mediapeek/ui/components/accordion';
-import { memo } from 'react';
+} from "@mediapeek/ui/components/accordion"
+import { memo } from "react"
 
 import {
-  getString,
-  isArray,
-  isPrimitive,
-  isRecord,
-  partitionEntries,
-  safeString,
-} from '~/lib/type-guards';
+  getMediaStructureString as getString,
+  isMediaStructureArray as isArray,
+  isMediaStructurePrimitive as isPrimitive,
+  isMediaStructureRecord as isRecord,
+  partitionMediaStructureEntries as partitionEntries,
+  safeMediaStructureString as safeString,
+  isMediaStructureValue,
+  type MediaStructureArray,
+  type MediaStructureValue,
+} from "~/lib/media-structure"
 
 // Map specific technical keys to user-friendly labels (based on MediaInfo text output)
-const LABEL_MAP: Record<string, string> = {
-  // AC-4 / MPEG-H Common
-  PresentationID: 'Presentation ID',
-  ChannelMode: 'Channel mode',
-  DolbyAtmos: 'Dolby Atmos',
-  DialogueNormalization: 'Dialogue normalization',
-  IntegratedLoudness_Speech: 'Integrated loudness (speech gated)',
-  IntegratedLoudness_Level: 'Integrated loudness (level gated)',
-  RealtimeLoudnessCorrected: 'Realtime loudness corrected',
-  Eac3DrcProfile: 'E-AC-3 DRC profile',
-  HomeTheaterAvr: 'Home theater AVR',
-  FlatPanelTv: 'Flat panel TV',
-  PortableSpeakers: 'Portable speakers',
-  PortableHeadphones: 'Portable headphones',
-  LoRoCenterMixGain: 'LoRo center mix gain',
-  LoRoSurroundMixGain: 'LoRo surround mix gain',
-  LtRtCenterMixGain: 'LtRt center mix gain',
-  LtRtSurroundMixGain: 'LtRt surround mix gain',
-  LfeMixGain: 'LFE mix gain',
-  PreferredDownmix: 'Preferred downmix',
-  ContentClassifier: 'Content classifier',
-  ChannelCoded: 'Channel coded',
-  NumberOfSubstreams: 'Number of substreams',
-  DialogueEnhancement: 'Dialogue enhancement',
-  MaxGain: 'Max gain',
-  LinkedTo_Group_Pos: 'Linked to Group Pos',
-  // Global / Stream Elements
-  SignalGroupCount: 'SignalGroupCount',
-  DrcSets_Count: 'DRC set count',
-  DrcSets_Effects: 'DRC effect type(s)',
-  Loudness_Count: 'Loudness info count',
-  SamplePeakLevel: 'Sample peak level',
-  Loudness_Anchor: 'Anchor loudness',
-  Loudness_Program: 'Program loudness',
-  Channels: 'Channel(s)',
-  Channels_String: 'Channel(s)',
-  NumberOfObjects: 'Number of objects',
-  NumberOfObjects_String: 'Number of objects',
-  BedChannelConfiguration: 'Bed Layout',
-  CodecConfigurationBox: 'Codec Configuration Box',
-  // Generic / Others
-  bitstream_version: 'Bitstream version',
-  PresentationLevel: 'Presentation level',
-  AudioLoudnessStandard: 'Audio Loudness Standard',
-  DialogueCorrected: 'Dialogue corrected',
-};
+const LABEL_MAP = new Map<string, string>(
+  Object.entries({
+    // AC-4 / MPEG-H Common
+    PresentationID: "Presentation ID",
+    ChannelMode: "Channel mode",
+    DolbyAtmos: "Dolby Atmos",
+    DialogueNormalization: "Dialogue normalization",
+    IntegratedLoudness_Speech: "Integrated loudness (speech gated)",
+    IntegratedLoudness_Level: "Integrated loudness (level gated)",
+    RealtimeLoudnessCorrected: "Realtime loudness corrected",
+    Eac3DrcProfile: "E-AC-3 DRC profile",
+    HomeTheaterAvr: "Home theater AVR",
+    FlatPanelTv: "Flat panel TV",
+    PortableSpeakers: "Portable speakers",
+    PortableHeadphones: "Portable headphones",
+    LoRoCenterMixGain: "LoRo center mix gain",
+    LoRoSurroundMixGain: "LoRo surround mix gain",
+    LtRtCenterMixGain: "LtRt center mix gain",
+    LtRtSurroundMixGain: "LtRt surround mix gain",
+    LfeMixGain: "LFE mix gain",
+    PreferredDownmix: "Preferred downmix",
+    ContentClassifier: "Content classifier",
+    ChannelCoded: "Channel coded",
+    NumberOfSubstreams: "Number of substreams",
+    DialogueEnhancement: "Dialogue enhancement",
+    MaxGain: "Max gain",
+    LinkedTo_Group_Pos: "Linked to Group Pos",
+    // Global / Stream Elements
+    SignalGroupCount: "SignalGroupCount",
+    DrcSets_Count: "DRC set count",
+    DrcSets_Effects: "DRC effect type(s)",
+    Loudness_Count: "Loudness info count",
+    SamplePeakLevel: "Sample peak level",
+    Loudness_Anchor: "Anchor loudness",
+    Loudness_Program: "Program loudness",
+    Channels: "Channel(s)",
+    Channels_String: "Channel(s)",
+    NumberOfObjects: "Number of objects",
+    NumberOfObjects_String: "Number of objects",
+    BedChannelConfiguration: "Bed Layout",
+    CodecConfigurationBox: "Codec Configuration Box",
+    // Generic / Others
+    bitstream_version: "Bitstream version",
+    PresentationLevel: "Presentation level",
+    AudioLoudnessStandard: "Audio Loudness Standard",
+    DialogueCorrected: "Dialogue corrected",
+  })
+)
 
 // Helper to clean keys
 function formatLabel(key: string) {
   // 1. Check direct map
-  if (LABEL_MAP[key]) return LABEL_MAP[key];
+  const label = LABEL_MAP.get(key)
+
+  if (label) {
+    return label
+  }
 
   // 2. Generic formatting
   return key
-    .replace(/_/g, ' ') // Replace underscores with spaces
-    .replace(/([A-Z]+)/g, ' $1') // Space before upper case sequences
-    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2') // Handling TitleCase vs acronyms
+    .replaceAll("_", " ") // Replace underscores with spaces
+    .replaceAll(/([A-Z]+)/g, " $1") // Space before upper case sequences
+    .replaceAll(/([A-Z])([A-Z][a-z])/g, "$1 $2") // Handling TitleCase vs acronyms
     .trim()
-    .replace(/^./, (str) => str.toUpperCase()); // Cap first letter
+    .replace(/^./, (str) => str.toUpperCase()) // Cap first letter
 }
 
 /**
  * Get display text for an array item (for accordion headers)
  */
-function getItemDisplayText(item: unknown): string | null {
-  const classifier = getString(item, 'Classifier');
-  if (classifier) return classifier;
+function getItemDisplayText(item: MediaStructureValue): string | null {
+  const classifier = getString(item, "Classifier")
 
-  const type = getString(item, 'Type');
-  if (type) return type;
+  if (classifier) {
+    return classifier
+  }
 
-  const langString = getString(item, 'Language_String');
-  if (langString) return langString;
+  const type = getString(item, "Type")
 
-  return null;
+  if (type) {
+    return type
+  }
+
+  const langString = getString(item, "Language_String")
+
+  if (langString) {
+    return langString
+  }
+
+  return null
 }
 
 /**
  * Get header subtitle text for object display
  */
-function getHeaderSubtitle(data: unknown): string | null {
-  const langString = getString(data, 'Language_String');
-  if (langString) return langString;
+function getHeaderSubtitle(data: MediaStructureValue): string | null {
+  const langString = getString(data, "Language_String")
 
-  const formatProfile = getString(data, 'Format_Profile');
-  if (formatProfile) return formatProfile;
+  if (langString) {
+    return langString
+  }
 
-  const channelMode = getString(data, 'ChannelMode');
-  if (channelMode) return channelMode;
+  const formatProfile = getString(data, "Format_Profile")
 
-  return null;
+  if (formatProfile) {
+    return formatProfile
+  }
+
+  const channelMode = getString(data, "ChannelMode")
+
+  if (channelMode) {
+    return channelMode
+  }
+
+  return null
 }
 
 /**
  * Check if a key should be hidden from display
  */
-function shouldHideKey(key: string, val: unknown): boolean {
+function shouldHideKey(
+  key: string,
+  val: MediaStructureValue | undefined
+): boolean {
   return (
-    key === 'Pos' ||
-    key === 'Index' ||
-    key.endsWith('_String') ||
-    key === 'Language_String' ||
-    key === 'Language' ||
-    key === 'Type' ||
-    key === 'Classifier' ||
-    (key.startsWith('LinkedTo_') && safeString(val) === '0')
-  );
+    key === "Pos" ||
+    key === "Index" ||
+    key.endsWith("_String") ||
+    key === "Language_String" ||
+    key === "Language" ||
+    key === "Type" ||
+    key === "Classifier" ||
+    (key.startsWith("LinkedTo_") && safeString(val) === "0")
+  )
 }
 
 interface StructureBlockProps {
-  data: unknown;
-  label?: string;
-  depth?: number;
+  data: unknown
+  label?: string
+  depth?: number
+}
+
+const getKeyedItems = (items: MediaStructureArray) => {
+  const duplicateCounts = new Map<string, number>()
+
+  return items.map((item, index) => {
+    const serialized = JSON.stringify(item) ?? "null"
+    const duplicateCount = duplicateCounts.get(serialized) ?? 0
+    duplicateCounts.set(serialized, duplicateCount + 1)
+
+    return {
+      item,
+      key: serialized + ":" + String(duplicateCount),
+      position: index + 1,
+    }
+  })
 }
 
 const StructureBlockImpl = function StructureBlock({
@@ -136,12 +182,16 @@ const StructureBlockImpl = function StructureBlock({
   label,
   depth = 0,
 }: StructureBlockProps) {
-  if (!data) return null;
+  if (!isMediaStructureValue(data) || !data) {
+    return null
+  }
 
   // Array of objects (e.g., SignalGroup list, Presentation list)
   if (isArray(data)) {
     // Case 1: Multiple Items -> Use Accordion
     if (data.length > 1) {
+      const keyedItems = getKeyedItems(data)
+
       return (
         <div className="flex w-full max-w-full flex-col gap-3">
           {label && (
@@ -152,16 +202,17 @@ const StructureBlockImpl = function StructureBlock({
             </div>
           )}
           <Accordion
-            defaultValue={data.map((_, i) => String(i))}
+            defaultValue={keyedItems.map(({ key }) => key)}
             className="w-full"
           >
-            {data.map((item, idx) => {
-              const displayText = getItemDisplayText(item);
+            {keyedItems.map(({ item, key, position }) => {
+              const displayText = getItemDisplayText(item)
+
               return (
-                <AccordionItem key={String(idx)} value={String(idx)}>
+                <AccordionItem key={key} value={key}>
                   <AccordionTrigger className="py-3 text-xs tracking-wider uppercase hover:no-underline">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold">#{String(idx + 1)}</span>
+                      <span className="font-semibold">#{String(position)}</span>
                       {displayText && (
                         <span className="truncate font-semibold normal-case">
                           {displayText}
@@ -175,25 +226,25 @@ const StructureBlockImpl = function StructureBlock({
                     </div>
                   </AccordionContent>
                 </AccordionItem>
-              );
+              )
             })}
           </Accordion>
         </div>
-      );
+      )
     }
 
     // Case 2: Single Item -> Render directly (Smart Flattening)
     if (data.length === 1) {
-      return <StructureBlock data={data[0]} label={label} depth={depth} />;
+      return <StructureBlock data={data[0]} label={label} depth={depth} />
     }
 
-    return null;
+    return null
   }
 
   // Single Object
   if (isRecord(data)) {
-    const { primitives, complex } = partitionEntries(data);
-    const headerSubtitle = getHeaderSubtitle(data);
+    const { primitives, complex } = partitionEntries(data)
+    const headerSubtitle = getHeaderSubtitle(data)
 
     return (
       <div className="flex flex-col gap-4">
@@ -203,7 +254,7 @@ const StructureBlockImpl = function StructureBlock({
             <span className="text-muted-foreground/80 text-sm font-bold tracking-widest uppercase">
               {label}
             </span>
-            {headerSubtitle && label !== 'Extra' && (
+            {headerSubtitle && label !== "Extra" && (
               <span className="text-foreground/80 text-xs font-medium">
                 {headerSubtitle}
               </span>
@@ -215,7 +266,9 @@ const StructureBlockImpl = function StructureBlock({
         {primitives.length > 0 && (
           <div className="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
             {primitives.map(([key, val]) => {
-              if (shouldHideKey(key, val)) return null;
+              if (shouldHideKey(key, val)) {
+                return null
+              }
 
               return (
                 <div key={key} className="flex min-w-0 flex-col">
@@ -228,7 +281,7 @@ const StructureBlockImpl = function StructureBlock({
                     {isPrimitive(val) ? String(val) : safeString(val)}
                   </span>
                 </div>
-              );
+              )
             })}
           </div>
         )}
@@ -273,10 +326,10 @@ const StructureBlockImpl = function StructureBlock({
           </div>
         )}
       </div>
-    );
+    )
   }
 
-  return null;
-};
+  return null
+}
 
-export const StructureBlock = memo(StructureBlockImpl);
+export const StructureBlock = memo(StructureBlockImpl)

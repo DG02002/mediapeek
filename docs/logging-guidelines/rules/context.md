@@ -6,7 +6,7 @@ tags: logging, context, cardinality, dimensionality
 
 ## Context, Cardinality, and Dimensionality
 
-**Impact: CRITICAL**
+### Impact: CRITICAL
 
 Wide events must be context-rich with high cardinality and high dimensionality. This enables you to answer questions you haven't anticipated yet - the "unknown unknowns" that traditional logging misses.
 

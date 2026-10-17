@@ -1,73 +1,97 @@
-import { MEDIA_CONSTANTS } from '~/lib/media/constants';
+import { MEDIA_CONSTANTS } from "~/lib/media/constants"
 
 interface TrademarkNoticeProps {
-  badges: string[];
+  badges: string[]
+}
+
+const getDolbyNotice = (
+  badges: string[],
+  badgeNames: typeof MEDIA_CONSTANTS.BADGES
+) => {
+  const terms = ["Dolby"]
+
+  if (badges.includes(badgeNames.DOLBY_VISION)) {
+    terms.push("Dolby Vision")
+  }
+
+  if (badges.includes(badgeNames.DOLBY_ATMOS)) {
+    terms.push("Dolby Atmos")
+  }
+
+  if (badges.includes(badgeNames.DOLBY_AUDIO)) {
+    terms.push("Dolby Audio")
+  }
+
+  if (terms.length === 1) {
+    return undefined
+  }
+
+  const finalTerm = terms[terms.length - 1]
+  const precedingTerms = terms.slice(0, -1).join(", ")
+  const termsString = precedingTerms + " and " + finalTerm
+
+  return (
+    termsString +
+    " and the double-D symbol are trademarks of Dolby Laboratories Licensing Corporation."
+  )
+}
+
+const getDtsNotice = (
+  badges: string[],
+  badgeNames: typeof MEDIA_CONSTANTS.BADGES
+) => {
+  const hasDts = badges.includes(badgeNames.DTS)
+  const hasDtsX = badges.includes(badgeNames.DTS_X)
+
+  if (!hasDts && !hasDtsX) {
+    return undefined
+  }
+
+  return "DTS, the Symbol, DTS and the Symbol together, DTS:X, and the DTS:X logo are registered trademarks or trademarks of DTS, Inc. in the United States and/or other countries."
+}
+
+const getTrademarkNotices = (badges: string[]) => {
+  const { BADGES } = MEDIA_CONSTANTS
+  const notices = [getDolbyNotice(badges, BADGES)]
+
+  if (badges.includes(BADGES.IMAX)) {
+    notices.push("IMAX® is a registered trademark of IMAX Corporation.")
+  }
+
+  const dtsNotice = getDtsNotice(badges, BADGES)
+
+  if (dtsNotice) {
+    notices.push(dtsNotice)
+  }
+
+  if (badges.includes(BADGES.HDR10_PLUS)) {
+    notices.push("HDR10+™ logo is a trademark of HDR10+ Technologies, LLC.")
+  }
+
+  if (badges.includes(BADGES.AV1)) {
+    notices.push("AV1 is a trademark of the Alliance for Open Media.")
+  }
+
+  return notices.filter((notice): notice is string => notice !== undefined)
 }
 
 export function TrademarkNotice({ badges }: TrademarkNoticeProps) {
-  const notices: string[] = [];
-  const { BADGES } = MEDIA_CONSTANTS;
+  const notices = getTrademarkNotices(badges)
 
-  // 1. Dolby Trademarks
-  const hasDolbyVision = badges.includes(BADGES.DOLBY_VISION);
-  const hasDolbyAtmos = badges.includes(BADGES.DOLBY_ATMOS);
-  const hasDolbyAudio = badges.includes(BADGES.DOLBY_AUDIO);
-
-  if (hasDolbyVision || hasDolbyAtmos || hasDolbyAudio) {
-    const terms = ['Dolby'];
-    if (hasDolbyVision) terms.push('Dolby Vision');
-    if (hasDolbyAtmos) terms.push('Dolby Atmos');
-    if (hasDolbyAudio) terms.push('Dolby Audio');
-
-    // Formatting: "Dolby, Dolby Vision, and Dolby Atmos..."
-    const termsString =
-      terms.length > 1
-        ? `${terms.slice(0, -1).join(', ')} and ${terms[terms.length - 1]}`
-        : terms[0];
-
-    notices.push(
-      `${termsString} and the double-D symbol are trademarks of Dolby Laboratories Licensing Corporation.`,
-    );
+  if (notices.length === 0) {
+    return null
   }
-
-  // 2. IMAX
-  if (badges.includes(BADGES.IMAX)) {
-    notices.push('IMAX® is a registered trademark of IMAX Corporation.');
-  }
-
-  // 3. DTS
-  const hasDTS = badges.includes(BADGES.DTS);
-  const hasDTSX = badges.includes(BADGES.DTS_X);
-
-  if (hasDTS || hasDTSX) {
-    // Official text from DTS terms:
-    notices.push(
-      'DTS, the Symbol, DTS and the Symbol together, DTS:X, and the DTS:X logo are registered trademarks or trademarks of DTS, Inc. in the United States and/or other countries.',
-    );
-  }
-
-  // 4. HDR10+
-  if (badges.includes(BADGES.HDR10_PLUS)) {
-    notices.push('HDR10+™ logo is a trademark of HDR10+ Technologies, LLC.');
-  }
-
-  // 5. AV1
-  if (badges.includes(BADGES.AV1)) {
-    notices.push('AV1 is a trademark of the Alliance for Open Media.');
-  }
-
-  if (notices.length === 0) return null;
 
   return (
     <div>
-      {notices.map((notice, idx) => (
+      {notices.map((notice) => (
         <p
-          key={idx}
+          key={notice}
           className="text-muted-foreground text-xs leading-relaxed [&+&]:mt-3"
         >
           {notice}
         </p>
       ))}
     </div>
-  );
+  )
 }

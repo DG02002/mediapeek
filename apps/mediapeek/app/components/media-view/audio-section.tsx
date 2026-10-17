@@ -1,17 +1,19 @@
-import type { MediaTrackJSON } from '~/types/media';
+import { memo } from "react"
 
-import { memo } from 'react';
+import type { MediaTrackJSON } from "~/types/media"
 
-import { AudioTrackRow } from './audio-track-row';
+import { AudioTrackRow } from "./audio-track-row"
 
 export const AudioSection = memo(function AudioSection({
   audioTracks,
   showOriginalTitles,
 }: {
-  audioTracks: MediaTrackJSON[];
-  showOriginalTitles: boolean;
+  audioTracks: MediaTrackJSON[]
+  showOriginalTitles: boolean
 }) {
-  if (audioTracks.length === 0) return null;
+  if (audioTracks.length === 0) {
+    return null
+  }
 
   return (
     <section className="space-y-4">
@@ -23,12 +25,12 @@ export const AudioSection = memo(function AudioSection({
           <AudioTrackRow
             key={audio.ID ?? audio.UniqueID ?? idx}
             track={audio}
-            trackNumber={audio['@typeorder']}
+            trackNumber={audio["@typeorder"]}
             showTrackNumber={audioTracks.length > 1}
             showOriginalTitles={showOriginalTitles}
           />
         ))}
       </div>
     </section>
-  );
-});
+  )
+})

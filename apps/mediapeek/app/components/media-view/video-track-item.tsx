@@ -1,42 +1,43 @@
-import type { MediaTrackJSON } from '~/types/media';
+import { Match } from "effect"
+import { memo } from "react"
 
-import { memo } from 'react';
+import { cleanBitrateString, mapDolbyProfile } from "~/lib/formatters"
+import type { MediaTrackJSON } from "~/types/media"
 
-import { cleanBitrateString, mapDolbyProfile } from '~/lib/formatters';
-
-import { ArchiveEstimateTooltip } from './archive-estimate-tooltip';
-import { MediaDetailItem } from './media-detail-item';
+import { ArchiveEstimateTooltip } from "./archive-estimate-tooltip"
+import { MediaDetailItem } from "./media-detail-item"
 
 interface VideoTrackItemProps {
-  video: MediaTrackJSON;
-  archiveSizingWarning?: string;
+  video: MediaTrackJSON
+  archiveSizingWarning?: string
 }
 
 export const VideoTrackItem = memo(function VideoTrackItem({
   video,
   archiveSizingWarning,
 }: VideoTrackItemProps) {
-  let codec = video.Format;
-  const formatInfo = video.Format_Info ?? video['Format/Info'];
+  let codec = video.Format
+  const formatInfo = video.Format_Info ?? video["Format/Info"]
 
   if (formatInfo) {
-    codec = `${codec ?? ''} (${formatInfo})`;
+    codec = `${codec ?? ""} (${formatInfo})`
   }
-  const profile = video.Format_Profile;
-  const level = video.Format_Level;
-  const tier = video.Format_Tier;
+
+  const profile = video.Format_Profile
+  const level = video.Format_Level
+  const tier = video.Format_Tier
 
   const profileStr = [
     profile,
-    level ? `@L${level}` : '',
-    tier ? `@${tier}` : '',
+    level ? `@L${level}` : "",
+    tier ? `@${tier}` : "",
   ]
     .filter(Boolean)
-    .join('');
+    .join("")
 
-  const rawBitrate = video.BitRate_String ?? video.OverallBitRate_String;
-  const bitrateStr = rawBitrate ? cleanBitrateString(rawBitrate) : null;
-  const bpf = video.BitsPixel_Frame;
+  const rawBitrate = video.BitRate_String ?? video.OverallBitRate_String
+  const bitrateStr = rawBitrate ? cleanBitrateString(rawBitrate) : null
+  const bpf = video.BitsPixel_Frame
 
   return (
     <div className="border-border/40 grid gap-x-8 gap-y-6 border-b pb-6 text-sm last:border-0 sm:grid-cols-2 md:grid-cols-4">
@@ -90,7 +91,7 @@ export const VideoTrackItem = memo(function VideoTrackItem({
       <MediaDetailItem label="Frame Rate">
         <div className="flex flex-col">
           <span className="text-foreground/85 font-semibold">
-            {video.FrameRate_String ?? video.FrameRate ?? 'Unknown'}
+            {video.FrameRate_String ?? video.FrameRate ?? "Unknown"}
           </span>
           {video.FrameRate_Original && (
             <span className="text-muted-foreground text-xs font-normal">
@@ -213,8 +214,8 @@ export const VideoTrackItem = memo(function VideoTrackItem({
               <span
                 className={
                   video.Standard
-                    ? 'text-muted-foreground text-xs font-normal'
-                    : 'text-foreground/85 font-semibold'
+                    ? "text-muted-foreground text-xs font-normal"
+                    : "text-foreground/85 font-semibold"
                 }
               >
                 {video.ScanType}
@@ -227,11 +228,11 @@ export const VideoTrackItem = memo(function VideoTrackItem({
             )}
             {video.ScanOrder && (
               <span className="text-muted-foreground text-xs font-normal">
-                {video.ScanOrder === 'TFF'
-                  ? 'Top Field First'
-                  : video.ScanOrder === 'BFF'
-                    ? 'Bottom Field First'
-                    : video.ScanOrder}
+                {Match.value(video.ScanOrder).pipe(
+                  Match.when("TFF", () => "Top Field First"),
+                  Match.when("BFF", () => "Bottom Field First"),
+                  Match.orElse((scanOrder) => scanOrder)
+                )}
               </span>
             )}
           </div>
@@ -239,25 +240,29 @@ export const VideoTrackItem = memo(function VideoTrackItem({
       )}
 
       {(() => {
-        const libName = video.Encoded_Library_Name;
-        const libVersion = video.Encoded_Library_Version;
-        const fullLib = video.Encoded_Library;
+        const libName = video.Encoded_Library_Name
+        const libVersion = video.Encoded_Library_Version
+        const fullLib = video.Encoded_Library
 
-        let displayMain = libName;
-        let displaySub = libVersion;
+        let displayMain = libName
+        let displaySub = libVersion
 
         if (!displayMain && fullLib) {
           // Fallback: try to split "x264 - core 123"
-          const match = /^(.*?) - (.*)$/.exec(fullLib);
+          const match = /^(.*?) - (.*)$/.exec(fullLib)
+
           if (match) {
-            displayMain = match[1];
-            displaySub = match[2];
+            const [, main, sub] = match
+            displayMain = main
+            displaySub = sub
           } else {
-            displayMain = fullLib;
+            displayMain = fullLib
           }
         }
 
-        if (!displayMain) return null;
+        if (!displayMain) {
+          return null
+        }
 
         return (
           <MediaDetailItem label="Encoded Library">
@@ -272,7 +277,7 @@ export const VideoTrackItem = memo(function VideoTrackItem({
               )}
             </div>
           </MediaDetailItem>
-        );
+        )
       })()}
 
       {video.extra?.CodecConfigurationBox && (
@@ -286,5 +291,5 @@ export const VideoTrackItem = memo(function VideoTrackItem({
         </MediaDetailItem>
       )}
     </div>
-  );
-});
+  )
+})

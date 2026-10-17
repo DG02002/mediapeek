@@ -1,21 +1,20 @@
-import type { MediaTrackJSON } from '~/types/media';
+import { memo } from "react"
 
-import { memo } from 'react';
+import { getMediaBadges } from "~/lib/media-utils"
+import type { MediaTrackJSON } from "~/types/media"
 
-import { getMediaBadges } from '~/lib/media-utils';
-
-import { TrademarkNotice } from './trademark-notice';
+import { TrademarkNotice } from "./trademark-notice"
 
 interface LibrarySectionProps {
   library?: {
-    name: string;
-    version: string;
-    url: string;
-  };
-  generalTrack?: MediaTrackJSON;
-  videoTracks: MediaTrackJSON[];
-  audioTracks: MediaTrackJSON[];
-  textTracks: MediaTrackJSON[];
+    name: string
+    version: string
+    url: string
+  }
+  generalTrack?: MediaTrackJSON
+  videoTracks: MediaTrackJSON[]
+  audioTracks: MediaTrackJSON[]
+  textTracks: MediaTrackJSON[]
 }
 
 export const LibrarySection = memo(function LibrarySection({
@@ -25,14 +24,16 @@ export const LibrarySection = memo(function LibrarySection({
   audioTracks,
   textTracks,
 }: LibrarySectionProps) {
-  const badges = getMediaBadges(
+  const badges = getMediaBadges({
     videoTracks,
     audioTracks,
     textTracks,
     generalTrack,
-  );
+  })
 
-  if (!library) return null;
+  if (!library) {
+    return null
+  }
 
   return (
     <div className="mt-8 space-y-6">
@@ -57,13 +58,13 @@ export const LibrarySection = memo(function LibrarySection({
                     d="m 1.0888174,725.00179 c -0.60922238,0.0358 -1.09005099,0.62066 -1.09005099,1.33978 l 0,42.32753 c 0,0.74234 0.5126896,1.3398 1.14970499,1.3398 l 1.3919386,0 0,-45.00711 -1.3919386,0 c -0.019903,0 -0.040004,-10e-4 -0.059658,0 z"
                     transform="translate(0,30)"
                     id="path3018"
-                    style={{ fill: '#ff0302' }}
+                    style={{ fill: "#ff0302" }}
                   />
                   <path
                     d="m 5.0278219,725.00125 0,45.00763 1.4877478,0 c 0.6370144,0 1.1497037,-0.59745 1.1497037,-1.3398 l 0,-42.32801 c 0,-0.74232 -0.5126893,-1.33982 -1.1497037,-1.33982 l -1.4877478,0 z"
                     transform="translate(0,30)"
                     id="rect3006"
-                    style={{ fill: '#120ffe' }}
+                    style={{ fill: "#120ffe" }}
                   />
                   <rect
                     width="2.4874117"
@@ -74,7 +75,7 @@ export const LibrarySection = memo(function LibrarySection({
                     y="725.00128"
                     transform="translate(0,30)"
                     id="rect3010"
-                    style={{ fill: '#01d318' }}
+                    style={{ fill: "#01d318" }}
                   />
                   <path
                     d="m 508.10671,395.2334 a 122.22845,122.22845 0 1 1 -244.45689,0 122.22845,122.22845 0 1 1 244.45689,0 z"
@@ -119,7 +120,7 @@ export const LibrarySection = memo(function LibrarySection({
             </h4>
             <p className="text-muted-foreground text-xs leading-relaxed">
               <span>
-                Analysis by{' '}
+                Analysis by{" "}
                 <a
                   href="https://mediainfo.js.org/"
                   target="_blank"
@@ -128,7 +129,7 @@ export const LibrarySection = memo(function LibrarySection({
                 >
                   mediainfo.js
                 </a>
-                , a WebAssembly port of{' '}
+                , a WebAssembly port of{" "}
                 <a
                   href="https://mediaarea.net/en/MediaInfo"
                   target="_blank"
@@ -136,8 +137,8 @@ export const LibrarySection = memo(function LibrarySection({
                   className="hover:text-foreground transition-colors hover:underline"
                 >
                   MediaInfo
-                </a>{' '}
-                library, Copyright (c) 2002-2026{' '}
+                </a>{" "}
+                library, Copyright (c) 2002-2026{" "}
                 <a
                   href="mailto:info@mediaarea.net"
                   className="hover:text-foreground transition-colors hover:underline"
@@ -153,5 +154,5 @@ export const LibrarySection = memo(function LibrarySection({
 
       <TrademarkNotice badges={badges} />
     </div>
-  );
-});
+  )
+})

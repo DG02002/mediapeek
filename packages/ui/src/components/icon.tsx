@@ -1,13 +1,12 @@
-import type { ComponentProps } from 'react';
+import { HugeiconsIcon } from "@hugeicons/react"
+import type { ComponentProps } from "react"
 
-import { HugeiconsIcon } from '@hugeicons/react';
-
-type IconProps = ComponentProps<typeof HugeiconsIcon>;
+type IconProps = ComponentProps<typeof HugeiconsIcon>
 
 function Icon({
-  color = 'currentColor',
-  'aria-hidden': ariaHidden,
-  'aria-label': ariaLabel,
+  color = "currentColor",
+  "aria-hidden": ariaHidden,
+  "aria-label": ariaLabel,
   role,
   ...props
 }: IconProps) {
@@ -21,7 +20,7 @@ function Icon({
       role={role}
       {...props}
     />
-  );
+  )
 }
 
-export { Icon };
+export { Icon }

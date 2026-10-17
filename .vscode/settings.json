@@ -11,5 +11,6 @@
   "oxc.typeAware": true,
   "files.associations": {
     "wrangler.json": "jsonc"
-  }
+  },
+  "python.terminal.useEnvFile": true
 }

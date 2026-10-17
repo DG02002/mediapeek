@@ -1,15 +1,15 @@
-import type { Route } from './+types/route';
+import { Footer } from "~/components/footer"
+import { Header } from "~/components/header"
 
-import { Footer } from '~/components/footer';
-import { Header } from '~/components/header';
+import type { Route } from "./+types/route"
 
 export const meta: Route.MetaFunction = () => [
-  { title: 'Privacy Policy - MediaPeek' },
+  { title: "Privacy Policy - MediaPeek" },
   {
-    name: 'description',
-    content: 'Privacy Policy for MediaPeek - Learn how we handle your data.',
+    name: "description",
+    content: "Privacy Policy for MediaPeek - Learn how we handle your data.",
   },
-];
+]
 
 export default function PrivacyPolicy() {
   return (
@@ -138,7 +138,7 @@ export default function PrivacyPolicy() {
             </p>
             <ul className="my-6 ml-6 list-disc [&>li]:mt-2">
               <li>
-                <strong>Ephemeral Processing:</strong> We{' '}
+                <strong>Ephemeral Processing:</strong> We{" "}
                 <strong>do not</strong> store the media files you analyze. They
                 are fetched temporarily by our servers solely for the purpose of
                 extracting metadata and are discarded immediately after
@@ -212,5 +212,5 @@ export default function PrivacyPolicy() {
       </main>
       <Footer />
     </div>
-  );
+  )
 }

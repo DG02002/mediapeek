@@ -7,14 +7,18 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "check": "pnpm run fmt:check && pnpm run lint && pnpm run typecheck",
     "build": "wrangler deploy --dry-run --outdir=dist",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "start": "wrangler dev",
+    "postinstall": "pnpm run cf-typegen",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
     "cf-typegen": "wrangler types",
-    "lint": "cd ../.. && oxlint apps/mediapeek-analyzer",
+    "lint": "cd ../.. && oxlint --config .oxlintrc.json apps/mediapeek-analyzer",
     "clean": "rm -rf dist node_modules"
   },
   "dependencies": {
@@ -25,12 +29,12 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260510.1",
+    "@cloudflare/workers-types": "catalog:",
     "@mediapeek/config-typescript": "workspace:*",
     "@types/node": "^25.6.2",
     "mediainfo.js": "^0.3.7",
-    "vite": "8.0.11",
-    "vitest": "^4.1.5",
-    "wrangler": "^4.90.0"
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
   }
 }

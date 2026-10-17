@@ -1,26 +1,42 @@
-import type { MediaTrackJSON } from '~/types/media';
+import { Separator } from "@mediapeek/ui/components/separator"
+import { memo, useMemo } from "react"
 
-import { Separator } from '@mediapeek/ui/components/separator';
-import { memo, useMemo, useState } from 'react';
+import { OptionsMenu } from "~/components/media-view/options-menu"
+import { getMediaBadges, isValidFilename } from "~/lib/media-utils"
+import type { MediaTrackJSON } from "~/types/media"
 
-import { OptionsMenu } from '~/components/media-view/options-menu';
-import { getMediaBadges, isValidFilename } from '~/lib/media-utils';
-
-import { ArchiveEstimateTooltip } from './archive-estimate-tooltip';
-import { MediaIcon } from './media-icon';
+import { ArchiveEstimateTooltip } from "./archive-estimate-tooltip"
+import { MediaIcon } from "./media-icon"
 
 interface MediaHeaderProps {
-  generalTrack?: MediaTrackJSON;
-  videoTracks: MediaTrackJSON[];
-  audioTracks: MediaTrackJSON[];
-  textTracks: MediaTrackJSON[];
-  isTextView: boolean;
-  setIsTextView: (val: boolean) => void;
-  showOriginalTitles: boolean;
-  setShowOriginalTitles: (val: boolean) => void;
-  rawData: Record<string, string>;
-  url: string;
-  requestTurnstileToken?: () => Promise<string | null>;
+  generalTrack?: MediaTrackJSON
+  videoTracks: MediaTrackJSON[]
+  audioTracks: MediaTrackJSON[]
+  textTracks: MediaTrackJSON[]
+  isTextView: boolean
+  setIsTextView: (val: boolean) => void
+  showOriginalTitles: boolean
+  setShowOriginalTitles: (val: boolean) => void
+  rawData: Record<string, string>
+  url: string
+  requestTurnstileToken?: () => Promise<string | null>
+}
+
+const resolveDisplayFilename = (filenameRaw: string, url: string) => {
+  const filename =
+    filenameRaw.split("/").pop()?.split("\\").pop() ?? filenameRaw
+
+  if (isValidFilename(filename)) {
+    return filename
+  }
+
+  try {
+    const urlPath = new URL(url).pathname.split("/").pop()
+
+    return urlPath ? decodeURIComponent(urlPath) : "Unknown"
+  } catch {
+    return "Unknown"
+  }
 }
 
 export const MediaHeader = memo(function MediaHeader({
@@ -36,58 +52,52 @@ export const MediaHeader = memo(function MediaHeader({
   url,
   requestTurnstileToken,
 }: MediaHeaderProps) {
-  const [_, setPrivateBinUrl] = useState<string | null>(null);
-
   const headerIcons = useMemo(
     () =>
       generalTrack
-        ? getMediaBadges(videoTracks, audioTracks, textTracks, generalTrack)
+        ? getMediaBadges({
+            videoTracks,
+            audioTracks,
+            textTracks,
+            generalTrack,
+          })
         : [],
-    [videoTracks, audioTracks, textTracks, generalTrack],
-  );
+    [videoTracks, audioTracks, textTracks, generalTrack]
+  )
 
-  if (!generalTrack) return null;
-
-  const filenameRaw =
-    generalTrack.CompleteName ?? generalTrack.File_Name ?? 'Unknown';
-  // Extract basename
-  let displayFilename =
-    filenameRaw.split('/').pop()?.split('\\').pop() ?? filenameRaw;
-
-  // Defensive validation: If backend logic missed it, check for binary garbage
-  if (!isValidFilename(displayFilename)) {
-    // Fallback to extracting filename from URL
-    try {
-      const urlObj = new URL(url);
-      const urlPath = urlObj.pathname.split('/').pop();
-      if (urlPath) {
-        displayFilename = decodeURIComponent(urlPath);
-      } else {
-        displayFilename = 'Unknown';
-      }
-    } catch {
-      displayFilename = 'Unknown';
-    }
+  if (!generalTrack) {
+    return null
   }
 
-  const archiveNameRaw = generalTrack.Archive_Name as string | undefined;
-  const displayArchiveName =
-    archiveNameRaw?.split('/').pop()?.split('\\').pop() ?? archiveNameRaw;
+  const filenameRaw =
+    generalTrack.CompleteName ?? generalTrack.File_Name ?? "Unknown"
 
-  const fileSizeRaw = generalTrack.FileSize_String;
+  const displayFilename = resolveDisplayFilename(filenameRaw, url)
+
+  const archiveNameRaw = generalTrack.Archive_Name
+
+  const displayArchiveName =
+    archiveNameRaw?.split("/").pop()?.split("\\").pop() ?? archiveNameRaw
+
+  const fileSizeRaw = generalTrack.FileSize_String
+
   const fileSize =
     fileSizeRaw ??
-    (generalTrack['FileSize/String'] as string | undefined) ??
-    (generalTrack.FileSize as string | undefined);
+    generalTrack["FileSize/String"] ??
+    (generalTrack.FileSize === undefined
+      ? undefined
+      : String(generalTrack.FileSize))
 
-  const durationRaw = generalTrack.Duration_String;
+  const durationRaw = generalTrack.Duration_String
+
   const duration =
     durationRaw ??
-    (generalTrack['Duration/String'] as string | undefined) ??
-    (generalTrack.Duration as string | undefined);
-  const archiveSizingWarning = generalTrack.Archive_Sizing_Warning as
-    | string
-    | undefined;
+    generalTrack["Duration/String"] ??
+    (generalTrack.Duration === undefined
+      ? undefined
+      : String(generalTrack.Duration))
+
+  const archiveSizingWarning = generalTrack.Archive_Sizing_Warning
 
   return (
     <div className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-50 -mx-4 flex flex-col gap-4 px-4 pt-4 pb-0 backdrop-blur-md transition-all md:-mx-8 md:px-8">
@@ -136,7 +146,6 @@ export const MediaHeader = memo(function MediaHeader({
                 setIsTextView={setIsTextView}
                 showOriginalTitles={showOriginalTitles}
                 setShowOriginalTitles={setShowOriginalTitles}
-                onShareSuccess={setPrivateBinUrl}
               />
             </div>
           </div>
@@ -144,5 +153,5 @@ export const MediaHeader = memo(function MediaHeader({
       </div>
       <Separator />
     </div>
-  );
-});
+  )
+})

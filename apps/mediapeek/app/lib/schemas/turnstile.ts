@@ -1,4 +1,1 @@
-export {
-  type TurnstileResponse,
-  TurnstileResponseSchema,
-} from '@mediapeek/shared/schemas';
+export { TurnstileResponseSchema } from "@mediapeek/shared/schemas"

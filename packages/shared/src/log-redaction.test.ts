@@ -1,52 +1,54 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from "vitest"
 
 import {
   redactSensitiveLogData,
   redactSensitiveUrl,
   summarizeSensitiveToken,
-} from './log-redaction';
+} from "./log-redaction"
 
-describe('redactSensitiveUrl', () => {
-  it('redacts known sensitive query params', () => {
+describe("redactSensitiveUrl", () => {
+  it("redacts known sensitive query params", () => {
     const redacted = redactSensitiveUrl(
-      'https://example.com/video.mkv?token=abc123&x-amz-signature=xyz&foo=bar',
-    );
-    expect(redacted).toContain('token=%5BREDACTED%5D');
-    expect(redacted).toContain('x-amz-signature=%5BREDACTED%5D');
-    expect(redacted).toContain('foo=bar');
-  });
-});
+      "https://example.com/video.mkv?token=abc123&x-amz-signature=xyz&foo=bar"
+    )
 
-describe('redactSensitiveLogData', () => {
-  it('redacts sensitive object fields and nested urls', () => {
+    expect(redacted).toContain("token=%5BREDACTED%5D")
+    expect(redacted).toContain("x-amz-signature=%5BREDACTED%5D")
+    expect(redacted).toContain("foo=bar")
+  })
+})
+
+describe("redactSensitiveLogData", () => {
+  it("redacts sensitive object fields and nested urls", () => {
     const payload = {
-      token: 'abcdef',
-      url: 'https://cdn.example.com/a.mkv?sig=abc&expires=10',
+      token: "abcdef",
+      url: "https://cdn.example.com/a.mkv?sig=abc&expires=10",
       nested: {
-        authorization: 'Bearer token',
+        authorization: "Bearer token",
       },
-    };
-    const redacted = redactSensitiveLogData(payload);
+    }
+
+    const redacted = redactSensitiveLogData(payload)
 
     expect(redacted).toStrictEqual({
-      token: '[REDACTED]',
+      token: "[REDACTED]",
       nested: {
-        authorization: '[REDACTED]',
+        authorization: "[REDACTED]",
       },
-      url: 'https://cdn.example.com/a.mkv?sig=[REDACTED]&expires=[REDACTED]',
-    });
-  });
-});
+      url: "https://cdn.example.com/a.mkv?sig=[REDACTED]&expires=[REDACTED]",
+    })
+  })
+})
 
-describe('summarizeSensitiveToken', () => {
-  it('returns metadata only', () => {
-    expect(summarizeSensitiveToken(' abc ')).toEqual({
+describe("summarizeSensitiveToken", () => {
+  it("returns metadata only", () => {
+    expect(summarizeSensitiveToken(" abc ")).toEqual({
       tokenPresent: true,
       tokenLength: 3,
-    });
-    expect(summarizeSensitiveToken('')).toEqual({
+    })
+    expect(summarizeSensitiveToken("")).toEqual({
       tokenPresent: false,
       tokenLength: 0,
-    });
-  });
-});
+    })
+  })
+})

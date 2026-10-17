@@ -1,279 +1,440 @@
 import {
   ARCHIVE_SIZING_WARNING,
   type ArchiveEntryInspection,
-} from '@mediapeek/shared/archive-inspection';
+} from "@mediapeek/shared/archive-inspection"
 import {
   type FilenameSource,
   getMediaInfoMetadataFilename,
-} from '@mediapeek/shared/filename-resolution';
+} from "@mediapeek/shared/filename-resolution"
+import { Match, Option, Schema } from "effect"
 
-import { DiagnosticsError } from '~/lib/error-utils';
+import { DiagnosticsError } from "~/lib/error-utils"
 import {
   extractFirstFileFromArchive,
   isArchiveExtension,
   normalizeMediaInfo,
-} from '~/lib/media-utils';
-import {
-  createMediaInfo,
-  type MediaInfo,
-} from '~/services/mediainfo-factory.server';
+} from "~/lib/media-utils"
+import { createMediaInfo as createDefaultMediaInfo } from "~/services/mediainfo-factory.server"
 
-// Strict typing for MediaInfo results, removing 'any' usage
-export interface MediaInfoResult extends Record<string, unknown> {
-  media?: {
-    track?: {
-      '@type': string;
-      CompleteName?: string;
-      Complete_name?: string;
-      File_Name?: string;
-      Title?: string;
-      Movie?: string;
-      Archive_Name?: string;
-      Archive_Sizing_Status?: 'verified' | 'estimated';
-      Archive_Sizing_Source?:
-        | 'zip-local-header'
-        | 'zip-central-directory'
-        | 'tar-header'
-        | 'unknown';
-      Archive_Sizing_Warning?: string;
-      [key: string]: unknown;
-    }[];
-  };
+const JsonRecord = Schema.Record(Schema.String, Schema.Json)
+
+const MediaInfoTrackSchema = Schema.StructWithRest(
+  Schema.Struct({ "@type": Schema.String }),
+  [JsonRecord]
+)
+
+const MediaInfoMediaSchema = Schema.StructWithRest(
+  Schema.Struct({
+    track: Schema.optional(Schema.Array(MediaInfoTrackSchema)),
+  }),
+  [JsonRecord]
+)
+
+const MediaInfoResultSchema = Schema.StructWithRest(
+  Schema.Struct({
+    media: Schema.optional(MediaInfoMediaSchema),
+  }),
+  [JsonRecord]
+)
+
+export type MediaInfoResult = typeof MediaInfoResultSchema.Type
+
+type MediaInfoTrack = typeof MediaInfoTrackSchema.Type
+
+type MediaInfoData = MediaInfoResult | string
+
+interface MutableMediaInfoTrack {
+  "@type": string
+  [key: string]: Schema.Json
 }
 
 export interface MediaInfoDiagnostics {
-  wasmLoadTimeMs: number;
-  factoryCreateTimeMs: number;
-  formatGenerationTimes: Record<string, number>;
-  totalAnalysisTimeMs: number;
-  wasmLoadError?: string;
-  objectProcessError?: string;
-  formatErrors: Record<string, string>;
+  wasmLoadTimeMs: number
+  factoryCreateTimeMs: number
+  formatGenerationTimes: Record<string, number>
+  totalAnalysisTimeMs: number
+  wasmLoadError?: string
+  objectProcessError?: string
+  formatErrors: Record<string, string>
 }
 
 export interface MediaInfoAnalysis {
-  results: Record<string, string>;
-  diagnostics: MediaInfoDiagnostics;
-  resolvedFilename: string;
-  resolvedFilenameSource: FilenameSource;
+  results: Record<string, string>
+  diagnostics: MediaInfoDiagnostics
+  resolvedFilename: string
+  resolvedFilenameSource: FilenameSource
 }
 
-export type MediaInfoFormat = 'object' | 'Text' | 'XML' | 'HTML';
+type MediaInfoFormat = "object" | "Text" | "XML" | "HTML"
 
-/**
- * Wrapper to make MediaInfo compatible with 'using' keyword (Explicit Resource Management)
- */
-class DisposableMediaInfo implements Disposable {
-  public instance: MediaInfo;
-
-  constructor(instance: MediaInfo) {
-    this.instance = instance;
+export interface MediaInfoPort {
+  options: {
+    chunkSize: number
+    coverData: boolean
+    format: MediaInfoFormat
+    full: boolean
   }
+  analyzeData: (
+    fileSize: () => number,
+    readChunk: (
+      chunkSize: number,
+      offset: number
+    ) => Uint8Array | Promise<Uint8Array>
+  ) => Promise<MediaInfoData>
+  inform: () => string
+  reset: () => void
+  close: () => void
+}
+
+export interface AnalyzeMediaBufferOptions {
+  fileBuffer: Uint8Array
+  fileSize?: number
+  filename: string
+  filenameSource?: FilenameSource
+  requestedFormats?: string[]
+  archiveEntry?: ArchiveEntryInspection
+  createMediaInfo?: () => Promise<MediaInfoPort>
+}
+
+interface FormatRequest {
+  type: MediaInfoFormat
+  key: string
+}
+
+interface FilenameResolutionState {
+  archiveInnerName: string | null
+  displayFilename: string
+  resolvedFilenameSource: FilenameSource
+  archiveName: string | undefined
+}
+
+interface FormatGenerationOptions {
+  formats: FormatRequest[]
+  index: number
+  infoInstance: MediaInfoPort
+  effectiveFileSize: number
+  readChunk: (chunkSize: number, offset: number) => Uint8Array
+  filenameState: FilenameResolutionState
+  filenameSource: FilenameSource
+  archiveEntry: ArchiveEntryInspection | undefined
+  diagnostics: MediaInfoDiagnostics
+  results: Record<string, string>
+}
+
+const ALL_FORMATS: FormatRequest[] = [
+  { type: "object", key: "json" },
+  { type: "Text", key: "text" },
+  { type: "XML", key: "xml" },
+  { type: "HTML", key: "html" },
+]
+
+class DisposableMediaInfo implements Disposable {
+  constructor(readonly instance: MediaInfoPort) {}
 
   [Symbol.dispose]() {
-    this.instance.close();
+    this.instance.close()
   }
+}
+
+const createDiagnostics = (): MediaInfoDiagnostics => ({
+  wasmLoadTimeMs: 0,
+  factoryCreateTimeMs: 0,
+  formatGenerationTimes: {},
+  totalAnalysisTimeMs: 0,
+  formatErrors: {},
+})
+
+const createFilenameState = (options: AnalyzeMediaBufferOptions) => {
+  const archiveInnerName =
+    options.archiveEntry?.name ??
+    (isArchiveExtension(options.filename)
+      ? extractFirstFileFromArchive(options.fileBuffer)
+      : null)
+
+  return {
+    archiveInnerName,
+    displayFilename: archiveInnerName ?? options.filename,
+    resolvedFilenameSource: archiveInnerName
+      ? "archive-inner"
+      : (options.filenameSource ?? "url"),
+    archiveName: archiveInnerName ? options.filename : undefined,
+  } satisfies FilenameResolutionState
+}
+
+const selectFormats = (requestedFormats: string[] = []): FormatRequest[] => {
+  const shouldGenerateAll = requestedFormats.includes("all")
+
+  const selected = ALL_FORMATS.filter(
+    (format) =>
+      shouldGenerateAll ||
+      requestedFormats.includes(format.key) ||
+      requestedFormats.includes(format.type.toLowerCase())
+  )
+
+  return selected.length > 0 ? selected : [{ type: "object", key: "json" }]
+}
+
+const readLocalChunk =
+  (fileBuffer: Uint8Array) => (chunkSize: number, offset: number) => {
+    if (offset >= fileBuffer.byteLength) {
+      return new Uint8Array(0)
+    }
+
+    return fileBuffer.subarray(
+      offset,
+      Math.min(offset + chunkSize, fileBuffer.byteLength)
+    )
+  }
+
+const getErrorMessage = (cause: Error | string) =>
+  cause instanceof Error ? cause.message : cause
+
+const getTrackText = (track: MediaInfoTrack, key: string) => {
+  const value = track[key]
+
+  return Schema.is(Schema.String)(value) ? value : undefined
+}
+
+export const parseMediaInfoResultJson = (source: string): MediaInfoResult =>
+  Schema.decodeUnknownSync(MediaInfoResultSchema)(JSON.parse(source))
+
+const decodeObjectResult = (
+  resultData: MediaInfoData,
+  diagnostics: MediaInfoDiagnostics
+) => {
+  if (Schema.is(Schema.String)(resultData)) {
+    diagnostics.objectProcessError =
+      "MediaInfo returned text for the object format."
+
+    return Option.none()
+  }
+
+  const serialized = JSON.stringify(resultData) ?? "null"
+
+  const jsonResult = Schema.decodeUnknownSync(Schema.Json)(
+    JSON.parse(serialized)
+  )
+
+  const normalized = normalizeMediaInfo(jsonResult)
+  const decoded = Schema.decodeUnknownOption(MediaInfoResultSchema)(normalized)
+
+  if (Option.isNone(decoded)) {
+    diagnostics.objectProcessError =
+      "MediaInfo returned data outside its JSON result contract."
+  }
+
+  return decoded
+}
+
+const updateGeneralTrack = (
+  generalTrack: MediaInfoTrack,
+  options: Pick<
+    FormatGenerationOptions,
+    "filenameState" | "filenameSource" | "archiveEntry"
+  >
+) => {
+  const metadataFallback =
+    !options.filenameState.archiveInnerName && options.filenameSource === "url"
+      ? getMediaInfoMetadataFilename({
+          Title: getTrackText(generalTrack, "Title"),
+          Movie: getTrackText(generalTrack, "Movie"),
+        })
+      : undefined
+
+  if (metadataFallback) {
+    options.filenameState.displayFilename = metadataFallback.filename
+    options.filenameState.resolvedFilenameSource = metadataFallback.source
+  }
+
+  const updatedTrack: MutableMediaInfoTrack = {
+    ...generalTrack,
+    CompleteName: options.filenameState.displayFilename,
+  }
+
+  if (options.filenameState.archiveName) {
+    updatedTrack.Archive_Name = options.filenameState.archiveName
+  }
+
+  if (options.archiveEntry) {
+    updatedTrack.Archive_Sizing_Status = options.archiveEntry.sizeStatus
+    updatedTrack.Archive_Sizing_Source = options.archiveEntry.sizeSource
+
+    if (options.archiveEntry.sizeStatus === "estimated") {
+      updatedTrack.Archive_Sizing_Warning = ARCHIVE_SIZING_WARNING
+    }
+  }
+
+  return updatedTrack
+}
+
+const serializeObjectResult = (
+  resultData: MediaInfoData,
+  options: Pick<
+    FormatGenerationOptions,
+    "filenameState" | "filenameSource" | "archiveEntry" | "diagnostics"
+  >
+) => {
+  const decoded = decodeObjectResult(resultData, options.diagnostics)
+
+  if (Option.isNone(decoded)) {
+    return "{}"
+  }
+
+  const result = Option.getOrThrow(decoded)
+  const tracks = result.media?.track
+
+  if (!tracks) {
+    return JSON.stringify(result)
+  }
+
+  const generalTrack = tracks.find((track) => track["@type"] === "General")
+
+  if (!generalTrack) {
+    return JSON.stringify(result)
+  }
+
+  const updatedTrack = updateGeneralTrack(generalTrack, options)
+
+  return JSON.stringify({
+    ...result,
+    media: {
+      ...result.media,
+      track: tracks.map((track) =>
+        track === generalTrack ? updatedTrack : track
+      ),
+    },
+  })
+}
+
+const insertTextFilename = (source: string, filename: string) => {
+  if (source.includes("Complete name")) {
+    return source
+  }
+
+  const lines = source.split("\n")
+
+  const generalIndex = lines.findIndex((line) =>
+    line.trim().startsWith("General")
+  )
+
+  if (generalIndex === -1) {
+    return source
+  }
+
+  const uniqueIdIndex = lines.findIndex(
+    (line, index) => index > generalIndex && line.trim().startsWith("Unique ID")
+  )
+
+  const firstBlankIndex = lines.findIndex(
+    (line, index) => index > generalIndex && line.trim() === ""
+  )
+
+  let insertIndex = generalIndex + 1
+
+  if (uniqueIdIndex !== -1) {
+    insertIndex = uniqueIdIndex + 1
+  } else if (firstBlankIndex !== -1) {
+    insertIndex = firstBlankIndex
+  }
+
+  const padding = " ".repeat(41 - "Complete name".length)
+
+  lines.splice(insertIndex, 0, `Complete name${padding}: ${filename}`)
+
+  return lines.join("\n")
+}
+
+const analyzeOneFormat = async (options: FormatGenerationOptions) => {
+  const format = options.formats[options.index]
+
+  if (!format) {
+    return
+  }
+
+  const formatStart = performance.now()
+
+  try {
+    options.infoInstance.options.format = format.type
+    options.infoInstance.options.full =
+      format.type === "object" || format.type === "Text"
+    options.infoInstance.reset()
+
+    const resultData = await options.infoInstance.analyzeData(
+      () => options.effectiveFileSize,
+      options.readChunk
+    )
+
+    const output = Match.value(format.type).pipe(
+      Match.when("object", () => serializeObjectResult(resultData, options)),
+      Match.when("Text", () =>
+        insertTextFilename(
+          options.infoInstance.inform(),
+          options.filenameState.displayFilename
+        )
+      ),
+      Match.orElse(() => options.infoInstance.inform())
+    )
+
+    options.results[format.key] = output
+    options.diagnostics.formatGenerationTimes[format.key] = Math.round(
+      performance.now() - formatStart
+    )
+  } catch (cause) {
+    options.diagnostics.formatErrors[format.key] = getErrorMessage(
+      cause instanceof Error ? cause : String(cause)
+    )
+    options.results[format.key] = `Error generating ${format.type} view.`
+  }
+
+  await analyzeOneFormat({ ...options, index: options.index + 1 })
 }
 
 export async function analyzeMediaBuffer(
-  fileBuffer: Uint8Array,
-  fileSize: number | undefined,
-  filename: string,
-  filenameSource: FilenameSource = 'url',
-  requestedFormats: string[] = [],
-  archiveEntry?: ArchiveEntryInspection,
+  options: AnalyzeMediaBufferOptions
 ): Promise<MediaInfoAnalysis> {
-  const tStart = performance.now();
-
-  const effectiveFileSize = fileSize ?? fileBuffer.byteLength;
-
-  const diagnostics: MediaInfoDiagnostics = {
-    wasmLoadTimeMs: 0,
-    factoryCreateTimeMs: 0,
-    formatGenerationTimes: {},
-    totalAnalysisTimeMs: 0,
-    formatErrors: {},
-  };
-
-  // Attempt to detect inner file from archive (Container Peeking)
-  // OPTIMIZATION: Only scan for inner files if the filename extension suggests an archive.
-  // This prevents wasting CPU scanning every MKV/MP4 file for zip headers.
-  let archiveInnerName: string | null = archiveEntry?.name ?? null;
-  if (!archiveInnerName && isArchiveExtension(filename)) {
-    archiveInnerName = extractFirstFileFromArchive(fileBuffer);
-  }
-
-  // Prefer the archive inner name if detected (Prong B)
-  // Otherwise, use the filename passed to us (Prong A might have set this to the inner name already, or it's just the URL filename)
-  let displayFilename = archiveInnerName ?? filename;
-  let resolvedFilenameSource: FilenameSource = archiveInnerName
-    ? 'archive-inner'
-    : filenameSource;
-  const archiveName = archiveInnerName ? filename : undefined;
-
-  const readChunk = (chunkSize: number, offset: number) => {
-    if (offset >= fileBuffer.byteLength) {
-      return new Uint8Array(0);
-    }
-    const end = Math.min(offset + chunkSize, fileBuffer.byteLength);
-    return fileBuffer.subarray(offset, end);
-  };
-
-  const shouldGenerateAll = requestedFormats.includes('all');
-
-  const allFormats: { type: MediaInfoFormat; key: string }[] = [
-    { type: 'object', key: 'json' },
-    { type: 'Text', key: 'text' },
-    { type: 'XML', key: 'xml' },
-    { type: 'HTML', key: 'html' },
-  ];
-
-  const formatsToGenerate = allFormats.filter(
-    (f) =>
-      shouldGenerateAll ||
-      requestedFormats.includes(f.key) ||
-      requestedFormats.includes(f.type.toLowerCase()),
-  );
-
-  const results: Record<string, string> = {};
-
-  // Default to JSON if no format specified effectively
-  if (formatsToGenerate.length === 0) {
-    formatsToGenerate.push({ type: 'object', key: 'json' });
-  }
+  const startTime = performance.now()
+  const diagnostics = createDiagnostics()
+  const filenameState = createFilenameState(options)
+  const formats = selectFormats(options.requestedFormats)
+  const results: Record<string, string> = {}
+  const effectiveFileSize = options.fileSize ?? options.fileBuffer.byteLength
+  const createMediaInfo = options.createMediaInfo ?? createDefaultMediaInfo
 
   try {
-    const tFactory = performance.now();
+    const factoryStart = performance.now()
+    using info = new DisposableMediaInfo(await createMediaInfo())
+    info.instance.options.chunkSize = 5 * 1024 * 1024
+    info.instance.options.coverData = false
+    diagnostics.factoryCreateTimeMs = Math.round(
+      performance.now() - factoryStart
+    )
 
-    // Explicit Resource Management: Auto-closes 'info' when leaving scope
-    // Note: We need a wrapper because correct TS 'using' requires an object with [Symbol.dispose]
-    // and pure mediainfo.js instance might not have it polyfilled directly.
-    // If MediaInfo adds Symbol.dispose native support we can remove the wrapper.
-    const rawInstance = await createMediaInfo();
-    using disposableInfo = new DisposableMediaInfo(rawInstance);
-    const infoInstance = disposableInfo.instance;
+    await analyzeOneFormat({
+      formats,
+      index: 0,
+      infoInstance: info.instance,
+      effectiveFileSize,
+      readChunk: readLocalChunk(options.fileBuffer),
+      filenameState,
+      filenameSource: options.filenameSource ?? "url",
+      archiveEntry: options.archiveEntry,
+      diagnostics,
+      results,
+    })
+  } catch (cause) {
+    diagnostics.wasmLoadError = getErrorMessage(
+      cause instanceof Error ? cause : String(cause)
+    )
 
-    // Set initial options
-    infoInstance.options.chunkSize = 5 * 1024 * 1024;
-    infoInstance.options.coverData = false;
-
-    diagnostics.factoryCreateTimeMs = Math.round(performance.now() - tFactory);
-
-    for (const { type, key } of formatsToGenerate) {
-      const tFormat = performance.now();
-      try {
-        const formatStr = type === 'Text' ? 'text' : type;
-
-        infoInstance.options.format = formatStr as 'object';
-        infoInstance.options.full = type === 'object' || type === 'Text';
-
-        infoInstance.reset();
-
-        const resultData = await infoInstance.analyzeData(
-          () => effectiveFileSize,
-          readChunk,
-        );
-        let resultStr = '';
-
-        if (type !== 'object') {
-          resultStr = infoInstance.inform();
-        }
-
-        if (type === 'object') {
-          try {
-            // Normalize the data (unwrap { #value } objects)
-            const json = normalizeMediaInfo(resultData) as MediaInfoResult;
-
-            if (json.media?.track) {
-              const generalTrack = json.media.track.find(
-                (t) => t['@type'] === 'General',
-              );
-
-              if (generalTrack) {
-                const metadataFallback =
-                  !archiveInnerName && filenameSource === 'url'
-                    ? getMediaInfoMetadataFilename(generalTrack)
-                    : undefined;
-
-                if (metadataFallback) {
-                  displayFilename = metadataFallback.filename;
-                  resolvedFilenameSource = metadataFallback.source;
-                }
-
-                generalTrack.CompleteName = displayFilename;
-
-                if (archiveName) {
-                  generalTrack.Archive_Name = archiveName;
-                }
-                if (archiveEntry) {
-                  generalTrack.Archive_Sizing_Status = archiveEntry.sizeStatus;
-                  generalTrack.Archive_Sizing_Source = archiveEntry.sizeSource;
-                  if (archiveEntry.sizeStatus === 'estimated') {
-                    generalTrack.Archive_Sizing_Warning =
-                      ARCHIVE_SIZING_WARNING;
-                  }
-                }
-              }
-            }
-            results[key] = JSON.stringify(json);
-          } catch (e) {
-            diagnostics.objectProcessError =
-              e instanceof Error ? e.message : String(e);
-            results[key] = '{}';
-          }
-        } else if (type === 'Text') {
-          if (!resultStr.includes('Complete name')) {
-            // Injection logic for text
-            const lines = resultStr.split('\n');
-            const generalIndex = lines.findIndex((l: string) =>
-              l.trim().startsWith('General'),
-            );
-            if (generalIndex !== -1) {
-              let insertIndex = generalIndex + 1;
-              for (let i = generalIndex + 1; i < lines.length; i++) {
-                if (lines[i].trim().startsWith('Unique ID')) {
-                  insertIndex = i + 1;
-                  break;
-                }
-                if (lines[i].trim() === '') break;
-              }
-              const padding = ' '.repeat(41 - 'Complete name'.length);
-              lines.splice(
-                insertIndex,
-                0,
-                `Complete name${padding}: ${displayFilename}`,
-              );
-              resultStr = lines.join('\n');
-            }
-          }
-          results[key] = resultStr;
-        } else {
-          results[key] = resultStr;
-        }
-
-        diagnostics.formatGenerationTimes[key] = Math.round(
-          performance.now() - tFormat,
-        );
-      } catch (err) {
-        diagnostics.formatErrors[key] =
-          err instanceof Error ? err.message : String(err);
-        results[key] = `Error generating ${type} view.`;
-      }
-    }
-  } catch (err) {
-    // Catch factory errors or other failures not caught in loop
-    diagnostics.wasmLoadError =
-      err instanceof Error ? err.message : String(err);
-
-    // Propagate up with partial diagnostics
-    throw new DiagnosticsError(diagnostics.wasmLoadError, diagnostics, err);
+    throw new DiagnosticsError(diagnostics.wasmLoadError, diagnostics, cause)
   }
 
-  diagnostics.totalAnalysisTimeMs = Math.round(performance.now() - tStart);
+  diagnostics.totalAnalysisTimeMs = Math.round(performance.now() - startTime)
+
   return {
     results,
     diagnostics,
-    resolvedFilename: displayFilename,
-    resolvedFilenameSource,
-  };
+    resolvedFilename: filenameState.displayFilename,
+    resolvedFilenameSource: filenameState.resolvedFilenameSource,
+  }
 }

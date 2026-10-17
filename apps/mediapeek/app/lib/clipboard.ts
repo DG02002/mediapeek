@@ -5,45 +5,35 @@
 export async function safeClipboardWrite(
   textOrPromise: string | Promise<string>,
   onSuccess?: () => void,
-  onError?: (error: unknown) => void,
+  onError?: (cause: Error) => void
 ) {
   try {
     // If it's already a string, just write it directly.
     // This is always safe if called during a click handler.
-    if (typeof textOrPromise === 'string') {
-      await navigator.clipboard.writeText(textOrPromise);
-      onSuccess?.();
-      return;
-    }
+    if (textOrPromise instanceof Promise) {
+      if ("ClipboardItem" in globalThis && "write" in navigator.clipboard) {
+        const mime = "text/plain"
 
-    // It is a promise.
-    // Try the modern ClipboardItem with Promise support (Safari 13.1+, Chrome 66+ partial, but Promise support is newer).
-    // Safari specifically requires passing a Promise to ClipboardItem to keep the activation alive during fetch.
-    if (
-      typeof ClipboardItem !== 'undefined' &&
-      'write' in navigator.clipboard
-    ) {
-      const mime = 'text/plain';
-      const blobPromise = textOrPromise.then(
-        (text) => new Blob([text], { type: mime }),
-      );
+        const blobPromise = textOrPromise.then(
+          (text) => new Blob([text], { type: mime })
+        )
 
-      const item = new ClipboardItem({
-        [mime]: blobPromise,
-      });
+        const item = new ClipboardItem({ [mime]: blobPromise })
 
-      await navigator.clipboard.write([item]);
-      onSuccess?.();
+        await navigator.clipboard.write([item])
+      } else {
+        const text = await textOrPromise
+        await navigator.clipboard.writeText(text)
+      }
     } else {
-      // Fallback: This will likely fail on Safari if the promise takes too long,
-      // but it's the only option for browsers without ClipboardItem support.
-      const text = await textOrPromise;
-      await navigator.clipboard.writeText(text);
-      onSuccess?.();
+      await navigator.clipboard.writeText(textOrPromise)
     }
+
+    onSuccess?.()
   } catch (error) {
-    console.error('Clipboard write failed:', error);
-    onError?.(error);
+    console.error("Clipboard write failed:", error)
+    const cause = error instanceof Error ? error : new Error(String(error))
+    onError?.(cause)
 
     // If the error was specifically about ClipboardItem not supporting Promises (e.g. older Firefox),
     // we could try the fallback, but getting distinguish errors is hard.

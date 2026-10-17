@@ -1,15 +1,15 @@
-import type { Route } from './+types/not-found';
+import { data, Link } from "react-router"
 
-import { data, Link } from 'react-router';
+import { Footer } from "~/components/footer"
+import { Header } from "~/components/header"
 
-import { Footer } from '~/components/footer';
-import { Header } from '~/components/header';
+import type { Route } from "./+types/not-found"
 
-export const loader = () => data(null, { status: 404 });
+export const loader = () => data(null, { status: 404 })
 
 export const meta: Route.MetaFunction = () => {
-  return [{ title: '404 - MediaPeek' }];
-};
+  return [{ title: "404 - MediaPeek" }]
+}
 
 export default function NotFoundRoute() {
   return (
@@ -33,5 +33,5 @@ export default function NotFoundRoute() {
       </main>
       <Footer />
     </div>
-  );
+  )
 }

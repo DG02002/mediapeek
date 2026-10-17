@@ -1,17 +1,17 @@
-import type { Route } from './+types/route';
+import { Link } from "react-router"
 
-import { Link } from 'react-router';
+import { Footer } from "~/components/footer"
+import { Header } from "~/components/header"
 
-import { Footer } from '~/components/footer';
-import { Header } from '~/components/header';
+import type { Route } from "./+types/route"
 
 export const meta: Route.MetaFunction = () => [
-  { title: 'Terms of Use - MediaPeek' },
+  { title: "Terms of Use - MediaPeek" },
   {
-    name: 'description',
-    content: 'Terms of Use for MediaPeek services.',
+    name: "description",
+    content: "Terms of Use for MediaPeek services.",
   },
-];
+]
 
 export default function TermsOfUse() {
   return (
@@ -117,7 +117,7 @@ export default function TermsOfUse() {
               V. Privacy and Data Processing
             </h2>
             <p className="leading-7 not-first:mt-6">
-              Your use of the Service is also governed by our{' '}
+              Your use of the Service is also governed by our{" "}
               <Link
                 to="/privacy"
                 className="font-medium underline underline-offset-4"
@@ -210,5 +210,5 @@ export default function TermsOfUse() {
       </main>
       <Footer />
     </div>
-  );
+  )
 }

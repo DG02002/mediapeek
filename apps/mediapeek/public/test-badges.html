@@ -77,7 +77,7 @@
         position: relative;
       }
       .baseline-check::after {
-        content: '';
+        content: "";
         position: absolute;
         left: 0;
         right: 0;
@@ -104,25 +104,25 @@
 
     <script>
       const BADGE_ASPECT_RATIOS = {
-        '3d': 26 / 15,
-        '4k': 26 / 15,
+        "3d": 26 / 15,
+        "4k": 26 / 15,
         aac: 168 / 53,
         ad: 26 / 15,
-        'apple-digital-master': 75 / 18,
+        "apple-digital-master": 75 / 18,
         av1: 278 / 155,
         cc: 32 / 15,
-        'dolby-atmos': 52 / 22,
-        'dolby-audio': 52 / 22,
-        'dolby-vision': 52 / 22,
+        "dolby-atmos": 52 / 22,
+        "dolby-audio": 52 / 22,
+        "dolby-vision": 52 / 22,
         dolby: 24 / 17,
-        'dts-hd-ma': 302.86 / 92.66,
-        'dts-x': 139 / 40.8,
+        "dts-hd-ma": 302.86 / 92.66,
+        "dts-x": 139 / 40.8,
         dts: 24 / 10,
         hd: 26 / 15,
         hdr: 34 / 15,
-        'hdr10-plus': 54 / 15,
-        'hi-res-lossless': 64 / 17,
-        'imax-enhanced': 191.2 / 66.7,
+        "hdr10-plus": 54 / 15,
+        "hi-res-lossless": 64 / 17,
+        "imax-enhanced": 191.2 / 66.7,
         imax: 489.22 / 94.727,
         immersive: 26 / 15,
         lossless: 64 / 17,
@@ -130,43 +130,43 @@
         sd: 26 / 15,
         sdh: 32 / 15,
         spatial: 1760 / 830,
-      };
+      }
 
       function renderBadges(containerId, isDark) {
-        const container = document.getElementById(containerId);
+        const container = document.getElementById(containerId)
 
         Object.entries(BADGE_ASPECT_RATIOS).forEach(([name, ratio]) => {
-          const wrapper = document.createElement('div');
-          wrapper.className = 'badge-item';
+          const wrapper = document.createElement("div")
+          wrapper.className = "badge-item"
 
-          const img = document.createElement('img');
-          img.src = `badges/${name}.svg`;
-          img.className = 'badge-icon';
+          const img = document.createElement("img")
+          img.src = `badges/${name}.svg`
+          img.className = "badge-icon"
 
           // Apply aspect ratio to match app logic
-          img.style.aspectRatio = ratio;
+          img.style.aspectRatio = ratio
 
           if (isDark) {
             // Invert colors to make black SVG white for dark theme
             // (Matches 'bg-white' mask effect visually)
-            img.style.filter = 'invert(1) grayscale(1)';
+            img.style.filter = "invert(1) grayscale(1)"
           } else {
             // Force dark for light theme if needed, though default is usually black
-            img.style.filter = 'grayscale(1)';
+            img.style.filter = "grayscale(1)"
           }
 
-          const label = document.createElement('span');
-          label.className = 'badge-label';
-          label.textContent = name;
+          const label = document.createElement("span")
+          label.className = "badge-label"
+          label.textContent = name
 
-          wrapper.appendChild(img);
-          wrapper.appendChild(label);
-          container.appendChild(wrapper);
-        });
+          wrapper.appendChild(img)
+          wrapper.appendChild(label)
+          container.appendChild(wrapper)
+        })
       }
 
-      renderBadges('grid-dark', true);
-      renderBadges('grid-light', false);
+      renderBadges("grid-dark", true)
+      renderBadges("grid-light", false)
     </script>
   </body>
 </html>

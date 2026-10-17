@@ -1,16 +1,16 @@
-import { buttonVariants } from '@mediapeek/ui/components/button';
-import { cn } from '@mediapeek/ui/lib/utils';
-import { Link, NavLink } from 'react-router';
+import { buttonVariants } from "@mediapeek/ui/components/button"
+import { cn } from "@mediapeek/ui/lib/utils"
+import { Link, NavLink } from "react-router"
 
-import { ModeToggle } from '~/components/mode-toggle';
+import { ModeToggle } from "~/components/mode-toggle"
 
 interface HeaderProps {
-  className?: string;
-  showNav?: boolean;
-  sticky?: boolean;
+  className?: string
+  showNav?: boolean
+  sticky?: boolean
 }
 
-const navigationItems = [{ label: 'App', to: '/app' }];
+const navigationItems = [{ label: "App", to: "/app" }]
 
 export function Header({
   className,
@@ -20,9 +20,9 @@ export function Header({
   return (
     <header
       className={cn(
-        'bg-background/95 supports-backdrop-filter:bg-background/80 z-50 border-b backdrop-blur-md',
-        sticky && 'sticky top-0',
-        className,
+        "bg-background/95 supports-backdrop-filter:bg-background/80 z-50 border-b backdrop-blur-md",
+        sticky && "sticky top-0",
+        className
       )}
     >
       <div className="mx-auto flex w-full max-w-5xl items-center gap-4 px-4 py-3 sm:px-12">
@@ -57,11 +57,11 @@ export function Header({
                 key={item.to}
                 to={item.to}
                 viewTransition
-                end={item.to === '/'}
+                end={item.to === "/"}
                 className={({ isActive }) =>
                   cn(
-                    buttonVariants({ variant: 'ghost', size: 'sm' }),
-                    isActive && 'bg-muted text-foreground',
+                    buttonVariants({ variant: "ghost", size: "sm" }),
+                    isActive && "bg-muted text-foreground"
                   )
                 }
               >
@@ -76,5 +76,5 @@ export function Header({
         </div>
       </div>
     </header>
-  );
+  )
 }

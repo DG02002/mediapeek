@@ -1,10 +1,9 @@
-import '@mediapeek/ui/globals.css';
-import type { Route } from './+types/root';
-
-import { isDevelopmentEnvironment } from '@mediapeek/shared/runtime-config';
-import { Toaster } from '@mediapeek/ui/components/sonner';
-import { TooltipProvider } from '@mediapeek/ui/components/tooltip';
-import clsx from 'clsx';
+import "@mediapeek/ui/globals.css"
+import { isDevelopmentEnvironment } from "@mediapeek/shared/runtime-config"
+import { Toaster } from "@mediapeek/ui/components/sonner"
+import { TooltipProvider } from "@mediapeek/ui/components/tooltip"
+import cx from "clsx"
+import { Match } from "effect"
 import {
   isRouteErrorResponse,
   Links,
@@ -13,91 +12,91 @@ import {
   Scripts,
   ScrollRestoration,
   useRouteLoaderData,
-} from 'react-router';
+} from "react-router"
 import {
   PreventFlashOnWrongTheme,
   type Theme,
   ThemeProvider,
   useTheme,
-} from 'remix-themes';
+} from "remix-themes"
 
-import { RouteAnnouncer } from './components/route-announcer';
-import { log } from './lib/logger.server';
-import { createThemeSessionResolverWithSecret } from './sessions.server';
-
-declare global {
-  interface Window {
-    ENV: {
-      TURNSTILE_SITE_KEY: string;
-      ENABLE_TURNSTILE: string;
-      APP_ENV: string;
-    };
-  }
-}
+import type { Route } from "./+types/root"
+import { RouteAnnouncer } from "./components/route-announcer"
+import { cloudflareContext } from "./lib/cloudflare-context.server"
+import { log } from "./lib/logger.server"
+import { requestLoggerMiddleware } from "./lib/request-logger.server"
+import { createThemeSessionResolverWithSecret } from "./sessions.server"
 
 export const links: Route.LinksFunction = () => [
-  { rel: 'apple-touch-icon', href: '/ios-home-screen-icon.png' },
-];
+  { rel: "apple-touch-icon", href: "/ios-home-screen-icon.png" },
+]
+
+export const middleware: Route.MiddlewareFunction[] = [requestLoggerMiddleware]
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const requestId =
-    request.headers.get('cf-ray') ??
-    request.headers.get('x-request-id') ??
-    crypto.randomUUID();
-  const runtimeConfig = context.cloudflare.runtimeConfig;
-  let theme: Theme | null = null;
+    request.headers.get("cf-ray") ??
+    request.headers.get("x-request-id") ??
+    crypto.randomUUID()
+
+  const cloudflare = context.get(cloudflareContext)
+  const { runtimeConfig } = cloudflare
+  let theme: Theme | null = null
+
   try {
-    const sessionSecret = context.cloudflare.env.SESSION_SECRET?.trim();
+    const sessionSecret = cloudflare.env.SESSION_SECRET?.trim()
+
     if (sessionSecret) {
       const { getTheme } = await createThemeSessionResolverWithSecret(
         sessionSecret,
-        runtimeConfig.appEnv,
-      )(request);
-      theme = getTheme();
+        runtimeConfig.appEnv
+      )(request)
+
+      theme = getTheme()
     } else {
       log(
         {
-          severity: 'WARNING',
-          message: 'SESSION_SECRET missing; theme session is disabled.',
+          severity: "WARNING",
+          message: "SESSION_SECRET missing; theme session is disabled.",
           requestId,
           context: {
-            errorClass: 'THEME_CONTEXT_MISSING',
+            errorClass: "THEME_CONTEXT_MISSING",
           },
         },
-        { runtimeConfig },
-      );
+        { runtimeConfig }
+      )
     }
   } catch (error) {
     log(
       {
-        severity: 'ERROR',
-        message: 'Failed to resolve theme session.',
+        severity: "ERROR",
+        message: "Failed to resolve theme session.",
         requestId,
         context: {
-          errorClass: 'THEME_CONTEXT_MISSING',
+          errorClass: "THEME_CONTEXT_MISSING",
           error: error instanceof Error ? error.message : String(error),
         },
-        error,
+        error: error instanceof Error ? error.message : String(error),
       },
-      { runtimeConfig },
-    );
+      { runtimeConfig }
+    )
   }
 
-  const turnstileSiteKey =
-    context.cloudflare.env.TURNSTILE_SITE_KEY?.trim() ?? '';
+  const turnstileSiteKey = cloudflare.env.TURNSTILE_SITE_KEY?.trim() ?? ""
 
   return {
     theme,
     env: {
       TURNSTILE_SITE_KEY: turnstileSiteKey,
-      ENABLE_TURNSTILE: context.cloudflare.env.ENABLE_TURNSTILE,
+      ENABLE_TURNSTILE: cloudflare.env.ENABLE_TURNSTILE,
       APP_ENV: runtimeConfig.appEnv,
     },
-  };
+  }
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const data = useRouteLoaderData<typeof loader>('root');
+  const data = useRouteLoaderData<typeof loader>("root")
+
   return (
     <ThemeProvider
       specifiedTheme={data?.theme ?? null}
@@ -105,24 +104,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
     >
       <AppWithProviders>{children}</AppWithProviders>
     </ThemeProvider>
-  );
+  )
 }
 
-import { useMediaQuery } from '~/hooks/use-media-query';
+import { useMediaQuery } from "~/hooks/use-media-query"
 
 // ... (existing imports)
 
 function AppWithProviders({ children }: { children: React.ReactNode }) {
-  const data = useRouteLoaderData<typeof loader>('root');
+  const data = useRouteLoaderData<typeof loader>("root")
+
   const env = data?.env ?? {
-    TURNSTILE_SITE_KEY: '',
-    ENABLE_TURNSTILE: 'false',
-    APP_ENV: 'production',
-  };
-  const [theme] = useTheme();
-  const isMobile = useMediaQuery('(max-width: 640px)');
+    TURNSTILE_SITE_KEY: "",
+    ENABLE_TURNSTILE: "false",
+    APP_ENV: "production",
+  }
+
+  const [theme] = useTheme()
+  const isMobile = useMediaQuery("(max-width: 640px)")
+
   return (
-    <html lang="en" className={clsx(theme)}>
+    <html lang="en" className={cx(theme)}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -130,38 +132,41 @@ function AppWithProviders({ children }: { children: React.ReactNode }) {
         <PreventFlashOnWrongTheme ssrTheme={Boolean(data?.theme)} />
         <Links />
         {/* Dynamic Favicons */}
-        {String(theme) === 'light' ? (
-          <link
-            rel="icon"
-            type="image/png"
-            sizes="32x32"
-            href="/favicon-dark-32x32.png"
-          />
-        ) : String(theme) === 'dark' ? (
-          <link
-            rel="icon"
-            type="image/png"
-            sizes="32x32"
-            href="/favicon-light-32x32.png"
-          />
-        ) : (
-          /* System Default logic (when theme is null/undefined) */
-          <>
+        {Match.value(String(theme)).pipe(
+          Match.when("light", () => (
             <link
               rel="icon"
               type="image/png"
               sizes="32x32"
               href="/favicon-dark-32x32.png"
-              media="(prefers-color-scheme: light)"
             />
+          )),
+          Match.when("dark", () => (
             <link
               rel="icon"
               type="image/png"
               sizes="32x32"
               href="/favicon-light-32x32.png"
-              media="(prefers-color-scheme: dark)"
             />
-          </>
+          )),
+          Match.orElse(() => (
+            <>
+              <link
+                rel="icon"
+                type="image/png"
+                sizes="32x32"
+                href="/favicon-dark-32x32.png"
+                media="(prefers-color-scheme: light)"
+              />
+              <link
+                rel="icon"
+                type="image/png"
+                sizes="32x32"
+                href="/favicon-light-32x32.png"
+                media="(prefers-color-scheme: dark)"
+              />
+            </>
+          ))
         )}
         <script
           dangerouslySetInnerHTML={{
@@ -178,7 +183,7 @@ function AppWithProviders({ children }: { children: React.ReactNode }) {
         <div className="w-full" vaul-drawer-wrapper="">
           <TooltipProvider>
             {children}
-            <Toaster position={isMobile ? 'top-center' : 'bottom-right'} />
+            <Toaster position={isMobile ? "top-center" : "bottom-right"} />
           </TooltipProvider>
         </div>
         <ScrollRestoration />
@@ -186,30 +191,30 @@ function AppWithProviders({ children }: { children: React.ReactNode }) {
         <Scripts />
       </body>
     </html>
-  );
+  )
 }
 
 export default function App() {
-  return <Outlet />;
+  return <Outlet />
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  const data = useRouteLoaderData<typeof loader>('root');
-  const showStack = isDevelopmentEnvironment(
-    (data?.env.APP_ENV as 'development' | 'staging' | 'production') ??
-      'production',
-  );
-  let message = 'Error';
-  let details = 'An unexpected error occurred.';
-  let stack: string | undefined;
+  const data = useRouteLoaderData<typeof loader>("root")
+
+  const showStack = isDevelopmentEnvironment(data?.env.APP_ENV ?? "production")
+
+  let message = "Error"
+  let details = "An unexpected error occurred."
+  let stack: string | undefined
 
   if (isRouteErrorResponse(error)) {
-    message = error.status === 404 ? '404' : 'Error';
+    message = error.status === 404 ? "404" : "Error"
     details =
-      error.status === 404 ? 'Page not found.' : error.statusText || details;
+      error.status === 404 ? "Page not found." : error.statusText || details
   } else if (showStack && error && error instanceof Error) {
-    details = error.message;
-    stack = error.stack;
+    const { message: errorMessage, stack: errorStack } = error
+    details = errorMessage
+    stack = errorStack
   }
 
   return (
@@ -222,5 +227,5 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
         </pre>
       )}
     </main>
-  );
+  )
 }

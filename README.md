@@ -1,7 +1,6 @@
-<p align="center">
-  <img src="resources/app_icons/MediaPeek-Dark-Default-1024x1024@1x.png" alt="MediaPeek Icon" width="200"/>
-</p>
-<h1 align="center">MediaPeek</h1>
+# MediaPeek
+
+![MediaPeek app icon](resources/app_icons/MediaPeek-Dark-Default-1024x1024@1x.png)
 
 MediaPeek provides detailed technical metadata for video, audio, image, and subtitle files directly in the browser. It fetches only the data segments needed for analysis, without downloading the full file first.
 

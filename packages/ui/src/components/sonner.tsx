@@ -1,36 +1,35 @@
-import type { CSSProperties } from 'react';
-
 import {
   Alert02Icon,
   CheckmarkCircle02Icon,
   InformationCircleIcon,
   Loading03Icon,
   MultiplicationSignCircleIcon,
-} from '@hugeicons/core-free-icons';
-import { Icon } from '@mediapeek/ui/components/icon';
-import { useTheme } from 'remix-themes';
-import { Toaster as Sonner, type ToasterProps } from 'sonner';
+} from "@hugeicons/core-free-icons"
+import { Icon } from "@mediapeek/ui/components/icon"
+import type { CSSProperties } from "react"
+import { useTheme } from "remix-themes"
+import { Toaster as Sonner, type ToasterProps } from "sonner"
 
 type SonnerStyle = CSSProperties & {
-  '--normal-bg': string;
-  '--normal-text': string;
-  '--normal-border': string;
-  '--border-radius': string;
-};
+  "--normal-bg": string
+  "--normal-text": string
+  "--normal-border": string
+  "--border-radius": string
+}
 
 const toasterStyle: SonnerStyle = {
-  '--normal-bg': 'var(--popover)',
-  '--normal-text': 'var(--popover-foreground)',
-  '--normal-border': 'var(--border)',
-  '--border-radius': 'var(--radius)',
-};
+  "--normal-bg": "var(--popover)",
+  "--normal-text": "var(--popover-foreground)",
+  "--normal-border": "var(--border)",
+  "--border-radius": "var(--radius)",
+}
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const [theme] = useTheme();
+  const [theme] = useTheme()
 
   return (
     <Sonner
-      theme={(theme ?? 'system') as ToasterProps['theme']}
+      theme={theme ?? "system"}
       className="toaster group"
       icons={{
         success: (
@@ -66,12 +65,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
       style={toasterStyle}
       toastOptions={{
         classNames: {
-          toast: 'cn-toast',
+          toast: "cn-toast",
         },
       }}
       {...props}
     />
-  );
-};
+  )
+}
 
-export { Toaster };
+export { Toaster }

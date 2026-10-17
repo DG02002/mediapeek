@@ -24,7 +24,8 @@ interface Env {
 
 
 declare module "virtual:react-router/server-build" {
-  import { ServerBuild } from "react-router";
+  import type { ServerBuild } from "react-router";
+
   export const routes: ServerBuild["routes"];
   export const assets: ServerBuild["assets"];
   export const future: ServerBuild["future"];
@@ -64,6 +65,7 @@ declare module "mediainfo.js" {
   }
 
   type MediaInfoFactory = (options?: MediaInfoFactoryOptions) => Promise<MediaInfo>;
+
   const mediainfo: MediaInfoFactory;
   export default mediainfo;
 }

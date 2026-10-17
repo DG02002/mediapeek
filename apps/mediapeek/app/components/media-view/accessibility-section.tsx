@@ -1,27 +1,28 @@
-import type { MediaTrackJSON } from '~/types/media';
+import { memo } from "react"
 
-import { memo } from 'react';
+import { getAccessibilityFeatures } from "~/lib/media-utils"
+import type { MediaTrackJSON } from "~/types/media"
 
-import { getAccessibilityFeatures } from '~/lib/media-utils';
-
-import { MediaIcon } from './media-icon';
+import { MediaIcon } from "./media-icon"
 
 export const AccessibilitySection = memo(function AccessibilitySection({
   generalTrack,
   audioTracks,
   textTracks,
 }: {
-  generalTrack: MediaTrackJSON | undefined;
-  audioTracks: MediaTrackJSON[];
-  textTracks: MediaTrackJSON[];
+  generalTrack: MediaTrackJSON | undefined
+  audioTracks: MediaTrackJSON[]
+  textTracks: MediaTrackJSON[]
 }) {
   const { hasSDH, hasCC, hasAD } = getAccessibilityFeatures(
     audioTracks,
     textTracks,
-    generalTrack,
-  );
+    generalTrack
+  )
 
-  if (!hasSDH && !hasCC && !hasAD) return null;
+  if (!hasSDH && !hasCC && !hasAD) {
+    return null
+  }
 
   return (
     <div className="mt-8 space-y-6">
@@ -87,5 +88,5 @@ export const AccessibilitySection = memo(function AccessibilitySection({
         )}
       </div>
     </div>
-  );
-});
+  )
+})

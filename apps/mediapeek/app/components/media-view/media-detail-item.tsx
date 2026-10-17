@@ -1,14 +1,13 @@
-import type { ReactNode } from 'react';
-
-import { cn } from '@mediapeek/ui/lib/utils';
+import { cn } from "@mediapeek/ui/lib/utils"
+import type { ReactNode } from "react"
 
 interface MediaDetailItemProps {
-  label: string;
-  value?: ReactNode;
-  subtext?: string | null;
-  className?: string;
-  children?: ReactNode;
-  colSpan?: number;
+  label: string
+  value?: ReactNode
+  subtext?: string | null
+  className?: string
+  children?: ReactNode
+  colSpan?: number
 }
 
 export function MediaDetailItem({
@@ -23,7 +22,7 @@ export function MediaDetailItem({
     <div
       className={cn(
         colSpan && colSpan > 1 && `sm:col-span-${String(colSpan)}`,
-        className,
+        className
       )}
     >
       <span className="text-muted-foreground/70 mb-1 block text-[10px] tracking-wider uppercase">
@@ -32,7 +31,7 @@ export function MediaDetailItem({
       {children ?? (
         <div className="flex flex-col">
           <span className="text-foreground/85 text-sm font-medium break-all">
-            {value ?? 'N/A'}
+            {value ?? "N/A"}
           </span>
           {subtext && (
             <span className="text-muted-foreground text-xs font-normal">
@@ -42,5 +41,5 @@ export function MediaDetailItem({
         </div>
       )}
     </div>
-  );
+  )
 }

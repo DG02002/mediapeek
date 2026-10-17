@@ -1,4 +1,4 @@
-import { flushSync } from 'react-dom';
+import { flushSync } from "react-dom"
 
 /**
  * Orchestrates a View Transition for DOM updates.
@@ -17,24 +17,21 @@ import { flushSync } from 'react-dom';
  */
 export function startNativeViewTransition(
   updateCallback: () => void,
-  fallbackCallback?: () => void,
+  fallbackCallback?: () => void
 ) {
   // Use `in` check to satisfy "@typescript-eslint/no-unnecessary-condition"
   // effectively validating runtime support regardless of static type definitions.
-  if (
-    'startViewTransition' in document &&
-    typeof document.startViewTransition === 'function'
-  ) {
+  if ("startViewTransition" in document) {
     document.startViewTransition(() => {
       flushSync(() => {
-        updateCallback();
-      });
-    });
+        updateCallback()
+      })
+    })
   } else {
     if (fallbackCallback) {
-      fallbackCallback();
+      fallbackCallback()
     } else {
-      updateCallback();
+      updateCallback()
     }
   }
 }

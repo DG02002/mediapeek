@@ -1,23 +1,23 @@
-import type { Route } from './+types/route';
+import { Footer } from "~/components/footer"
+import { Header } from "~/components/header"
+import { MediaForm } from "~/components/media-form"
+import { useHydrated } from "~/hooks/use-hydrated"
 
-import { Footer } from '~/components/footer';
-import { Header } from '~/components/header';
-import { MediaForm } from '~/components/media-form';
-import { useHydrated } from '~/hooks/use-hydrated';
+import type { Route } from "./+types/route"
 
 export const meta: Route.MetaFunction = () => {
   return [
-    { title: 'App - MediaPeek' },
+    { title: "App - MediaPeek" },
     {
-      name: 'description',
+      name: "description",
       content:
-        'Analyze media files directly in your browser using Cloudflare Workers and MediaInfo.js.',
+        "Analyze media files directly in your browser using Cloudflare Workers and MediaInfo.js.",
     },
-  ];
-};
+  ]
+}
 
 export default function AppRoute() {
-  const isHydrated = useHydrated();
+  const isHydrated = useHydrated()
 
   return (
     <div className="flex min-h-screen flex-col font-sans">
@@ -34,5 +34,5 @@ export default function AppRoute() {
       </main>
       <Footer />
     </div>
-  );
+  )
 }

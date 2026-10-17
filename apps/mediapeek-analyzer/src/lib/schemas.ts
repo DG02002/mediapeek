@@ -1,1 +1,1 @@
-export { type AnalyzeInput, analyzeSchema } from '@mediapeek/shared/schemas';
+export { analyzeSchema } from "@mediapeek/shared/schemas"

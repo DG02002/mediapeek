@@ -11,17 +11,17 @@ We have implemented a workaround that loads a **pre-compiled** WebAssembly modul
 
 ## Files Involved
 
-1.  **`app/lib/mediainfo-bundle.js`**: The vendored (and patched) library code. This is a copy of `dist/esm-bundle/index.js` from the npm package.
-2.  **`app/services/MediaInfoModule.wasm`**: The WASM binary. This is imported by our factory to be processed by the build system.
-3.  **`app/services/mediainfo-factory.server.ts`**: The factory that initializes the library using the patched bundle and the imported WASM module.
+1. **`app/lib/mediainfo-bundle.js`**: The vendored (and patched) library code. This is a copy of `dist/esm-bundle/index.js` from the npm package.
+2. **`app/services/MediaInfoModule.wasm`**: The WASM binary. This is imported by our factory to be processed by the build system.
+3. **`app/services/mediainfo-factory.server.ts`**: The factory that initializes the library using the patched bundle and the imported WASM module.
 
 ## Why Patching is Required
 
 Cloudflare Workers require `WebAssembly.instantiate(module, imports)` where `module` is an already-compiled `WebAssembly.Module` object.
 However, `mediainfo.js` (asm.js/emscripten output) has two blocking issues:
 
-1.  **Wrapper Filter**: The outer `mediaInfoFactory` function filters out unknown options, so if we pass `wasmModule`, it gets stripped before reaching the core logic.
-2.  **Fetch Priority**: The internal `instantiateAsync` logic prioritizes `fetch`ing the `.wasm` file over using a provided module instance, leading to a "Wasm code generation disallowed" runtime error.
+1. **Wrapper Filter**: The outer `mediaInfoFactory` function filters out unknown options, so if we pass `wasmModule`, it gets stripped before reaching the core logic.
+2. **Fetch Priority**: The internal `instantiateAsync` logic prioritizes `fetch`ing the `.wasm` file over using a provided module instance, leading to a "Wasm code generation disallowed" runtime error.
 
 ## How to Update `mediainfo.js`
 
@@ -29,9 +29,9 @@ When you need to update the library to a newer version, you cannot just run `pnp
 
 ### Step 1: Get the New Files
 
-1.  Install the new version locally or in a temp folder: `pnpm i mediainfo.js@latest`.
-2.  Copy `node_modules/mediainfo.js/dist/MediaInfoModule.wasm` to `app/services/MediaInfoModule.wasm`.
-3.  Copy `node_modules/mediainfo.js/dist/esm-bundle/index.js` to `app/lib/mediainfo-bundle.js`.
+1. Install the new version locally or in a temp folder: `pnpm i mediainfo.js@latest`.
+2. Copy `node_modules/mediainfo.js/dist/MediaInfoModule.wasm` to `app/services/MediaInfoModule.wasm`.
+3. Copy `node_modules/mediainfo.js/dist/esm-bundle/index.js` to `app/lib/mediainfo-bundle.js`.
 
 ### Step 2: Apply Patch 1 (The Factory Wrapper)
 
@@ -134,7 +134,7 @@ import wasmModule from './MediaInfoModule.wasm';
 
 Prerendering runs server code at build time in a Node.js/Vite environment, which triggers WASM loading via the direct `.wasm` import. This environment cannot handle WASM imports the same way Cloudflare Workers can, resulting in build errors like:
 
-```
+```text
 Cannot find package 'a' imported from .../MediaInfoModule-*.wasm
 ```
 

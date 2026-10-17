@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback } from "react"
 
 /**
  * Hook to provide haptic feedback using the Vibration API.
@@ -6,27 +6,27 @@ import { useCallback } from 'react';
  */
 export function useHapticFeedback() {
   const vibrate = useCallback((pattern: number | number[]) => {
-    if (typeof navigator.vibrate === 'function') {
-      navigator.vibrate(pattern);
+    if ("vibrate" in navigator) {
+      navigator.vibrate(pattern)
     }
-  }, []);
+  }, [])
 
   const triggerSuccess = useCallback(() => {
-    vibrate(50);
-  }, [vibrate]);
+    vibrate(50)
+  }, [vibrate])
 
   const triggerCreativeSuccess = useCallback(() => {
-    vibrate([50, 75, 50]);
-  }, [vibrate]);
+    vibrate([50, 75, 50])
+  }, [vibrate])
 
   const triggerError = useCallback(() => {
-    vibrate([50, 100, 50]);
-  }, [vibrate]);
+    vibrate([50, 100, 50])
+  }, [vibrate])
 
   return {
     vibrate,
     triggerSuccess,
     triggerCreativeSuccess,
     triggerError,
-  };
+  }
 }

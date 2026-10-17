@@ -1,12 +1,12 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 @source '../../../apps/**/*.{ts,tsx}';
 @source '../components/**/*.{ts,tsx}';
-@import 'shadcn/tailwind.css';
-@import 'tw-animate-css';
-@import '@fontsource-variable/inter';
+@import "shadcn/tailwind.css";
+@import "tw-animate-css";
+@import "@fontsource-variable/inter";
 
 @theme inline {
-  --font-sans: 'Inter Variable', sans-serif;
+  --font-sans: "Inter Variable", sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

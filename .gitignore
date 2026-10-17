@@ -24,15 +24,14 @@ dist/
 .mf
 .wrangler
 .wrangler/
-.dev.vars
-.dev.vars.*
+.dev.vars*
+!.dev.vars.example
 .dev.var
 .dev.var.*
 worker-configuration.d.ts
 
 # Environment Variables
-.env
-.env.*
+.env*
 !.env.example
 .envrc
 .envrc.local
@@ -71,3 +70,13 @@ tmp/
 # Agent plans and vendored read-only references
 .plans/
 .repos/
+
+# Keep repository source visible when machine-wide [Ll]ib or [Ss]cripts rules are active.
+!apps/mediapeek/app/lib/
+!apps/mediapeek/app/lib/**
+!apps/mediapeek-analyzer/src/lib/
+!apps/mediapeek-analyzer/src/lib/**
+!packages/ui/src/lib/
+!packages/ui/src/lib/**
+!scripts/
+!scripts/**

@@ -2,16 +2,18 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@mediapeek/ui/components/tooltip';
+} from "@mediapeek/ui/components/tooltip"
 
 interface ArchiveEstimateTooltipProps {
-  warning?: string;
+  warning?: string
 }
 
 export function ArchiveEstimateTooltip({
   warning,
 }: ArchiveEstimateTooltipProps) {
-  if (!warning) return null;
+  if (!warning) {
+    return null
+  }
 
   return (
     <Tooltip>
@@ -30,5 +32,5 @@ export function ArchiveEstimateTooltip({
         {warning}
       </TooltipContent>
     </Tooltip>
-  );
+  )
 }

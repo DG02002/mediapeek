@@ -1,17 +1,19 @@
-import type { MediaTrackJSON } from '~/types/media';
+import { memo } from "react"
 
-import { memo } from 'react';
+import type { MediaTrackJSON } from "~/types/media"
 
-import { SubtitleTrackRow } from './subtitle-track-row';
+import { SubtitleTrackRow } from "./subtitle-track-row"
 
 export const SubtitleSection = memo(function SubtitleSection({
   textTracks,
   showOriginalTitles,
 }: {
-  textTracks: MediaTrackJSON[];
-  showOriginalTitles: boolean;
+  textTracks: MediaTrackJSON[]
+  showOriginalTitles: boolean
 }) {
-  if (textTracks.length === 0) return null;
+  if (textTracks.length === 0) {
+    return null
+  }
 
   return (
     <section className="space-y-4">
@@ -28,5 +30,5 @@ export const SubtitleSection = memo(function SubtitleSection({
         ))}
       </div>
     </section>
-  );
-});
+  )
+})

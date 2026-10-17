@@ -6,7 +6,7 @@ tags: logging, wide-events, canonical-log-lines
 
 ## Wide Events / Canonical Log Lines
 
-**Impact: CRITICAL**
+### Impact: CRITICAL
 
 Wide events (also called canonical log lines) are the foundation of effective logging. For each request, emit **a single context-rich event per service**. Instead of scattering 10-20 log lines throughout your request handler, consolidate everything into one comprehensive event emitted at the end of the request.
 

@@ -1,14 +1,13 @@
-'use client';
+"use client"
 
-import type { MediaInfoJSON, MediaTrackJSON } from '~/types/media';
-
-import { ArrowExpandIcon, ArrowShrink02Icon } from '@hugeicons/core-free-icons';
-import { Button } from '@mediapeek/ui/components/button';
-import { Icon } from '@mediapeek/ui/components/icon';
-import { Skeleton } from '@mediapeek/ui/components/skeleton';
-import { SmoothTransition } from '@mediapeek/ui/lib/animation';
-import { cn } from '@mediapeek/ui/lib/utils';
-import { AnimatePresence, motion } from 'motion/react';
+import { ArrowExpandIcon, ArrowShrink02Icon } from "@hugeicons/core-free-icons"
+import { Button } from "@mediapeek/ui/components/button"
+import { Icon } from "@mediapeek/ui/components/icon"
+import { Skeleton } from "@mediapeek/ui/components/skeleton"
+import { SmoothTransition } from "@mediapeek/ui/lib/animation"
+import { cn } from "@mediapeek/ui/lib/utils"
+import { Schema } from "effect"
+import { AnimatePresence, motion } from "motion/react"
 import {
   memo,
   useCallback,
@@ -17,164 +16,201 @@ import {
   useRef,
   useState,
   useTransition,
-} from 'react';
+} from "react"
 
-import { fetchAnalyzeFormat } from '~/lib/analyze-client';
-import { removeEmptyStrings } from '~/lib/media-utils';
-import { startNativeViewTransition } from '~/lib/view-transition';
+import { fetchAnalyzeFormat } from "~/lib/analyze-client"
+import { MediaInfoJSONSchema } from "~/lib/media-info-schema"
+import { removeEmptyStrings } from "~/lib/media-utils"
+import { startNativeViewTransition } from "~/lib/view-transition"
 
-import { AccessibilitySection } from './media-view/accessibility-section';
-import { AudioSection } from './media-view/audio-section';
-import { ChapterSection } from './media-view/chapter-section';
-import { GeneralSection } from './media-view/general-section';
-import { LibrarySection } from './media-view/library-section';
-import { MediaHeader } from './media-view/media-header';
-import { SubtitleSection } from './media-view/subtitle-section';
-import { VideoSection } from './media-view/video-section';
+import { AccessibilitySection } from "./media-view/accessibility-section"
+import { AudioSection } from "./media-view/audio-section"
+import { ChapterSection } from "./media-view/chapter-section"
+import { GeneralSection } from "./media-view/general-section"
+import { LibrarySection } from "./media-view/library-section"
+import { MediaHeader } from "./media-view/media-header"
+import { SubtitleSection } from "./media-view/subtitle-section"
+import { VideoSection } from "./media-view/video-section"
 
 interface MediaViewProps {
-  data: Record<string, string>;
-  url: string;
-  requestTurnstileToken?: () => Promise<string | null>;
+  data: Record<string, string>
+  url: string
+  requestTurnstileToken?: () => Promise<string | null>
+  fetchFormat?: typeof fetchAnalyzeFormat
 }
 
 export const MediaView = memo(function MediaView({
   data,
   url,
   requestTurnstileToken,
+  fetchFormat = fetchAnalyzeFormat,
 }: MediaViewProps) {
-  const [isTextView, setIsTextView] = useState(false);
-  const [showOriginalTitles, setShowOriginalTitles] = useState(false);
-  const [isFullScreen, setIsFullScreen] = useState(false);
-  const [fetchedText, setFetchedText] = useState<string | null>(null);
-  const [isTextLoading, setIsTextLoading] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [_isPending, startTransition] = useTransition();
+  const [isTextView, setIsTextView] = useState(false)
+  const [showOriginalTitles, setShowOriginalTitles] = useState(false)
+  const [isFullScreen, setIsFullScreen] = useState(false)
+  const [fetchedText, setFetchedText] = useState<string | null>(null)
+  const [isTextLoading, setIsTextLoading] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [_isPending, startTransition] = useTransition()
 
   // Stable handlers for View Switching to ensure responsiveness
   const handleSetIsTextView = useCallback(
     (val: boolean) => {
       startNativeViewTransition(
         () => {
-          setIsTextView(val);
+          setIsTextView(val)
         },
         () => {
           startTransition(() => {
-            setIsTextView(val);
-          });
-        },
-      );
+            setIsTextView(val)
+          })
+        }
+      )
     },
-    [startTransition],
-  );
+    [startTransition]
+  )
 
   const handleSetShowOriginalTitles = useCallback(
     (val: boolean) => {
       startNativeViewTransition(
         () => {
-          setShowOriginalTitles(val);
+          setShowOriginalTitles(val)
         },
         () => {
           startTransition(() => {
-            setShowOriginalTitles(val);
-          });
-        },
-      );
+            setShowOriginalTitles(val)
+          })
+        }
+      )
     },
-    [startTransition],
-  );
+    [startTransition]
+  )
 
   // Lazy-load text output on demand using POST to avoid exposing URLs in query strings.
   useEffect(() => {
     if (isTextView && !data.text && !fetchedText) {
-      let cancelled = false;
+      let cancelled = false
+
       const loadText = async () => {
-        setIsTextLoading(true);
+        setIsTextLoading(true)
+
         try {
-          const result = await fetchAnalyzeFormat({
+          const result = await fetchFormat({
             url,
-            format: 'text',
+            format: "text",
             requestTurnstileToken,
-          });
+          })
+
           if (!result.ok) {
-            throw new Error(result.message);
+            throw new Error(result.message)
           }
+
           if (!cancelled) {
-            setFetchedText(result.content);
+            setFetchedText(result.content)
           }
         } catch (error) {
-          console.error('Failed to lazy-load text output', error);
+          console.error("Failed to lazy-load text output", error)
         } finally {
           if (!cancelled) {
-            setIsTextLoading(false);
+            setIsTextLoading(false)
           }
         }
-      };
+      }
 
-      void loadText();
+      void loadText()
 
       return () => {
-        cancelled = true;
-      };
+        cancelled = true
+      }
     }
 
-    return undefined;
-  }, [data.text, fetchedText, isTextView, requestTurnstileToken, url]);
+    return undefined
+  }, [
+    data.text,
+    fetchFormat,
+    fetchedText,
+    isTextView,
+    requestTurnstileToken,
+    url,
+  ])
 
   // Handle Escape key to exit full screen
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isFullScreen) {
-        setIsFullScreen(false);
+      if (e.key === "Escape" && isFullScreen) {
+        setIsFullScreen(false)
       }
-    };
+    }
 
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown)
+
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isFullScreen]);
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [isFullScreen])
 
   // Reset scroll when toggling view mode
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current) {
+      return
+    }
 
-    const { top } = containerRef.current.getBoundingClientRect();
-    const scrollTop = window.scrollY || document.documentElement.scrollTop;
-    const absoluteTop = top + scrollTop;
+    const activeViewMode = isTextView ? "text" : "structured"
+
+    if (containerRef.current.dataset.viewMode !== activeViewMode) {
+      return
+    }
+
+    const { top } = containerRef.current.getBoundingClientRect()
+    const scrollTop = window.scrollY || document.documentElement.scrollTop
+    const absoluteTop = top + scrollTop
 
     if (scrollTop > absoluteTop) {
-      window.scrollTo({ top: absoluteTop, behavior: 'instant' });
+      window.scrollTo({ top: absoluteTop, behavior: "instant" })
     }
-  }, [isTextView]);
+  }, [isTextView])
 
   const { track: parsedData, creatingLibrary } = useMemo(() => {
     try {
-      const jsonStr = data.json;
-      if (!jsonStr) return { track: null, creatingLibrary: undefined };
-      const json = JSON.parse(jsonStr) as MediaInfoJSON;
-      if (!json.media?.track)
-        return { track: null, creatingLibrary: undefined };
+      const jsonStr = data.json
+
+      if (!jsonStr) {
+        return { track: null, creatingLibrary: undefined }
+      }
+
+      const json = Schema.decodeUnknownSync(MediaInfoJSONSchema)(
+        JSON.parse(jsonStr)
+      )
+
+      if (!json.media?.track) {
+        return { track: null, creatingLibrary: undefined }
+      }
+
+      const normalizedJson = Schema.decodeUnknownSync(MediaInfoJSONSchema)(
+        removeEmptyStrings(json)
+      )
+
       return {
-        track: removeEmptyStrings(json.media.track) as MediaTrackJSON[],
-        creatingLibrary: json.creatingLibrary,
-      };
+        track: normalizedJson.media?.track ?? null,
+        creatingLibrary: normalizedJson.creatingLibrary,
+      }
     } catch {
-      console.error('Failed to parse JSON');
-      return { track: null, creatingLibrary: undefined };
+      console.error("Failed to parse JSON")
+
+      return { track: null, creatingLibrary: undefined }
     }
-  }, [data]);
+  }, [data])
 
   // Merge lazy-loaded text into data
   const fullData = useMemo(() => {
     return {
       ...data,
       text:
-        (data.text !== '' ? data.text : undefined) ??
+        (data.text !== "" ? data.text : undefined) ??
         fetchedText ??
-        (isTextLoading ? '' : ''),
-    };
-  }, [data, fetchedText, isTextLoading]);
+        (isTextLoading ? "" : ""),
+    }
+  }, [data, fetchedText, isTextLoading])
 
   const { General, VideoTracks, AudioTracks, TextTracks, MenuTrack } =
     useMemo(() => {
@@ -185,16 +221,17 @@ export const MediaView = memo(function MediaView({
           AudioTracks: [],
           TextTracks: [],
           MenuTrack: undefined,
-        };
+        }
       }
+
       return {
-        General: parsedData.find((t) => t['@type'] === 'General'),
-        VideoTracks: parsedData.filter((t) => t['@type'] === 'Video'),
-        AudioTracks: parsedData.filter((t) => t['@type'] === 'Audio'),
-        TextTracks: parsedData.filter((t) => t['@type'] === 'Text'),
-        MenuTrack: parsedData.find((t) => t['@type'] === 'Menu'),
-      };
-    }, [parsedData]);
+        General: parsedData.find((t) => t["@type"] === "General"),
+        VideoTracks: parsedData.filter((t) => t["@type"] === "Video"),
+        AudioTracks: parsedData.filter((t) => t["@type"] === "Audio"),
+        TextTracks: parsedData.filter((t) => t["@type"] === "Text"),
+        MenuTrack: parsedData.find((t) => t["@type"] === "Menu"),
+      }
+    }, [parsedData])
 
   if (!parsedData) {
     return (
@@ -202,15 +239,16 @@ export const MediaView = memo(function MediaView({
         <p className="font-medium">Analysis Error</p>
         <p className="text-sm">Unable to parse analysis data.</p>
         <pre className="mt-2 overflow-x-auto text-xs whitespace-pre-wrap opacity-70">
-          {(data['@ref'] ?? '').endsWith('.json') && 'No JSON data'}
+          {(data["@ref"] ?? "").endsWith(".json") && "No JSON data"}
         </pre>
       </div>
-    );
+    )
   }
 
   return (
     <div
       ref={containerRef}
+      data-view-mode={isTextView ? "text" : "structured"}
       className="animate-in fade-in mx-auto w-full max-w-5xl space-y-6 pb-20"
     >
       <MediaHeader
@@ -231,10 +269,10 @@ export const MediaView = memo(function MediaView({
         <div className="animate-in fade-in duration-300">
           <motion.div
             className={cn(
-              'bg-muted/30 border-border/50 overflow-hidden border transition-colors',
+              "bg-muted/30 border-border/50 overflow-hidden border transition-colors",
               isFullScreen
-                ? 'bg-background fixed inset-0 z-50 h-screen w-screen'
-                : 'rounded-lg',
+                ? "bg-background fixed inset-0 z-50 h-screen w-screen"
+                : "rounded-lg"
             )}
           >
             <motion.div
@@ -251,10 +289,10 @@ export const MediaView = memo(function MediaView({
                 className="hover:bg-background/50 h-6 px-2 text-xs"
                 onClick={() => {
                   startNativeViewTransition(() => {
-                    setIsFullScreen(!isFullScreen);
-                  });
+                    setIsFullScreen(!isFullScreen)
+                  })
                 }}
-                title={isFullScreen ? 'Exit Full Screen (Esc)' : 'Full Screen'}
+                title={isFullScreen ? "Exit Full Screen (Esc)" : "Full Screen"}
               >
                 <Icon
                   icon={ArrowExpandIcon}
@@ -263,7 +301,7 @@ export const MediaView = memo(function MediaView({
                   size={14}
                   className="mr-1.5 opacity-70"
                 />
-                {isFullScreen ? 'Minimize' : 'Maximize'}
+                {isFullScreen ? "Minimize" : "Maximize"}
               </Button>
             </motion.div>
             <div className="relative min-h-[200px]">
@@ -296,30 +334,30 @@ export const MediaView = memo(function MediaView({
                   </motion.div>
                 ) : (
                   <motion.pre
-                    key={`text-content-${isFullScreen ? 'full' : 'normal'}`}
-                    initial={{ opacity: 0, filter: 'blur(5px)' }}
+                    key={`text-content-${isFullScreen ? "full" : "normal"}`}
+                    initial={{ opacity: 0, filter: "blur(5px)" }}
                     animate={{
                       opacity: 1,
-                      filter: 'blur(0px)',
+                      filter: "blur(0px)",
                       transition: {
                         duration: 0.3,
-                        ease: 'easeOut',
+                        ease: "easeOut",
                         delay: 0.2,
                       },
                     }}
                     exit={{
                       opacity: 0,
-                      filter: 'blur(5px)',
-                      transition: { duration: 0.15, ease: 'easeIn' },
+                      filter: "blur(5px)",
+                      transition: { duration: 0.15, ease: "easeIn" },
                     }}
                     className={cn(
-                      'overflow-x-auto p-4 font-mono text-xs leading-relaxed whitespace-pre sm:text-base sm:whitespace-pre-wrap',
+                      "overflow-x-auto p-4 font-mono text-xs leading-relaxed whitespace-pre sm:text-base sm:whitespace-pre-wrap",
                       isFullScreen
-                        ? 'h-[calc(100vh-42px)] max-w-none'
-                        : 'max-w-[calc(100vw-3rem)] sm:max-w-none',
+                        ? "h-[calc(100vh-42px)] max-w-none"
+                        : "max-w-[calc(100vw-3rem)] sm:max-w-none"
                     )}
                   >
-                    {fullData.text || 'No text data available.'}
+                    {fullData.text || "No text data available."}
                   </motion.pre>
                 )}
               </AnimatePresence>
@@ -331,9 +369,7 @@ export const MediaView = memo(function MediaView({
           <GeneralSection generalTrack={General} />
           <VideoSection
             videoTracks={VideoTracks}
-            archiveSizingWarning={
-              General?.Archive_Sizing_Warning as string | undefined
-            }
+            archiveSizingWarning={General?.Archive_Sizing_Warning}
           />
           <AudioSection
             audioTracks={AudioTracks}
@@ -359,5 +395,5 @@ export const MediaView = memo(function MediaView({
         </div>
       )}
     </div>
-  );
-});
+  )
+})

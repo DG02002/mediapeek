@@ -1,20 +1,17 @@
-import type { MediaInfo } from 'mediainfo.js';
+import patchedMediaInfoFactory from "../lib/mediainfo-bundle.js"
+import wasmModule from "./MediaInfoModule.wasm"
 
-import mediaInfoFactory from '../lib/mediainfo-bundle.js';
-// @ts-expect-error - Import collocated WASM module for bundling
-import wasmModule from './MediaInfoModule.wasm';
+type MediaInfoFormat = "object" | "Text" | "XML" | "HTML"
 
-export { type MediaInfo };
+const createPatchedMediaInfo = (format: MediaInfoFormat) =>
+  patchedMediaInfoFactory({ format, wasmModule })
+
+export type MediaInfo = Awaited<ReturnType<typeof createPatchedMediaInfo>>
 
 /**
  * Creates a configured instance of MediaInfo.
  * Uses the esm-bundle which is environment-agnostic (web/worker compatible).
  * Imports WASM as a module to be bundled by Vite/Cloudflare (avoiding runtime compilation).
  */
-export const createMediaInfo = async (): Promise<MediaInfo> => {
-  return mediaInfoFactory({
-    format: 'object',
-    // Explicitly pass the module (handled by our patched bundle)
-    wasmModule: wasmModule as unknown as WebAssembly.Module,
-  });
-};
+export const createMediaInfo = (format: MediaInfoFormat = "object") =>
+  createPatchedMediaInfo(format)

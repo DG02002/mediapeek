@@ -6,7 +6,7 @@ tags: logging, anti-patterns, pitfalls
 
 ## Common Pitfalls
 
-**Impact: MEDIUM**
+### Impact: MEDIUM
 
 Avoid these anti-patterns that undermine your logging effectiveness.
 
