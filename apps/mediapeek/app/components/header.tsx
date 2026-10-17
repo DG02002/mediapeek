@@ -13,6 +13,7 @@ interface HeaderProps {
 const navigationItems = [
   { label: "App", to: "/app" },
   { label: "Library", to: "/library" },
+  { label: "Compare", to: "/diff" },
 ]
 
 export function Header({
