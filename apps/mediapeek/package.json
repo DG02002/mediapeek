@@ -30,6 +30,7 @@
     "evlog": "catalog:",
     "hono": "^4.13.13",
     "isbot": "^5.2.2",
+    "modern-screenshot": "^4.7.0",
     "motion": "^14.1.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

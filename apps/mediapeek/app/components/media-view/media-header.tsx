@@ -20,9 +20,11 @@ interface MediaHeaderProps {
   rawData: Record<string, string>
   url: string
   requestTurnstileToken?: () => Promise<string | null>
+  onExportPng: (theme: "light" | "dark") => Promise<void>
+  isExportingPng: boolean
 }
 
-const resolveDisplayFilename = (filenameRaw: string, url: string) => {
+export const resolveDisplayFilename = (filenameRaw: string, url: string) => {
   const filename =
     filenameRaw.split("/").pop()?.split("\\").pop() ?? filenameRaw
 
@@ -51,6 +53,8 @@ export const MediaHeader = memo(function MediaHeader({
   rawData,
   url,
   requestTurnstileToken,
+  onExportPng,
+  isExportingPng,
 }: MediaHeaderProps) {
   const headerIcons = useMemo(
     () =>
@@ -146,6 +150,8 @@ export const MediaHeader = memo(function MediaHeader({
                 setIsTextView={setIsTextView}
                 showOriginalTitles={showOriginalTitles}
                 setShowOriginalTitles={setShowOriginalTitles}
+                onExportPng={onExportPng}
+                isExportingPng={isExportingPng}
               />
             </div>
           </div>

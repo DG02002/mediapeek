@@ -28,8 +28,10 @@ import { AudioSection } from "./media-view/audio-section"
 import { ChapterSection } from "./media-view/chapter-section"
 import { GeneralSection } from "./media-view/general-section"
 import { LibrarySection } from "./media-view/library-section"
-import { MediaHeader } from "./media-view/media-header"
+import { MediaHeader, resolveDisplayFilename } from "./media-view/media-header"
+import { MediaReportExport } from "./media-view/media-report-export"
 import { SubtitleSection } from "./media-view/subtitle-section"
+import { useMediaPngExport } from "./media-view/use-media-png-export"
 import { VideoSection } from "./media-view/video-section"
 
 export type MediaViewData = Record<string, string>
@@ -235,6 +237,14 @@ export const MediaView = memo(function MediaView({
       }
     }, [parsedData])
 
+  const exportFilename = resolveDisplayFilename(
+    General?.CompleteName ?? General?.File_Name ?? "Unknown",
+    url
+  )
+
+  const { handleExportPng, isExportingPng, mediaReportExportRef } =
+    useMediaPngExport(exportFilename)
+
   if (!parsedData) {
     return (
       <div className="text-destructive rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-900/20">
@@ -265,6 +275,8 @@ export const MediaView = memo(function MediaView({
         setShowOriginalTitles={handleSetShowOriginalTitles}
         rawData={fullData}
         requestTurnstileToken={requestTurnstileToken}
+        onExportPng={handleExportPng}
+        isExportingPng={isExportingPng}
       />
 
       {isTextView ? (
@@ -395,6 +407,20 @@ export const MediaView = memo(function MediaView({
             textTracks={TextTracks}
           />
         </div>
+      )}
+
+      {General && (
+        <MediaReportExport
+          ref={mediaReportExportRef}
+          filename={exportFilename}
+          generalTrack={General}
+          videoTracks={VideoTracks}
+          audioTracks={AudioTracks}
+          textTracks={TextTracks}
+          menuTrack={MenuTrack}
+          creatingLibrary={creatingLibrary}
+          showOriginalTitles={showOriginalTitles}
+        />
       )}
     </div>
   )

@@ -48,6 +48,8 @@ import { useMediaActions } from "~/hooks/use-media-actions"
 import { useMediaQuery } from "~/hooks/use-media-query"
 import { cn } from "~/lib/utils"
 
+import type { MediaPngExportTheme } from "./media-export"
+
 interface OptionsMenuProps {
   data: Record<string, string>
   url: string
@@ -59,6 +61,8 @@ interface OptionsMenuProps {
   setShowOriginalTitles: (val: boolean) => void
   className?: string
   onShareSuccess?: (url: string) => void
+  onExportPng: (theme: MediaPngExportTheme) => Promise<void>
+  isExportingPng: boolean
 }
 
 const formats = [
@@ -88,6 +92,8 @@ export function OptionsMenu({
   setShowOriginalTitles,
   className,
   onShareSuccess,
+  onExportPng,
+  isExportingPng,
 }: OptionsMenuProps) {
   const { handleCopy, getShareUrl } = useMediaActions({
     data,
@@ -130,6 +136,18 @@ export function OptionsMenu({
       }
     } catch {
       // Error is handled in getShareUrl (toast)
+    }
+  }
+
+  const handlePngExport = async (theme: MediaPngExportTheme) => {
+    try {
+      await onExportPng(theme)
+      toast.success(`PNG report exported in ${theme} theme.`)
+      setOpen(false)
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to export PNG report."
+      )
     }
   }
 
@@ -251,6 +269,27 @@ export function OptionsMenu({
 
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
+                <Icon icon={File01Icon} size={16} className="mr-2" />
+                <span>Export as PNG</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-48">
+                <DropdownMenuItem
+                  disabled={isExportingPng}
+                  onClick={() => void handlePngExport("light")}
+                >
+                  Light theme PNG
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={isExportingPng}
+                  onClick={() => void handlePngExport("dark")}
+                >
+                  Dark theme PNG
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
                 <Icon icon={Copy01Icon} size={16} className="mr-2" />
                 <span>Copy Metadata</span>
               </DropdownMenuSubTrigger>
@@ -303,7 +342,7 @@ export function OptionsMenu({
             <DrawerHeader className="text-left">
               <DrawerTitle>Options</DrawerTitle>
               <DrawerDescription>
-                Configure view settings and share content.
+                Configure, export, copy, or share this report.
               </DrawerDescription>
             </DrawerHeader>
             <div className="grid gap-4 px-4 pb-8">
@@ -337,6 +376,32 @@ export function OptionsMenu({
               </div>
 
               <Separator className="my-2" />
+
+              <div className="grid gap-2">
+                <p className="text-muted-foreground text-xs font-medium">
+                  Export report as PNG
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isExportingPng}
+                    onClick={() => void handlePngExport("light")}
+                  >
+                    Light theme
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isExportingPng}
+                    onClick={() => void handlePngExport("dark")}
+                  >
+                    Dark theme
+                  </Button>
+                </div>
+              </div>
 
               <Tabs defaultValue="copy" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">

@@ -27,6 +27,8 @@ describe("archive warning UI", () => {
         setShowOriginalTitles={() => {}}
         rawData={{}}
         url="https://example.com/archive"
+        onExportPng={async () => {}}
+        isExportingPng={false}
       />
     )
 
