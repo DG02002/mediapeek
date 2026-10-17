@@ -16,7 +16,7 @@ export interface AnalysisQueueItem {
   readonly message?: string
 }
 
-export type AnalysisQueueResult =
+type AnalysisQueueResult =
   | { readonly kind: "queued"; readonly itemId: string; readonly url: string }
   | {
       readonly kind: "done"

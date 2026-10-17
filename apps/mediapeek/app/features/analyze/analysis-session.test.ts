@@ -145,7 +145,7 @@ describe("browser Analysis session", () => {
 
     await expect(
       session.analyze("https://example.com/video.mp4")
-    ).rejects.toThrow("Analyzer stream returned malformed progress data.")
+    ).rejects.toThrow("The analysis response stream contains invalid JSON.")
   })
 
   it("retries a transient request failure and then succeeds", async () => {

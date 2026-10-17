@@ -7,14 +7,7 @@ import {
   Loading03Icon,
 } from "@hugeicons/core-free-icons"
 import { Schema } from "effect"
-import { AnimatePresence, motion } from "motion/react"
-import {
-  type SyntheticEvent,
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react"
+import { type SyntheticEvent, useEffect, useRef, useState } from "react"
 
 import { MediaSkeleton } from "~/components/media-skeleton"
 import { MediaView } from "~/components/media-view"
@@ -33,6 +26,8 @@ import {
   InputGroupButton,
   InputGroupTextarea,
 } from "~/components/ui/input-group"
+import { ClipboardAccessIcon } from "~/features/analyze/clipboard-access-icon"
+import { ClipboardPermissionDialog } from "~/features/analyze/clipboard-permission-dialog"
 import {
   type AnalysisQueueItem,
   type AnalysisQueueItemStatus,
@@ -41,14 +36,10 @@ import {
   useAnalysisQueue,
   useAnalysisQueueFeedback,
 } from "~/features/analyze/queue/use-analysis-queue"
-import { useClipboardSuggestion } from "~/features/analyze/use-clipboard-suggestion"
+import { useClipboardUrl } from "~/features/analyze/use-clipboard-url"
 import { useTurnstileVerification } from "~/features/analyze/use-turnstile-verification"
 import { SaveAnalysisButton } from "~/features/library/save-analysis-button"
 import { useHapticFeedback } from "~/hooks/use-haptic"
-
-const subscribeWithoutChanges = () => () => {}
-const getClipboardSupport = () => Boolean(navigator.clipboard)
-const getClipboardSupportOnServer = () => false
 
 const usePendingStatusVisibility = (isPending: boolean) => {
   const [isVisible, setIsVisible] = useState(false)
@@ -80,31 +71,24 @@ function AddToQueueButton() {
   )
 }
 
-function PasteButton({ onPaste }: { onPaste: (text: string) => void }) {
+function PasteButton({
+  onPaste,
+  readClipboard,
+}: {
+  onPaste: (text: string) => void
+  readClipboard: () => Promise<string | null>
+}) {
   const { triggerSuccess, triggerError } = useHapticFeedback()
 
-  const isSupported = useSyncExternalStore(
-    subscribeWithoutChanges,
-    getClipboardSupport,
-    getClipboardSupportOnServer
-  )
-
   const handlePaste = async () => {
-    try {
-      const text = await navigator.clipboard.readText()
+    const text = await readClipboard()
 
-      if (text) {
-        onPaste(text)
-        triggerSuccess()
-      }
-    } catch (error) {
-      console.error("Failed to read clipboard", error)
+    if (text) {
+      onPaste(text)
+      triggerSuccess()
+    } else {
       triggerError()
     }
-  }
-
-  if (!isSupported) {
-    return null
   }
 
   return (
@@ -155,6 +139,7 @@ export function MediaForm() {
   const [formError, setFormError] = useState<string | null>(null)
   const [inputValue, setInputValue] = useState("")
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+  const [isClipboardDialogOpen, setIsClipboardDialogOpen] = useState(false)
 
   const pendingFormDataRef = useRef<FormData | null>(null)
   const pendingRetryItemIdRef = useRef<string | null>(null)
@@ -184,11 +169,13 @@ export function MediaForm() {
 
   const {
     clipboardUrl,
+    clipboardPermission,
     ignoreClipboard,
-    isPermissionGranted,
     checkClipboard,
     isClipboardApiSupported,
-  } = useClipboardSuggestion(selectedAnalysis?.url)
+    pasteClipboardText,
+    requestClipboardAccess,
+  } = useClipboardUrl(selectedAnalysis?.url)
 
   const enqueueFormData = (formData: FormData, turnstileToken?: string) => {
     const rawUrls = getFormString(formData, "url") ?? ""
@@ -265,15 +252,12 @@ export function MediaForm() {
       <div className="relative w-full sm:py-2">
         <div className="relative z-10 space-y-8">
           <form onSubmit={onSubmit} className="relative space-y-5" noValidate>
-            <AnimatePresence>
-              {clipboardUrl && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0, marginBottom: 0 }}
-                  animate={{ height: "auto", opacity: 1, marginBottom: 20 }}
-                  exit={{ height: 0, opacity: 0, marginBottom: 0 }}
-                  transition={{ duration: 0.2, ease: "easeInOut" }}
-                  className="flex w-full justify-start overflow-hidden"
-                >
+            <div
+              inert={!clipboardUrl}
+              className={`grid transition-[grid-template-rows,opacity] duration-200 motion-reduce:transition-none ${clipboardUrl ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+            >
+              <div className="min-h-0 overflow-hidden">
+                {clipboardUrl ? (
                   <button
                     type="button"
                     onClick={(event) => {
@@ -293,7 +277,7 @@ export function MediaForm() {
                       Link from Clipboard
                     </span>
                     <span className="flex items-center gap-2">
-                      <span className="line-clamp-2 text-sm font-medium break-all">
+                      <span className="shimmer block max-w-full truncate text-sm font-medium break-all text-primary">
                         {clipboardUrl}
                       </span>
                       <Icon
@@ -303,9 +287,9 @@ export function MediaForm() {
                       />
                     </span>
                   </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                ) : null}
+              </div>
+            </div>
 
             <InputGroup className="min-h-24 items-end">
               <InputGroupTextarea
@@ -324,8 +308,21 @@ export function MediaForm() {
                 aria-label="Media URLs, one per line"
                 className="min-h-24 max-h-48 py-3"
               />
-              {!isPermissionGranted && (
+              {(clipboardPermission === "prompt" ||
+                clipboardPermission === "denied") && (
+                <InputGroupButton
+                  type="button"
+                  onClick={() => setIsClipboardDialogOpen(true)}
+                  title="Enable clipboard suggestions"
+                  aria-label="Enable clipboard suggestions"
+                  className="mr-1 h-8"
+                >
+                  <ClipboardAccessIcon className="size-5" />
+                </InputGroupButton>
+              )}
+              {isClipboardApiSupported && clipboardPermission === "granted" && (
                 <PasteButton
+                  readClipboard={pasteClipboardText}
                   onPaste={(text) => {
                     setInputValue(text)
 
@@ -338,6 +335,12 @@ export function MediaForm() {
               )}
               <AddToQueueButton />
             </InputGroup>
+            <ClipboardPermissionDialog
+              clipboardPermission={clipboardPermission}
+              open={isClipboardDialogOpen}
+              onAllow={requestClipboardAccess}
+              onOpenChange={setIsClipboardDialogOpen}
+            />
             <p className="text-muted-foreground text-sm">
               Add one URL or paste several, with one media URL on each line.
             </p>

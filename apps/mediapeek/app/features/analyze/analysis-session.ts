@@ -3,10 +3,7 @@ import type {
   AnalysisOutputResults,
 } from "@mediapeek/shared/analysis-output-formats"
 import { AnalyzeResponseSchema } from "@mediapeek/shared/analyze-contract"
-import {
-  ANALYZE_PROGRESS_STREAM_CONTENT_TYPE,
-  AnalyzeStreamEventSchema,
-} from "@mediapeek/shared/analyze-progress"
+import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
 import { Result, Schema } from "effect"
 
 import {
@@ -14,13 +11,12 @@ import {
   ANALYSIS_RETRY_BACKOFF_MS,
   MAX_ANALYSIS_RETRIES,
 } from "~/constants"
+import {
+  isAnalyzeProgressStreamResponse,
+  readAnalyzeStreamResponse,
+} from "~/lib/analyze-stream"
 
 const RETRYABLE_HTTP_STATUSES = new Set([502, 503, 504])
-
-type AnalysisStreamTerminal = Exclude<
-  typeof AnalyzeStreamEventSchema.Type,
-  { readonly type: "progress" }
->
 
 class AnalysisRequestError extends Error {
   readonly retryable: boolean
@@ -82,86 +78,6 @@ export interface AnalysisSession {
   dispose(): void
 }
 
-const parseStreamLine = (line: string) => {
-  try {
-    const parsed = Schema.decodeUnknownResult(AnalyzeStreamEventSchema)(
-      JSON.parse(line)
-    )
-
-    if (Result.isSuccess(parsed)) {
-      return parsed.success
-    }
-  } catch {
-    // Normalize malformed JSON and malformed event shapes identically.
-  }
-
-  throw new Error("Analyzer stream returned malformed progress data.")
-}
-
-const handleStreamLine = (
-  line: string,
-  onProgress: (progress: AnalysisProgress) => void
-) => {
-  if (!line.trim()) {
-    return undefined
-  }
-
-  const event = parseStreamLine(line)
-
-  if (event.type === "progress") {
-    onProgress({ title: event.title, message: event.message })
-
-    return undefined
-  }
-
-  return event
-}
-
-const readStream = (
-  response: Response,
-  onProgress: (progress: AnalysisProgress) => void
-): Promise<AnalysisStreamTerminal> => {
-  const reader = response.body?.getReader()
-
-  if (!reader) {
-    throw new Error("Analyzer stream did not include a readable body.")
-  }
-
-  const decoder = new TextDecoder()
-  let buffered = ""
-
-  const readNextChunk = async (): Promise<AnalysisStreamTerminal> => {
-    const { done, value } = await reader.read()
-    buffered += decoder.decode(value ?? new Uint8Array(0), { stream: !done })
-    const lines = buffered.split("\n")
-    buffered = lines.pop() ?? ""
-
-    for (const line of lines) {
-      const event = handleStreamLine(line, onProgress)
-
-      if (event) {
-        return event
-      }
-    }
-
-    if (done) {
-      if (buffered.trim()) {
-        const event = handleStreamLine(buffered, onProgress)
-
-        if (event) {
-          return event
-        }
-      }
-
-      throw new Error("Analyzer stream ended before sending a final result.")
-    }
-
-    return readNextChunk()
-  }
-
-  return readNextChunk()
-}
-
 const requestInitialAnalysis = async (input: {
   readonly url: string
   readonly operationId: string
@@ -189,10 +105,10 @@ const requestInitialAnalysis = async (input: {
     signal: input.controller.signal,
   })
 
-  const contentType = response.headers.get("content-type")?.toLowerCase()
-
-  if (contentType?.includes(ANALYZE_PROGRESS_STREAM_CONTENT_TYPE)) {
-    const terminal = await readStream(response, input.onProgress)
+  if (isAnalyzeProgressStreamResponse(response)) {
+    const terminal = await readAnalyzeStreamResponse(response, (event) =>
+      input.onProgress({ title: event.title, message: event.message })
+    )
 
     if (terminal.type === "error") {
       throw new AnalysisRequestError(

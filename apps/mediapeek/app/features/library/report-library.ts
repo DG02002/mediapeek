@@ -11,7 +11,7 @@ const ReportOutputsSchema = Schema.Struct({
   xml: Schema.optionalKey(Schema.String),
 })
 
-export const StoredReportSchema = Schema.Struct({
+const StoredReportSchema = Schema.Struct({
   id: Schema.String,
   sourceUrl: Schema.String,
   filename: Schema.String,

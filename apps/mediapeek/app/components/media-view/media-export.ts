@@ -12,7 +12,7 @@ interface MediaPngExportRequest {
   theme: MediaPngExportTheme
 }
 
-export interface MediaPngCaptureOptions {
+interface MediaPngCaptureOptions {
   backgroundColor: string
   scale: number
 }

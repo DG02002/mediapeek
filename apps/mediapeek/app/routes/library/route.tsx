@@ -6,7 +6,9 @@ import { Button } from "~/components/ui/button"
 import {
   deleteReport,
   exportAll,
+  getReport,
   importAll,
+  type StoredReport,
 } from "~/features/library/report-library"
 import { ReportRow } from "~/features/library/report-row"
 import { StoredReportView } from "~/features/library/stored-report-view"
@@ -32,13 +34,47 @@ export default function LibraryRoute() {
 
   const { reports } = librarySnapshot
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
+
+  const [selectedReport, setSelectedReport] = useState<StoredReport | null>(
+    null
+  )
+
   const [message, setMessage] = useState<string | null>(null)
   const [isBusy, setIsBusy] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const openRequestIdRef = useRef(0)
 
-  const selectedReport = reports.find(
-    (report) => report.id === selectedReportId
-  )
+  const handleOpen = async (id: string) => {
+    const requestId = openRequestIdRef.current + 1
+    openRequestIdRef.current = requestId
+    setSelectedReportId(id)
+    setSelectedReport(null)
+
+    try {
+      const report = await getReport(id)
+
+      if (requestId !== openRequestIdRef.current) {
+        return
+      }
+
+      if (report) {
+        setSelectedReport(report)
+      } else {
+        setSelectedReportId(null)
+        setSelectedReport(null)
+        await libraryStore.refresh()
+        setMessage("That report is no longer available.")
+      }
+    } catch (error) {
+      if (requestId !== openRequestIdRef.current) {
+        return
+      }
+
+      setMessage(
+        error instanceof Error ? error.message : "Unable to open the report."
+      )
+    }
+  }
 
   const handleExport = async () => {
     setIsBusy(true)
@@ -85,7 +121,13 @@ export default function LibraryRoute() {
     try {
       await deleteReport(id)
       await libraryStore.refresh()
-      setSelectedReportId((current) => (current === id ? null : current))
+
+      if (selectedReportId === id) {
+        openRequestIdRef.current += 1
+        setSelectedReportId(null)
+        setSelectedReport(null)
+      }
+
       setMessage("Report deleted.")
     } catch (error) {
       setMessage(
@@ -173,7 +215,7 @@ export default function LibraryRoute() {
                   key={report.id}
                   report={report}
                   selected={selectedReport?.id === report.id}
-                  onOpen={() => setSelectedReportId(report.id)}
+                  onOpen={() => void handleOpen(report.id)}
                   onDelete={() => void handleDelete(report.id)}
                 />
               ))}

@@ -167,3 +167,87 @@
     animation: 300ms cubic-bezier(0.4, 0, 0.2, 1) both fade-in;
   }
 }
+
+@keyframes clipboard-icon-shimmer {
+  from {
+    mask-position: 150% 0;
+  }
+
+  to {
+    mask-position: -150% 0;
+  }
+}
+
+.clipboard-icon-shimmer {
+  mask-image: linear-gradient(
+    90deg,
+    transparent 20%,
+    black 45%,
+    black 55%,
+    transparent 80%
+  );
+  mask-position: 150% 0;
+  mask-repeat: no-repeat;
+  mask-size: 250% 100%;
+  animation: clipboard-icon-shimmer 4s linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 150% 0;
+  }
+
+  to {
+    background-position: -150% 0;
+  }
+}
+
+.shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--primary) 35%,
+    color-mix(in srgb, var(--primary) 45%, var(--color-blue-500)) 50%,
+    var(--primary) 65%
+  );
+  background-position: 150% 0;
+  background-size: 250% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: shimmer 1.8s linear infinite;
+}
+
+@keyframes clipboard-icon-opacity-pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer-opacity-pulse {
+  0%,
+  100% {
+    opacity: 0.8;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clipboard-icon-shimmer {
+    mask-image: none;
+    animation: clipboard-icon-opacity-pulse 3s ease-in-out infinite;
+  }
+
+  .shimmer {
+    background-image: none;
+    color: inherit;
+    animation: shimmer-opacity-pulse 3s ease-in-out infinite;
+  }
+}

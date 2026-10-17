@@ -14,12 +14,12 @@ import {
 import { getAccessibilityFeatures, getMediaBadges } from "~/lib/media-utils"
 import type { MediaTrackJSON } from "~/types/media"
 
-export interface MediaReportParseError {
+interface MediaReportParseError {
   readonly code: "missing-json" | "invalid-json" | "invalid-document"
   readonly message: string
 }
 
-export interface ArchiveSizingReport {
+interface ArchiveSizingReport {
   readonly confidence: "verified" | "estimated" | "unknown"
   readonly source?:
     | "zip-local-header"
@@ -29,7 +29,7 @@ export interface ArchiveSizingReport {
   readonly warning?: string
 }
 
-export interface MediaFileReport {
+interface MediaFileReport {
   readonly displayName: string
   readonly duration?: string
   readonly size?: string
@@ -39,14 +39,14 @@ export interface MediaFileReport {
   }
 }
 
-export interface MediaFormatReport {
+interface MediaFormatReport {
   readonly name?: string
   readonly info?: string
   readonly profile?: string
   readonly version?: string
 }
 
-export interface ContainerReport {
+interface ContainerReport {
   readonly format: MediaFormatReport
   readonly codecId?: string
   readonly compatibleCodecIds?: string
@@ -156,7 +156,7 @@ export interface AudioTrackReport {
   readonly signalGroups: readonly MediaStructureValue[]
 }
 
-export interface SubtitleTrackReport {
+interface SubtitleTrackReport {
   readonly key: string
   readonly order?: string
   readonly id?: string
@@ -172,12 +172,12 @@ export interface SubtitleTrackReport {
   readonly isForced: boolean
 }
 
-export interface ChapterReport {
+interface ChapterReport {
   readonly time: string
   readonly name: string
 }
 
-export interface MediaAccessibilityReport {
+interface MediaAccessibilityReport {
   readonly sdh: boolean
   readonly closedCaptions: boolean
   readonly audioDescription: boolean
@@ -203,7 +203,7 @@ export type MediaReportParseResult =
   | MediaReportParseSuccess
   | { readonly ok: false; readonly error: MediaReportParseError }
 
-export interface MediaReportParseSuccess {
+interface MediaReportParseSuccess {
   readonly ok: true
   readonly report: MediaReport
 }

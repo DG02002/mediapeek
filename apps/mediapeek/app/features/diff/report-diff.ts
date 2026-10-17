@@ -20,7 +20,7 @@ export interface DiffPath {
   readonly value: DiffValue
 }
 
-export interface ChangedField {
+interface ChangedField {
   readonly section: DiffSection
   readonly path: string
   readonly before: DiffValue

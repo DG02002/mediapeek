@@ -2,7 +2,7 @@ import { useEffect, useMemo, useSyncExternalStore } from "react"
 
 import { listReports, type StoredReport } from "./report-library"
 
-export interface ReportLibrarySnapshot {
+interface ReportLibrarySnapshot {
   readonly reports: ReadonlyArray<StoredReport>
   readonly isLoading: boolean
   readonly error: string | null
