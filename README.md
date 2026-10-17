@@ -10,7 +10,7 @@ MediaPeek provides detailed technical metadata for video, audio, image, and subt
 ## Docs
 
 - [Contributing and development](CONTRIBUTING.md)
-- [Analyzer API and configuration](apps/analyzer/README.md)
+- [Analyzer API and configuration](apps/mediapeek-analyzer/README.md)
 
 ## Features
 

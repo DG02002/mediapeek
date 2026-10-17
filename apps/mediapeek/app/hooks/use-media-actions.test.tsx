@@ -8,20 +8,33 @@ type FetchAnalyzeFormat = typeof import('../lib/analyze-client').fetchAnalyzeFor
 type SafeClipboardWrite = typeof import('../lib/clipboard').safeClipboardWrite;
 type UploadToPrivateBin = typeof import('../lib/privatebin').uploadToPrivateBin;
 
-const fetchAnalyzeFormatMock = vi.fn<FetchAnalyzeFormat>();
-const safeClipboardWriteMock = vi.fn<SafeClipboardWrite>();
-const uploadToPrivateBinMock = vi.fn<UploadToPrivateBin>();
-const triggerSuccessMock = vi.fn<() => void>();
-const triggerErrorMock = vi.fn<() => void>();
-const triggerCreativeSuccessMock = vi.fn<() => void>();
-const toastLoadingMock = vi.fn<(message: string) => string>(() => 'toast-id');
-const toastDismissMock = vi.fn<(id?: string | number) => void>();
-const toastErrorMock = vi.fn<
-  (message: string, options?: Record<string, unknown>) => void
->();
-const toastSuccessMock = vi.fn<
-  (message: string, options?: Record<string, unknown>) => void
->();
+const {
+  fetchAnalyzeFormatMock,
+  safeClipboardWriteMock,
+  uploadToPrivateBinMock,
+  triggerSuccessMock,
+  triggerErrorMock,
+  triggerCreativeSuccessMock,
+  toastLoadingMock,
+  toastDismissMock,
+  toastErrorMock,
+  toastSuccessMock,
+} = vi.hoisted(() => ({
+  fetchAnalyzeFormatMock: vi.fn<FetchAnalyzeFormat>(),
+  safeClipboardWriteMock: vi.fn<SafeClipboardWrite>(),
+  uploadToPrivateBinMock: vi.fn<UploadToPrivateBin>(),
+  triggerSuccessMock: vi.fn<() => void>(),
+  triggerErrorMock: vi.fn<() => void>(),
+  triggerCreativeSuccessMock: vi.fn<() => void>(),
+  toastLoadingMock: vi.fn<(message: string) => string>(() => 'toast-id'),
+  toastDismissMock: vi.fn<(id?: string | number) => void>(),
+  toastErrorMock: vi.fn<
+    (message: string, options?: Record<string, unknown>) => void
+  >(),
+  toastSuccessMock: vi.fn<
+    (message: string, options?: Record<string, unknown>) => void
+  >(),
+}));
 
 vi.mock('../lib/analyze-client', () => ({
   fetchAnalyzeFormat: fetchAnalyzeFormatMock,

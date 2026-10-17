@@ -7,7 +7,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 // Hardcoded service metadata for now.
 // In a real build pipeline, these would be injected via define variables or env vars.
-const SERVICE_NAME = 'mediapeek-web';
+const SERVICE_NAME = 'mediapeek';
 const SERVICE_VERSION = '1.0.0'; // TODO: hook up to git commit hash
 
 export interface LogContext {

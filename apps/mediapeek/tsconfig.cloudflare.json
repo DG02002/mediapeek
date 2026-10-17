@@ -7,7 +7,7 @@
     "app/**/.client/**/*",
     "app/**/.client/**/*",
     "../../packages/shared/src/**/*",
-    "../../apps/analyzer/src/**/*",
+    "../../apps/mediapeek-analyzer/src/**/*",
     "workers/**/*",
     "worker-configuration.d.ts"
   ],
@@ -25,7 +25,7 @@
     "paths": {
       "~/*": ["./app/*"],
       "@mediapeek/shared/*": ["../../packages/shared/src/*"],
-      "mediapeek-analyzer": ["../../apps/analyzer/src/index.ts"]
+      "mediapeek-analyzer": ["../../apps/mediapeek-analyzer/src/index.ts"]
     },
     "esModuleInterop": true,
     "resolveJsonModule": true

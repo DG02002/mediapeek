@@ -21,8 +21,8 @@
   },
   "include": [],
   "references": [
-    { "path": "./apps/web" },
-    { "path": "./apps/analyzer" },
+    { "path": "./apps/mediapeek" },
+    { "path": "./apps/mediapeek-analyzer" },
     { "path": "./packages/shared" },
     { "path": "./packages/ui" }
   ]

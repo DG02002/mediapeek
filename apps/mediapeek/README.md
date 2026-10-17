@@ -10,4 +10,4 @@ This folder is the target home for the SSR frontend Worker.
 ## Planned Runtime Responsibilities
 
 - Render UI routes and static pages.
-- Forward analysis requests to `apps/analyzer` using internal auth/service bindings.
+- Forward analysis requests to `apps/mediapeek-analyzer` using internal auth/service bindings.

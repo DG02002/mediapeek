@@ -1,5 +1,5 @@
 {
-  "name": "mediapeek-web",
+  "name": "mediapeek",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
     "start": "wrangler dev",
     "typecheck": "react-router typegen && tsc -b",
     "cf-typegen": "wrangler types",
-    "lint": "cd ../.. && oxlint apps/web",
+    "lint": "cd ../.. && oxlint apps/mediapeek",
     "test": "vitest",
     "clean": "rm -rf build .react-router node_modules"
   },

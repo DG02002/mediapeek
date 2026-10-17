@@ -2,9 +2,9 @@
 
 This repo follows an app-config plus shared-UI workflow:
 
-- Run shadcn from the repo root with `pnpm dlx shadcn@latest add <component> -c apps/web`
+- Run shadcn from the repo root with `pnpm dlx shadcn@latest add <component> -c apps/mediapeek`
 - Keep generated shared UI components in `packages/ui/src/components`
-- Keep app-only code in `apps/web/app/components`, `apps/web/app/hooks`, and `apps/web/app/lib`
+- Keep app-only code in `apps/mediapeek/app/components`, `apps/mediapeek/app/hooks`, and `apps/mediapeek/app/lib`
 - The sample repo in `sample/react-router-monorepo` is only a reference and is not part of the main workspace tooling migration
 
 ## The "Missing Classes" Issue
@@ -19,7 +19,7 @@ When using Shadcn UI components in a monorepo with Tailwind CSS v4, you may enco
 
 ## The Cause
 
-Tailwind CSS v4 uses a new detection engine that scans your files to generate CSS. in a monorepo structure, Tailwind might not automatically detect files located in other packages (like `packages/ui` linked to `apps/web`) or might miss them depending on how the workspace is structured.
+Tailwind CSS v4 uses a new detection engine that scans your files to generate CSS. in a monorepo structure, Tailwind might not automatically detect files located in other packages (like `packages/ui` linked to `apps/mediapeek`) or might miss them depending on how the workspace is structured.
 
 ## The Solution: `@source` Directives
 
@@ -39,7 +39,7 @@ If you have a shared UI package, ensure it knows where its own components are:
 @import 'tw-animate-css';
 ```
 
-### 2. Configure `apps/web/app/app.css` (or main CSS)
+### 2. Configure `apps/mediapeek/app/app.css` (or main CSS)
 
 Your application needs to scan **both** its own files **and** the shared UI package files:
 

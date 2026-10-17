@@ -6,7 +6,9 @@ import { MediaView } from './media-view';
 
 type FetchAnalyzeFormat = typeof import('~/lib/analyze-client').fetchAnalyzeFormat;
 
-const fetchAnalyzeFormatMock = vi.fn<FetchAnalyzeFormat>();
+const { fetchAnalyzeFormatMock } = vi.hoisted(() => ({
+  fetchAnalyzeFormatMock: vi.fn<FetchAnalyzeFormat>(),
+}));
 
 vi.mock('~/lib/analyze-client', () => ({
   fetchAnalyzeFormat: fetchAnalyzeFormatMock,

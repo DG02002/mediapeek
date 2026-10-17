@@ -14,7 +14,7 @@
     "test": "vitest",
     "typecheck": "tsc --noEmit",
     "cf-typegen": "wrangler types",
-    "lint": "cd ../.. && oxlint apps/analyzer",
+    "lint": "cd ../.. && oxlint apps/mediapeek-analyzer",
     "clean": "rm -rf dist node_modules"
   },
   "dependencies": {

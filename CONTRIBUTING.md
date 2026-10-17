@@ -6,8 +6,8 @@ Unless noted otherwise, run commands from the repository root.
 
 ## Workspaces
 
-- `apps/web`: frontend app
-- `apps/analyzer`: analyzer worker
+- `apps/mediapeek`: frontend app
+- `apps/mediapeek-analyzer`: analyzer worker
 - `packages/ui`: shared shadcn/ui package
 - `packages/shared`: shared non-UI code
 
@@ -15,13 +15,13 @@ Unless noted otherwise, run commands from the repository root.
 
 - Use the repository root for most commands
 - Use `pnpm --filter ...` for one workspace
-- Use `apps/web` as the shadcn app configuration
+- Use `apps/mediapeek` as the shadcn app configuration
 - Let `packages/ui` own the generated shared shadcn components
 - Do not run shadcn in `packages/shared`
 
 ## Notes
 
-- Run shadcn from the repository root with the app config: `pnpm dlx shadcn@latest add <component> -c apps/web`
+- Run shadcn from the repository root with the app config: `pnpm dlx shadcn@latest add <component> -c apps/mediapeek`
 - The app config writes shared UI output to `packages/ui/src/components`
 - Keep shared shadcn dependencies and generated components in `packages/ui`
 - Do not run shadcn commands in `packages/shared`
@@ -49,7 +49,7 @@ pnpm approve-builds
 ## Filter Names
 
 ```bash
-mediapeek-web
+mediapeek
 mediapeek-analyzer
 @mediapeek/ui
 @mediapeek/shared
@@ -58,13 +58,13 @@ mediapeek-analyzer
 ## Web Commands
 
 ```bash
-pnpm --filter mediapeek-web dev
-pnpm --filter mediapeek-web lint
-pnpm --filter mediapeek-web typecheck
-pnpm --filter mediapeek-web test
-pnpm --filter mediapeek-web build
-pnpm --filter mediapeek-web deploy
-pnpm --filter mediapeek-web cf-typegen
+pnpm --filter mediapeek dev
+pnpm --filter mediapeek lint
+pnpm --filter mediapeek typecheck
+pnpm --filter mediapeek test
+pnpm --filter mediapeek build
+pnpm --filter mediapeek deploy
+pnpm --filter mediapeek cf-typegen
 ```
 
 ## Analyzer Commands
@@ -101,7 +101,7 @@ pnpm update -r --latest
 Update one workspace:
 
 ```bash
-pnpm --filter mediapeek-web update --latest
+pnpm --filter mediapeek update --latest
 pnpm --filter mediapeek-analyzer update --latest
 pnpm --filter @mediapeek/ui update --latest
 pnpm --filter @mediapeek/shared update --latest
@@ -110,7 +110,7 @@ pnpm --filter @mediapeek/shared update --latest
 Update one package:
 
 ```bash
-pnpm --filter mediapeek-web update react --latest
+pnpm --filter mediapeek update react --latest
 pnpm --filter @mediapeek/ui update shadcn --latest
 ```
 
@@ -119,10 +119,10 @@ pnpm --filter @mediapeek/ui update shadcn --latest
 Preferred shared UI workflow:
 
 ```bash
-pnpm dlx shadcn@latest add button -c apps/web
+pnpm dlx shadcn@latest add button -c apps/mediapeek
 ```
 
-This uses `apps/web/components.json` and writes shared UI files to:
+This uses `apps/mediapeek/components.json` and writes shared UI files to:
 
 ```bash
 packages/ui/src/components
@@ -137,8 +137,8 @@ cd packages/shared
 ## Env Files
 
 ```bash
-apps/web/.dev.vars
-apps/analyzer/.dev.vars
+apps/mediapeek/.dev.vars
+apps/mediapeek-analyzer/.dev.vars
 ```
 
 ## Wrangler Commands
@@ -146,9 +146,9 @@ apps/analyzer/.dev.vars
 ```bash
 pnpm dlx wrangler login
 
-pnpm --filter mediapeek-web exec wrangler secret put TURNSTILE_SECRET_KEY
-pnpm --filter mediapeek-web exec wrangler secret put ANALYZE_API_KEY
-pnpm --filter mediapeek-web exec wrangler secret put SESSION_SECRET
+pnpm --filter mediapeek exec wrangler secret put TURNSTILE_SECRET_KEY
+pnpm --filter mediapeek exec wrangler secret put ANALYZE_API_KEY
+pnpm --filter mediapeek exec wrangler secret put SESSION_SECRET
 
 pnpm --filter mediapeek-analyzer exec wrangler secret put ANALYZE_API_KEY
 ```
@@ -157,7 +157,7 @@ pnpm --filter mediapeek-analyzer exec wrangler secret put ANALYZE_API_KEY
 
 ```bash
 pnpm --filter mediapeek-analyzer run deploy
-pnpm --filter mediapeek-web run deploy
+pnpm --filter mediapeek run deploy
 ```
 
 ## Validation
