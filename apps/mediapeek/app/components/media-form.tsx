@@ -25,6 +25,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@mediapeek/ui/components/input-group"
+import { Result, Schema } from "effect"
 import { AnimatePresence, motion } from "motion/react"
 import {
   type Dispatch,
@@ -36,7 +37,6 @@ import {
   useState,
   useSyncExternalStore,
 } from "react"
-import { z } from "zod"
 
 import { MediaSkeleton } from "~/components/media-skeleton"
 import { useClipboardSuggestion } from "~/hooks/use-clipboard-suggestion"
@@ -128,27 +128,59 @@ class AnalyzeRequestError extends Error {
   }
 }
 
-const analyzeResponseSchema = z.object({
-  success: z.boolean().optional(),
-  requestId: z.string().optional(),
-  results: z.record(z.string(), z.string()).optional(),
-  error: z
-    .union([
-      z.string().transform((message) => ({ message, retryable: false })),
-      z.object({
-        message: z.string().optional(),
-        retryable: z.boolean().optional(),
-      }),
-    ])
-    .optional(),
+const analyzeResponseErrorSchema = Schema.Struct({
+  message: Schema.optionalKey(Schema.String),
+  retryable: Schema.optionalKey(Schema.Boolean),
 })
 
-type AnalyzeResponse = z.infer<typeof analyzeResponseSchema>
+const analyzeResponseSchema = Schema.Struct({
+  success: Schema.optionalKey(Schema.Boolean),
+  requestId: Schema.optionalKey(Schema.String),
+  results: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
+  error: Schema.optionalKey(
+    Schema.Union([Schema.String, analyzeResponseErrorSchema])
+  ),
+})
+
+type AnalyzeResponseWire = typeof analyzeResponseSchema.Type
+
+type AnalyzeResponse = Omit<AnalyzeResponseWire, "error"> & {
+  error?: { message?: string; retryable?: boolean }
+}
+
+const normalizeAnalyzeResponse = (
+  response: AnalyzeResponseWire
+): AnalyzeResponse => {
+  const { error, ...fields } = response
+
+  if (error === undefined) {
+    return fields
+  }
+
+  const stringError = Schema.decodeUnknownResult(Schema.String)(error)
+
+  if (Result.isFailure(stringError)) {
+    const objectError = Schema.decodeUnknownResult(analyzeResponseErrorSchema)(
+      error
+    )
+
+    if (Result.isFailure(objectError)) {
+      return fields
+    }
+
+    return { ...fields, error: objectError.success }
+  }
+
+  return {
+    ...fields,
+    error: { message: stringError.success, retryable: false },
+  }
+}
 
 const getFormString = (formData: FormData, name: string) => {
-  const result = z.string().safeParse(formData.get(name))
+  const value = formData.get(name)
 
-  return result.success ? result.data : null
+  return Schema.is(Schema.String)(value) ? value : null
 }
 
 const isRetryableRequestError = (error: Error) => {
@@ -184,11 +216,15 @@ const readAnalyzeResponse = async (
       )
     }
 
-    return analyzeResponseSchema.parse({
+    const decodedTerminalResponse = Schema.decodeUnknownSync(
+      analyzeResponseSchema
+    )({
       success: true,
       requestId: terminalEvent.requestId,
       results: terminalEvent.results,
     })
+
+    return normalizeAnalyzeResponse(decodedTerminalResponse)
   }
 
   const contentType = response.headers.get("content-type")
@@ -210,15 +246,20 @@ const readAnalyzeResponse = async (
     )
   }
 
-  const data = analyzeResponseSchema.parse(await response.json())
+  const decodedResponse = Schema.decodeUnknownSync(analyzeResponseSchema)(
+    await response.json()
+  )
+
+  const data = normalizeAnalyzeResponse(decodedResponse)
   const errorMessage = data.error?.message
+  const errorRetryable = data.error?.retryable
 
   if (!response.ok || data.success === false || errorMessage) {
     throw new AnalyzeRequestError(
       errorMessage ??
         "Unable to analyze the URL. Verify the link and try again.",
       response.status,
-      data.error?.retryable ?? RETRYABLE_HTTP_STATUSES.has(response.status)
+      errorRetryable ?? RETRYABLE_HTTP_STATUSES.has(response.status)
     )
   }
 

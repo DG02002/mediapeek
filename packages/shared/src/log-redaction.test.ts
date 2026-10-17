@@ -38,6 +38,13 @@ describe("redactSensitiveLogData", () => {
       url: "https://cdn.example.com/a.mkv?sig=[REDACTED]&expires=[REDACTED]",
     })
   })
+
+  it("preserves dates and undefined values", () => {
+    const date = new Date("2026-10-17T00:00:00.000Z")
+    const redacted = redactSensitiveLogData({ date, missing: undefined })
+
+    expect(redacted).toStrictEqual({ date, missing: undefined })
+  })
 })
 
 describe("summarizeSensitiveToken", () => {

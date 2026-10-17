@@ -31,4 +31,6 @@ export interface MediaInfoFactoryOptions {
 
 declare function mediaInfoFactory(options?: MediaInfoFactoryOptions): Promise<MediaInfo>;
 
+export { mediaInfoFactory };
+
 export default mediaInfoFactory;

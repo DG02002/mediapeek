@@ -10,7 +10,7 @@ import {
   DEFAULT_RUNTIME_CONFIG,
   type RuntimeConfig,
 } from "@mediapeek/shared/runtime-config"
-import { z } from "zod"
+import { Schema } from "effect"
 
 // Hardcoded service metadata for now.
 // In a real build pipeline, these would be injected via define variables or env vars.
@@ -45,25 +45,28 @@ export interface LogEvent extends SensitiveLogObject {
   error?: SensitiveLogValue
 }
 
-const httpRequestSchema = z.object({
-  requestMethod: z.string(),
-  requestUrl: z.string(),
-  status: z.number(),
-  remoteIp: z.string().optional(),
-  userAgent: z.string().optional(),
-  latency: z.string().optional(),
+const httpRequestSchema = Schema.Struct({
+  requestMethod: Schema.String,
+  requestUrl: Schema.String,
+  status: Schema.Number,
+  remoteIp: Schema.optionalKey(Schema.String),
+  userAgent: Schema.optionalKey(Schema.String),
+  latency: Schema.optionalKey(Schema.String),
 })
 
-const logEventSchema = z
-  .object({
-    severity: z.enum(["INFO", "WARNING", "ERROR"]),
-    message: z.string(),
-    requestId: z.string().optional(),
-    httpRequest: httpRequestSchema.optional(),
-    context: z.record(z.string(), SensitiveLogValueSchema).optional(),
-    error: SensitiveLogValueSchema.optional(),
-  })
-  .catchall(SensitiveLogValueSchema)
+const logEventSchema = Schema.StructWithRest(
+  Schema.Struct({
+    severity: Schema.Literals(["INFO", "WARNING", "ERROR"]),
+    message: Schema.String,
+    requestId: Schema.optionalKey(Schema.String),
+    httpRequest: Schema.optionalKey(httpRequestSchema),
+    context: Schema.optionalKey(
+      Schema.Record(Schema.String, SensitiveLogValueSchema)
+    ),
+    error: Schema.optionalKey(SensitiveLogValueSchema),
+  }),
+  [Schema.Record(Schema.String, SensitiveLogValueSchema)]
+)
 
 /**
  * Tail Sampling Logic:
@@ -127,7 +130,7 @@ export function log(
     return
   }
 
-  const sanitizedEvent = logEventSchema.parse(
+  const sanitizedEvent = Schema.decodeUnknownSync(logEventSchema)(
     redactSensitiveLogData(mergedEvent)
   )
 

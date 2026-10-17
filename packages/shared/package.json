@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./analysis-output-formats": {
+      "types": "./dist/analysis-output-formats.d.ts",
+      "default": "./src/analysis-output-formats.ts"
+    },
     "./analyze-contract": {
       "types": "./dist/analyze-contract.d.ts",
       "default": "./src/analyze-contract.ts"
@@ -28,6 +32,10 @@
       "types": "./dist/media.d.ts",
       "default": "./src/media.ts"
     },
+    "./media-utils": {
+      "types": "./dist/media-utils.d.ts",
+      "default": "./src/media-utils.ts"
+    },
     "./filename-resolution": {
       "types": "./dist/filename-resolution.d.ts",
       "default": "./src/filename-resolution.ts"
@@ -39,6 +47,10 @@
     "./runtime-config": {
       "types": "./dist/runtime-config.d.ts",
       "default": "./src/runtime-config.ts"
+    },
+    "./constants": {
+      "types": "./dist/constants.d.ts",
+      "default": "./src/constants.ts"
     },
     "./log-redaction": {
       "types": "./dist/log-redaction.d.ts",
@@ -60,8 +72,8 @@
     "clean": "rm -rf dist node_modules"
   },
   "dependencies": {
-    "evlog": "catalog:",
-    "zod": "^4.6.5"
+    "effect": "catalog:",
+    "evlog": "catalog:"
   },
   "devDependencies": {
     "@mediapeek/config-typescript": "workspace:*",

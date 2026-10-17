@@ -3,44 +3,100 @@ import { describe, expect, it } from "vitest"
 
 describe("analyzeSchema", () => {
   it("validates a correct URL and applies default format", () => {
-    const result = analyzeSchema.safeParse({
+    const result = analyzeSchema["~standard"].validate({
       url: "https://example.com/video.mp4",
     })
 
-    expect(result.success).toBe(true)
+    if (result instanceof Promise) {
+      throw new Error("Expected sync validation")
+    }
 
-    if (!result.success) {
+    expect("value" in result).toBe(true)
+
+    if (!("value" in result)) {
       throw new Error("Expected schema parsing to succeed")
     }
 
-    expect(result.data.url).toBe("https://example.com/video.mp4")
-    expect(result.data.format).toEqual(["JSON"])
+    expect(result.value.url).toBe("https://example.com/video.mp4")
+    expect(result.value.format).toEqual(["json"])
   })
 
   it("rejects an invalid URL", () => {
-    const result = analyzeSchema.safeParse({ url: "not-a-url" })
+    const result = analyzeSchema["~standard"].validate({ url: "not-a-url" })
 
-    expect(result.success).toBe(false)
+    if (result instanceof Promise) {
+      throw new Error("Expected sync validation")
+    }
 
-    if (result.success) {
+    expect("issues" in result).toBe(true)
+
+    if (!("issues" in result)) {
       throw new Error("Expected schema parsing to fail")
     }
 
-    expect(result.error.issues[0]?.message).toBe("Invalid URL provided.")
+    expect(result.issues?.[0]?.message).toBe("Invalid URL provided.")
   })
 
   it("accepts array-based formats", () => {
-    const result = analyzeSchema.safeParse({
+    const result = analyzeSchema["~standard"].validate({
       url: "https://example.com",
       format: ["object", "text"],
     })
 
-    expect(result.success).toBe(true)
+    if (result instanceof Promise) {
+      throw new Error("Expected sync validation")
+    }
 
-    if (!result.success) {
+    expect("value" in result).toBe(true)
+
+    if (!("value" in result)) {
       throw new Error("Expected schema parsing to succeed")
     }
 
-    expect(result.data.format).toEqual(["object", "text"])
+    expect(result.value.format).toEqual(["json", "text"])
+  })
+
+  it.each(["file:///tmp/video.mp4", "ftp://example.com/video.mp4"])(
+    "rejects unsupported URL protocol %s",
+    (url) => {
+      const result = analyzeSchema["~standard"].validate({ url })
+
+      if (result instanceof Promise) {
+        throw new Error("Expected sync validation")
+      }
+
+      expect("issues" in result).toBe(true)
+    }
+  )
+
+  it("rejects unsupported, duplicate, and excessive formats", () => {
+    const url = "https://example.com/video.mp4"
+
+    const unsupported = analyzeSchema["~standard"].validate({
+      url,
+      format: ["YAML"],
+    })
+
+    const duplicate = analyzeSchema["~standard"].validate({
+      url,
+      format: ["JSON", "JSON"],
+    })
+
+    const excessive = analyzeSchema["~standard"].validate({
+      url,
+      format: ["object", "JSON", "Text", "XML", "HTML", "text"],
+    })
+
+    if (
+      unsupported instanceof Promise ||
+      duplicate instanceof Promise ||
+      excessive instanceof Promise
+    ) {
+      throw new Error("Expected sync validation")
+    }
+
+    expect("issues" in unsupported).toBe(true)
+    expect("issues" in duplicate).toBe(true)
+    expect("issues" in excessive).toBe(true)
   })
 })

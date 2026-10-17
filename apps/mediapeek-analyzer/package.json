@@ -25,8 +25,9 @@
     "@hono/standard-validator": "^0.4.0",
     "@mediapeek/shared": "workspace:*",
     "@standard-schema/spec": "^1.1.0",
-    "hono": "^4.13.13",
-    "zod": "^4.6.5"
+    "effect": "catalog:",
+    "evlog": "catalog:",
+    "hono": "^4.13.13"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",

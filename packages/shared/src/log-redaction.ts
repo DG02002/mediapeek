@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { Schema } from "effect"
 
 const REDACTED = "[REDACTED]"
 
@@ -30,22 +30,22 @@ export type SensitiveLogValue =
   | boolean
   | null
   | Date
-  | SensitiveLogValue[]
+  | readonly SensitiveLogValue[]
   | SensitiveLogObject
 
-export const SensitiveLogValueSchema: z.ZodType<SensitiveLogValue> = z.lazy(
-  () =>
-    z.union([
-      z.undefined(),
-      z.string(),
-      z.number(),
-      z.boolean(),
-      z.null(),
-      z.date(),
-      z.array(SensitiveLogValueSchema),
-      z.record(z.string(), SensitiveLogValueSchema),
+export const SensitiveLogValueSchema: Schema.Codec<SensitiveLogValue> =
+  Schema.suspend(() =>
+    Schema.Union([
+      Schema.Undefined,
+      Schema.String,
+      Schema.Finite,
+      Schema.Boolean,
+      Schema.Null,
+      Schema.instanceOf(Date),
+      Schema.Array(SensitiveLogValueSchema),
+      Schema.Record(Schema.String, SensitiveLogValueSchema),
     ])
-)
+  )
 
 const SENSITIVE_FIELD_PATTERNS = [
   /token/i,
@@ -57,15 +57,23 @@ const SENSITIVE_FIELD_PATTERNS = [
   /signature/i,
 ]
 
-const SENSITIVE_LOG_STRING_SCHEMA = z.string()
+const isString = Schema.is(Schema.String)
 
-const isPlainObject = (value: SensitiveLogValue): value is SensitiveLogObject =>
-  value !== undefined &&
-  value !== null &&
-  !Array.isArray(value) &&
-  !(value instanceof Date) &&
-  (Object.getPrototypeOf(value) === Object.prototype ||
-    Object.getPrototypeOf(value) === null)
+const isRecord = Schema.is(
+  Schema.Record(Schema.String, SensitiveLogValueSchema)
+)
+
+const isPlainObject = (
+  value: SensitiveLogValue
+): value is SensitiveLogObject => {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  const prototype = Object.getPrototypeOf(value)
+
+  return prototype === Object.prototype || prototype === null
+}
 
 const isLikelyAbsoluteUrl = (value: string) =>
   /^https?:\/\//i.test(value.trim())
@@ -123,14 +131,12 @@ const redactInternal = (
   value: SensitiveLogValue,
   keyHint?: string
 ): SensitiveLogValue => {
-  const stringValue = SENSITIVE_LOG_STRING_SCHEMA.safeParse(value)
-
-  if (stringValue.success) {
+  if (isString(value)) {
     if (keyHint && isSensitiveFieldName(keyHint)) {
       return REDACTED
     }
 
-    return redactString(stringValue.data)
+    return redactString(value)
   }
 
   if (Array.isArray(value)) {

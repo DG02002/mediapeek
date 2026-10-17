@@ -1,16 +1,20 @@
 import type { ArchiveEntryInspection } from "@mediapeek/shared/archive-inspection"
+import { Schema } from "effect"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { fetchMediaChunk } from "~/services/media-fetch.server"
+import {
+  MediaInfoResultSchema,
+  type JsonMediaInfo,
+  type MediaInfoResult,
+} from "../lib/media-utils"
+import { fetchMediaChunk } from "./media-fetch.server"
+import type { MediaInfoInstance } from "./mediainfo-factory.server"
 import {
   analyzeMediaBuffer,
-  parseMediaInfoResultJson,
   type AnalyzeMediaBufferOptions,
-  type MediaInfoPort,
-  type MediaInfoResult,
-} from "~/services/mediainfo.server"
+} from "./mediainfo.server"
 
-let mockAnalyzeDataResult: MediaInfoResult = {
+let mockAnalyzeDataResult: JsonMediaInfo = {
   media: {
     track: [{ "@type": "General" }],
   },
@@ -18,7 +22,7 @@ let mockAnalyzeDataResult: MediaInfoResult = {
 
 const mockInformResult = "General\n"
 
-const createMockMediaInfo = async (): Promise<MediaInfoPort> => ({
+const createMockMediaInfo = async (): Promise<MediaInfoInstance> => ({
   options: {
     chunkSize: 0,
     coverData: false,
@@ -36,8 +40,15 @@ const createMockMediaInfo = async (): Promise<MediaInfoPort> => ({
 })
 
 const analyzeWithMockMediaInfo = (
-  options: Omit<AnalyzeMediaBufferOptions, "createMediaInfo">
-) => analyzeMediaBuffer({ ...options, createMediaInfo: createMockMediaInfo })
+  options: Omit<AnalyzeMediaBufferOptions, "dependencies">
+) =>
+  analyzeMediaBuffer({
+    ...options,
+    dependencies: { createMediaInfo: createMockMediaInfo },
+  })
+
+const parseMediaInfoResultJson = (json: string): MediaInfoResult =>
+  Schema.decodeUnknownSync(MediaInfoResultSchema)(JSON.parse(json))
 
 const makeResponse = (
   body: Uint8Array | null,
@@ -118,7 +129,9 @@ describe("fetchMediaChunk filename fallback", () => {
         })
       )
 
-    const result = await fetchMediaChunk("https://example.com/token")
+    const result = await fetchMediaChunk({
+      initialUrl: "https://example.com/token",
+    })
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(result.filename).toBe("from-get.mp4")
@@ -152,7 +165,9 @@ describe("fetchMediaChunk filename fallback", () => {
         })
       )
 
-    const result = await fetchMediaChunk("https://example.com/token")
+    const result = await fetchMediaChunk({
+      initialUrl: "https://example.com/token",
+    })
 
     expect(result.filename).toBe("from-head.mp4")
     expect(result.filenameSource).toBe("content-disposition-head")
@@ -182,7 +197,9 @@ describe("fetchMediaChunk filename fallback", () => {
         })
       )
 
-    const result = await fetchMediaChunk("https://example.com/url-token")
+    const result = await fetchMediaChunk({
+      initialUrl: "https://example.com/url-token",
+    })
 
     expect(result.filename).toBe("url-token")
     expect(result.filenameSource).toBe("url")
@@ -213,7 +230,7 @@ describe("fetchMediaChunk filename fallback", () => {
         })
       )
 
-    const result = await fetchMediaChunk(proxiedUrl)
+    const result = await fetchMediaChunk({ initialUrl: proxiedUrl })
 
     expect(result.fileSize).toBe(4_373_212_360)
     expect(result.filename).toBe(proxiedFilename)
@@ -241,7 +258,9 @@ describe("fetchMediaChunk filename fallback", () => {
         })
       )
 
-    const result = await fetchMediaChunk("https://example.com/tokenized-media")
+    const result = await fetchMediaChunk({
+      initialUrl: "https://example.com/tokenized-media",
+    })
 
     expect(result.fileSize).toBe(4)
     expect(result.filename).toBe("from-get.mp4")
@@ -270,7 +289,9 @@ describe("fetchMediaChunk filename fallback", () => {
         })
       )
 
-    const result = await fetchMediaChunk("https://example.com/archive")
+    const result = await fetchMediaChunk({
+      initialUrl: "https://example.com/archive",
+    })
 
     expect(result.fileSize).toBe(4)
     expect(Array.from(result.buffer)).toEqual([0xaa, 0xbb, 0xcc, 0xdd])

@@ -1,40 +1,53 @@
 import { analyzeSchema } from "@mediapeek/shared/schemas"
+import type { Schema } from "effect"
 import { describe, expect, it } from "vitest"
+
+type AnalyzeSchemaInput = typeof Schema.Json.Type
+
+const validateAnalyzeSchema = (input: AnalyzeSchemaInput) => {
+  const result = analyzeSchema["~standard"].validate(input)
+
+  if (result instanceof Promise) {
+    throw new Error("Expected synchronous schema validation")
+  }
+
+  return result
+}
 
 describe("analyzeSchema", () => {
   it("validates a correct URL and applies default format", () => {
-    const result = analyzeSchema.safeParse({
+    const result = validateAnalyzeSchema({
       url: "https://example.com/video.mp4",
     })
 
-    expect(result.success).toBe(true)
+    expect("value" in result).toBe(true)
 
-    if (result.success) {
-      expect(result.data.url).toBe("https://example.com/video.mp4")
-      expect(result.data.format).toEqual(["JSON"])
+    if ("value" in result) {
+      expect(result.value.url).toBe("https://example.com/video.mp4")
+      expect(result.value.format).toEqual(["json"])
     }
   })
 
   it("rejects an invalid URL", () => {
-    const result = analyzeSchema.safeParse({ url: "not-a-url" })
+    const result = validateAnalyzeSchema({ url: "not-a-url" })
 
-    expect(result.success).toBe(false)
+    expect("issues" in result).toBe(true)
 
-    if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Invalid URL provided.")
+    if ("issues" in result) {
+      expect(result.issues?.[0]?.message).toBe("Invalid URL provided.")
     }
   })
 
   it("accepts array-based formats", () => {
-    const result = analyzeSchema.safeParse({
+    const result = validateAnalyzeSchema({
       url: "https://example.com",
       format: ["object", "text"],
     })
 
-    expect(result.success).toBe(true)
+    expect("value" in result).toBe(true)
 
-    if (result.success) {
-      expect(result.data.format).toEqual(["object", "text"])
+    if ("value" in result) {
+      expect(result.value.format).toEqual(["json", "text"])
     }
   })
 })

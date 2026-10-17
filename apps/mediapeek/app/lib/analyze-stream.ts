@@ -6,8 +6,7 @@ import {
   type AnalyzeStreamProgressEvent,
   type AnalyzeStreamSuccessEvent,
 } from "@mediapeek/shared/analyze-progress"
-import { Schema } from "effect"
-import { z } from "zod"
+import { Result, Schema } from "effect"
 
 type AnalyzeStreamTerminalEvent =
   | AnalyzeStreamErrorEvent
@@ -38,31 +37,31 @@ const ANALYZE_ERROR_CODES = [
   "INTERNAL_ERROR",
 ] as const satisfies readonly AnalyzeErrorCode[]
 
-const analyzeStreamEventSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("progress"),
-    requestId: z.string(),
-    stage: z.enum(ANALYZE_PROGRESS_STAGES),
-    title: z.string(),
-    message: z.string(),
+const analyzeStreamEventSchema = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("progress"),
+    requestId: Schema.String,
+    stage: Schema.Literals(ANALYZE_PROGRESS_STAGES),
+    title: Schema.String,
+    message: Schema.String,
   }),
-  z.object({
-    type: z.literal("success"),
-    requestId: z.string(),
-    results: z.record(z.string(), z.string()),
+  Schema.Struct({
+    type: Schema.Literal("success"),
+    requestId: Schema.String,
+    results: Schema.Record(Schema.String, Schema.String),
   }),
-  z.object({
-    type: z.literal("error"),
-    requestId: z.string(),
-    error: z.object({
-      code: z.enum(ANALYZE_ERROR_CODES),
-      message: z.string(),
-      retryable: z.boolean(),
+  Schema.Struct({
+    type: Schema.Literal("error"),
+    requestId: Schema.String,
+    error: Schema.Struct({
+      code: Schema.Literals(ANALYZE_ERROR_CODES),
+      message: Schema.String,
+      retryable: Schema.Boolean,
     }),
   }),
 ])
 
-type AnalyzeStreamEvent = z.infer<typeof analyzeStreamEventSchema>
+type AnalyzeStreamEvent = typeof analyzeStreamEventSchema.Type
 
 const parseAnalyzeStreamEvent = (line: string): AnalyzeStreamEvent => {
   let parsedJson: Schema.Json
@@ -73,13 +72,15 @@ const parseAnalyzeStreamEvent = (line: string): AnalyzeStreamEvent => {
     throw new Error("The analysis response stream contains invalid JSON.")
   }
 
-  const parsedEvent = analyzeStreamEventSchema.safeParse(parsedJson)
+  const parsedEvent = Schema.decodeUnknownResult(analyzeStreamEventSchema)(
+    parsedJson
+  )
 
-  if (!parsedEvent.success) {
+  if (Result.isFailure(parsedEvent)) {
     throw new Error("The analysis response stream contains an invalid event.")
   }
 
-  return parsedEvent.data
+  return parsedEvent.success
 }
 
 export function isAnalyzeProgressStreamResponse(response: Response): boolean {

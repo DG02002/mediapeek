@@ -1,3 +1,5 @@
+import { Schema } from "effect"
+
 import { PrivateBinResponseSchema } from "./schemas/privatebin"
 
 const privateBinHost = "https://privatebin.net"
@@ -126,7 +128,7 @@ const parsePrivateBinResponse = async (response: Response) => {
   }
 
   const json = await response.json()
-  const result = PrivateBinResponseSchema.parse(json)
+  const result = Schema.decodeUnknownSync(PrivateBinResponseSchema)(json)
 
   if (result.status !== 0) {
     console.error(

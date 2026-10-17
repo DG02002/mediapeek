@@ -1,3 +1,7 @@
+import {
+  analysisOutputFormats,
+  type AnalysisOutputId,
+} from "@mediapeek/shared/analysis-output-formats"
 import type { AnalyzeProgressStage } from "@mediapeek/shared/analyze-progress"
 import {
   ARCHIVE_SIZING_WARNING,
@@ -7,18 +11,21 @@ import {
   type FilenameSource,
   getMediaInfoMetadataFilename,
 } from "@mediapeek/shared/filename-resolution"
+import { Schema } from "effect"
 
 import { DiagnosticsError } from "../lib/error-utils"
 import {
-  MediaInfoDataSchema,
-  type MediaInfoData,
+  MediaInfoResultSchema,
   extractFirstFileFromArchive,
   isArchiveExtension,
-  mediaInfoResultSchema,
   normalizeMediaInfo,
-  type MediaInfoResult,
+  type JsonMediaInfo,
+  type MediaInfoTrack,
 } from "../lib/media-utils"
-import { createMediaInfo, type MediaInfo } from "./mediainfo-factory.server"
+import {
+  createMediaInfo,
+  type MediaInfoInstance,
+} from "./mediainfo-factory.server"
 
 export class CpuBudgetExceededError extends Error {
   constructor(message = "CPU budget exceeded") {
@@ -57,27 +64,37 @@ export interface MediaInfoAnalysis {
 
 type MediaInfoFormat = "object" | "Text" | "XML" | "HTML"
 
-type AnalysisProgressReporter = (
+export type AnalysisProgressReporter = (
   stage: AnalyzeProgressStage,
   title: string,
   message: string
 ) => Promise<void> | void
 
+export interface MediaInfoAnalysisDependencies {
+  readonly createMediaInfo: () => Promise<MediaInfoInstance>
+}
+
+const defaultMediaInfoAnalysisDependencies: MediaInfoAnalysisDependencies = {
+  createMediaInfo,
+}
+
 type ReadChunk = (size: number, offset: number) => Promise<Uint8Array>
 
-type AnalyzeMediaBufferOptions = {
+export interface AnalyzeMediaBufferOptions {
   fileBuffer: Uint8Array
   fileSize?: number
   filename: string
   filenameSource?: FilenameSource
-  requestedFormats?: string[]
+  requestedFormats?: readonly AnalysisOutputId[]
   cpuBudgetMs?: number
   archiveEntry?: ArchiveEntryInspection
   remoteReadChunk?: ReadChunk
   reportProgress?: AnalysisProgressReporter
+  signal?: AbortSignal
+  dependencies?: MediaInfoAnalysisDependencies
 }
 
-type FormatRequest = { type: MediaInfoFormat; key: string }
+type FormatRequest = { type: MediaInfoFormat; key: AnalysisOutputId }
 
 type FormatState = {
   results: Record<string, string>
@@ -86,27 +103,35 @@ type FormatState = {
   resolvedFilenameSource: FilenameSource
 }
 
-type MediaInfoTrack = NonNullable<
-  NonNullable<MediaInfoResult["media"]>["track"]
->[number]
+type MediaInfoData = JsonMediaInfo
 
-const allFormats: FormatRequest[] = [
-  { type: "object", key: "json" },
-  { type: "Text", key: "text" },
-  { type: "XML", key: "xml" },
-  { type: "HTML", key: "html" },
-]
+const resolveFormatType = (format: AnalysisOutputId): MediaInfoFormat => {
+  switch (format) {
+    case "json":
+      return "object"
+    case "text":
+      return "Text"
+    case "xml":
+      return "XML"
+    case "html":
+      return "HTML"
 
-const selectFormats = (requestedFormats: string[]): FormatRequest[] => {
-  const selected = allFormats.filter(
-    (format) =>
-      requestedFormats.includes("all") ||
-      requestedFormats.includes(format.key) ||
-      requestedFormats.includes(format.type.toLowerCase())
-  )
-
-  return selected.length > 0 ? selected : [{ type: "object", key: "json" }]
+    default:
+      return unsupportedAnalysisOutput(format)
+  }
 }
+
+const unsupportedAnalysisOutput = (format: never): never => {
+  throw new Error("Unsupported analysis output: " + String(format))
+}
+
+const selectFormats = (
+  requestedFormats?: readonly AnalysisOutputId[]
+): FormatRequest[] =>
+  analysisOutputFormats.parse(requestedFormats).map((key) => ({
+    key,
+    type: resolveFormatType(key),
+  }))
 
 const getArchiveFilename = (
   fileBuffer: Uint8Array,
@@ -138,35 +163,17 @@ const createReadChunk =
     startTime: number
     cpuBudgetMs: number
     remoteReadChunk?: ReadChunk
+    signal?: AbortSignal
   }): ReadChunk =>
   async (size, offset) => {
+    options.signal?.throwIfAborted()
+
     checkCpuBudget(options.startTime, options.cpuBudgetMs)
 
     return options.remoteReadChunk
       ? options.remoteReadChunk(size, offset)
       : readLocalChunk(options.fileBuffer, size, offset)
   }
-
-const resolveMediaInfoFormat = (
-  type: MediaInfoFormat
-): MediaInfo["options"]["format"] => {
-  switch (type) {
-    case "object":
-      return "object"
-    case "Text":
-      return "Text"
-    case "XML":
-      return "XML"
-    case "HTML":
-      return "HTML"
-  }
-
-  return unsupportedMediaInfoFormat(type)
-}
-
-const unsupportedMediaInfoFormat = (type: never): never => {
-  throw new Error("Unsupported MediaInfo format: " + String(type))
-}
 
 const findTextFilenameInsertIndex = (lines: string[], generalIndex: number) => {
   for (let index = generalIndex + 1; index < lines.length; index += 1) {
@@ -204,20 +211,36 @@ const insertTextFilename = (result: string, filename: string) => {
   return lines.join("\n")
 }
 
-const setArchiveFields = (
-  generalTrack: MediaInfoTrack,
+interface ArchiveSizingFields {
+  Archive_Sizing_Status: ArchiveEntryInspection["sizeStatus"]
+  Archive_Sizing_Source: ArchiveEntryInspection["sizeSource"]
+  Archive_Sizing_Warning?: string
+}
+
+const getArchiveFields = (
+  archiveEntry: ArchiveEntryInspection
+): ArchiveSizingFields => {
+  const fields: ArchiveSizingFields = {
+    Archive_Sizing_Status: archiveEntry.sizeStatus,
+    Archive_Sizing_Source: archiveEntry.sizeSource,
+  }
+
+  if (archiveEntry.sizeStatus === "estimated") {
+    fields.Archive_Sizing_Warning = ARCHIVE_SIZING_WARNING
+  }
+
+  return fields
+}
+
+const applyArchiveFields = (
+  track: MediaInfoTrack,
   archiveEntry?: ArchiveEntryInspection
-) => {
+): void => {
   if (!archiveEntry) {
     return
   }
 
-  generalTrack.Archive_Sizing_Status = archiveEntry.sizeStatus
-  generalTrack.Archive_Sizing_Source = archiveEntry.sizeSource
-
-  if (archiveEntry.sizeStatus === "estimated") {
-    generalTrack.Archive_Sizing_Warning = ARCHIVE_SIZING_WARNING
-  }
+  Object.assign(track, getArchiveFields(archiveEntry))
 }
 
 const processObjectResult = (options: {
@@ -230,17 +253,24 @@ const processObjectResult = (options: {
 }) => {
   try {
     const normalizedResult = normalizeMediaInfo(options.resultData)
-    const json: MediaInfoResult = mediaInfoResultSchema.parse(normalizedResult)
 
-    const generalTrack = json.media?.track?.find(
-      (track) => track["@type"] === "General"
+    const json = Schema.decodeUnknownSync(MediaInfoResultSchema)(
+      normalizedResult
     )
 
-    if (generalTrack) {
+    if (!json.media?.track) {
+      return JSON.stringify(json)
+    }
+
+    const tracks = json.media.track.map((track) => {
+      if (track["@type"] !== "General") {
+        return track
+      }
+
       const metadataFallback =
         options.state.resolvedFilenameSource === "url" &&
         options.filenameSource === "url"
-          ? getMediaInfoMetadataFilename(generalTrack)
+          ? getMediaInfoMetadataFilename(track)
           : undefined
 
       if (metadataFallback) {
@@ -248,16 +278,24 @@ const processObjectResult = (options: {
         options.state.resolvedFilenameSource = metadataFallback.source
       }
 
-      generalTrack.CompleteName = options.state.displayFilename
-
-      if (options.archiveName) {
-        generalTrack.Archive_Name = options.archiveName
+      const updatedTrack = {
+        ...track,
+        CompleteName: options.state.displayFilename,
       }
 
-      setArchiveFields(generalTrack, options.archiveEntry)
-    }
+      if (options.archiveName) {
+        Object.assign(updatedTrack, { Archive_Name: options.archiveName })
+      }
 
-    return JSON.stringify(json)
+      applyArchiveFields(updatedTrack, options.archiveEntry)
+
+      return updatedTrack
+    })
+
+    return JSON.stringify({
+      ...json,
+      media: { ...json.media, track: tracks },
+    })
   } catch (error) {
     options.state.diagnostics.objectProcessError =
       error instanceof Error ? error.message : String(error)
@@ -272,16 +310,15 @@ type FormatAnalysisResult =
   | { kind: "text"; value: string }
 
 const analyzeRawFormat = async (options: {
-  infoInstance: MediaInfo
+  infoInstance: MediaInfoInstance
   format: FormatRequest
   fileSize: number
   readChunk: ReadChunk
+  signal?: AbortSignal
 }): Promise<FormatAnalysisResult> => {
-  options.infoInstance.options.format = resolveMediaInfoFormat(
-    options.format.type
-  )
-  options.infoInstance.options.full =
-    options.format.type === "object" || options.format.type === "Text"
+  options.signal?.throwIfAborted()
+
+  analysisOutputFormats.configure(options.format.key, options.infoInstance)
   options.infoInstance.reset()
 
   const resultData = await options.infoInstance.analyzeData(
@@ -293,18 +330,11 @@ const analyzeRawFormat = async (options: {
     return { kind: "text", value: options.infoInstance.inform() }
   }
 
-  try {
-    return { kind: "object", data: MediaInfoDataSchema.parse(resultData) }
-  } catch (error) {
-    return {
-      kind: "object_error",
-      message: error instanceof Error ? error.message : String(error),
-    }
-  }
+  return { kind: "object", data: resultData }
 }
 
 const generateFormat = async (options: {
-  infoInstance: MediaInfo
+  infoInstance: MediaInfoInstance
   format: FormatRequest
   fileSize: number
   readChunk: ReadChunk
@@ -313,6 +343,7 @@ const generateFormat = async (options: {
   archiveName?: string
   archiveEntry?: ArchiveEntryInspection
   state: FormatState
+  signal?: AbortSignal
 }) => {
   const formatStart = performance.now()
 
@@ -322,6 +353,7 @@ const generateFormat = async (options: {
       format: options.format,
       fileSize: options.fileSize,
       readChunk: options.readChunk,
+      signal: options.signal,
     })
 
     const output = renderFormatResult(resultData, options)
@@ -332,6 +364,8 @@ const generateFormat = async (options: {
       durationMs: Math.round(performance.now() - formatStart),
     }
   } catch (error) {
+    options.signal?.throwIfAborted()
+
     return {
       key: options.format.key,
       output: "Error generating " + options.format.type + " view.",
@@ -343,7 +377,7 @@ const generateFormat = async (options: {
 const renderFormatResult = (
   resultData: FormatAnalysisResult,
   options: {
-    infoInstance: MediaInfo
+    infoInstance: MediaInfoInstance
     format: FormatRequest
     filename: string
     filenameSource: FilenameSource
@@ -377,7 +411,7 @@ const renderFormatResult = (
 const generateFormatsSequentially = async (parameters: {
   index: number
   formats: FormatRequest[]
-  infoInstance: MediaInfo
+  infoInstance: MediaInfoInstance
   options: {
     fileSize: number
     readChunk: ReadChunk
@@ -385,6 +419,7 @@ const generateFormatsSequentially = async (parameters: {
     filenameSource: FilenameSource
     archiveName?: string
     archiveEntry?: ArchiveEntryInspection
+    signal?: AbortSignal
   }
   state: FormatState
 }): Promise<void> => {
@@ -404,6 +439,7 @@ const generateFormatsSequentially = async (parameters: {
     archiveName: parameters.options.archiveName,
     archiveEntry: parameters.options.archiveEntry,
     state: parameters.state,
+    signal: parameters.options.signal,
   })
 
   parameters.state.results[result.key] = result.output
@@ -431,16 +467,20 @@ const runMediaInfo = async (
     archiveName?: string
     archiveEntry?: ArchiveEntryInspection
     reportProgress?: AnalysisProgressReporter
+    signal?: AbortSignal
+    dependencies: MediaInfoAnalysisDependencies
   },
   state: FormatState
 ) => {
   const factoryStart = performance.now()
-  const infoInstance = await createMediaInfo()
+  const infoInstance = await options.dependencies.createMediaInfo()
   state.diagnostics.factoryCreateTimeMs = Math.round(
     performance.now() - factoryStart
   )
 
   try {
+    options.signal?.throwIfAborted()
+
     infoInstance.options.chunkSize = 5 * 1024 * 1024
     infoInstance.options.coverData = false
     await options.reportProgress?.(
@@ -465,12 +505,16 @@ export async function analyzeMediaBuffer({
   fileSize,
   filename,
   filenameSource = "url",
-  requestedFormats = [],
+  requestedFormats,
   cpuBudgetMs = DEFAULT_ANALYSIS_CPU_BUDGET_MS,
   archiveEntry,
   remoteReadChunk,
   reportProgress,
+  signal,
+  dependencies = defaultMediaInfoAnalysisDependencies,
 }: AnalyzeMediaBufferOptions): Promise<MediaInfoAnalysis> {
+  signal?.throwIfAborted()
+
   const startTime = performance.now()
   const effectiveFileSize = fileSize ?? fileBuffer.byteLength
 
@@ -505,16 +549,21 @@ export async function analyzeMediaBuffer({
           startTime,
           cpuBudgetMs,
           remoteReadChunk,
+          signal,
         }),
         filename,
         filenameSource,
         archiveName,
         archiveEntry,
         reportProgress,
+        signal,
+        dependencies,
       },
       state
     )
   } catch (error) {
+    signal?.throwIfAborted()
+
     state.diagnostics.wasmLoadError =
       error instanceof Error ? error.message : String(error)
     throw new DiagnosticsError(

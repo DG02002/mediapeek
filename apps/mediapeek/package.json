@@ -31,8 +31,7 @@
     "react-dom": "^19.3.0",
     "react-router": "^8.4.0",
     "remix-themes": "^2.0.4",
-    "sonner": "^2.0.8",
-    "zod": "^4.6.5"
+    "sonner": "^2.0.8"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.63.1",

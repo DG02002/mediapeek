@@ -1,100 +1,96 @@
 import { extractFirstFileFromArchive as inspectFirstArchiveFile } from "@mediapeek/shared/archive-inspection"
-import { z } from "zod"
+import { Result, Schema } from "effect"
+import type { MediaInfoResult as LibraryMediaInfoResult } from "mediainfo.js"
 
-export type MediaInfoData =
-  | string
-  | number
-  | boolean
-  | null
-  | undefined
-  | MediaInfoData[]
-  | MediaInfoDataObject
+export type JsonMediaInfo = typeof Schema.Json.Type
 
-interface MediaInfoDataObject {
-  [key: string]: MediaInfoData
-}
+const JsonRecord = Schema.Record(Schema.String, Schema.Json)
 
-export const MediaInfoDataSchema: z.ZodType<MediaInfoData> = z.lazy(() =>
-  z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.undefined(),
-    z.array(MediaInfoDataSchema),
-    z.record(z.string(), MediaInfoDataSchema),
-  ])
-)
-
-const mediaInfoObjectSchema = z.record(z.string(), MediaInfoDataSchema)
-
-const mediaInfoTrackSchema = z
-  .object({
-    "@type": z.string(),
-    CompleteName: z.string().optional(),
-    Complete_name: z.string().optional(),
-    File_Name: z.string().optional(),
-    Title: z.string().optional(),
-    Movie: z.string().optional(),
-    Archive_Name: z.string().optional(),
-    Archive_Sizing_Status: z.enum(["verified", "estimated"]).optional(),
-    Archive_Sizing_Source: z
-      .enum([
+const MediaInfoTrackSchema = Schema.StructWithRest(
+  Schema.Struct({
+    "@type": Schema.String,
+    CompleteName: Schema.optionalKey(Schema.String),
+    Complete_name: Schema.optionalKey(Schema.String),
+    File_Name: Schema.optionalKey(Schema.String),
+    Title: Schema.optionalKey(Schema.String),
+    Movie: Schema.optionalKey(Schema.String),
+    Archive_Name: Schema.optionalKey(Schema.String),
+    Archive_Sizing_Status: Schema.optionalKey(
+      Schema.Literals(["verified", "estimated"])
+    ),
+    Archive_Sizing_Source: Schema.optionalKey(
+      Schema.Literals([
         "zip-local-header",
         "zip-central-directory",
         "tar-header",
         "unknown",
       ])
-      .optional(),
-    Archive_Sizing_Warning: z.string().optional(),
-  })
-  .catchall(MediaInfoDataSchema)
+    ),
+    Archive_Sizing_Warning: Schema.optionalKey(Schema.String),
+  }),
+  [JsonRecord]
+)
 
-export const mediaInfoResultSchema = z
-  .object({
-    media: z
-      .object({
-        track: z.array(mediaInfoTrackSchema).optional(),
-      })
-      .catchall(MediaInfoDataSchema)
-      .optional(),
-  })
-  .catchall(MediaInfoDataSchema)
+const MediaInfoMediaSchema = Schema.StructWithRest(
+  Schema.Struct({
+    track: Schema.optionalKey(Schema.Array(MediaInfoTrackSchema)),
+  }),
+  [JsonRecord]
+)
 
-export type MediaInfoResult = z.output<typeof mediaInfoResultSchema>
+export const MediaInfoResultSchema = Schema.StructWithRest(
+  Schema.Struct({ media: Schema.optionalKey(MediaInfoMediaSchema) }),
+  [JsonRecord]
+)
 
-/** Recursively unwrap MediaInfo `{ "#value": ... }` metadata wrappers. */
-export const normalizeMediaInfo = (data: MediaInfoData): MediaInfoData => {
-  if (Array.isArray(data)) {
-    return data.map((item) => normalizeMediaInfo(item))
+export type MediaInfoResult = typeof MediaInfoResultSchema.Type
+
+export type MediaInfoTrack = NonNullable<
+  NonNullable<MediaInfoResult["media"]>["track"]
+>[number]
+
+const isJsonArray = Schema.is(Schema.Array(Schema.Json))
+const isJsonObject = Schema.is(Schema.JsonObject)
+
+const normalizeJsonMediaInfo = (data: JsonMediaInfo): JsonMediaInfo => {
+  if (isJsonArray(data)) {
+    return data.map((item) => normalizeJsonMediaInfo(item))
   }
 
-  const objectResult = mediaInfoObjectSchema.safeParse(data)
+  if (isJsonObject(data)) {
+    const wrappedValue = data["#value"]
 
-  if (!objectResult.success) {
-    return data
+    if (wrappedValue !== undefined) {
+      return normalizeJsonMediaInfo(wrappedValue)
+    }
+
+    const normalized: Record<string, JsonMediaInfo> = {}
+
+    for (const [key, value] of Object.entries(data)) {
+      normalized[key] = normalizeJsonMediaInfo(value)
+    }
+
+    return normalized
   }
 
-  const mediaInfoObject = objectResult.data
-  const wrappedValue = mediaInfoObject["#value"]
-
-  if (wrappedValue !== undefined) {
-    return normalizeMediaInfo(wrappedValue)
-  }
-
-  const normalized: MediaInfoDataObject = {}
-
-  for (const [key, value] of Object.entries(mediaInfoObject)) {
-    normalized[key] =
-      value === undefined ? undefined : normalizeMediaInfo(value)
-  }
-
-  return normalized
+  return data
 }
 
-export function extractFirstFileFromArchive(buffer: Uint8Array): string | null {
-  return inspectFirstArchiveFile(buffer)
+export const normalizeMediaInfo = (
+  data: JsonMediaInfo | LibraryMediaInfoResult
+): JsonMediaInfo => {
+  const decoded = Schema.decodeUnknownResult(Schema.Json)(data)
+
+  if (Result.isFailure(decoded)) {
+    throw new Error("MediaInfo returned a non-JSON result.")
+  }
+
+  return normalizeJsonMediaInfo(decoded.success)
 }
+
+export const extractFirstFileFromArchive = (
+  buffer: Uint8Array
+): string | null => inspectFirstArchiveFile(buffer)
 
 export const isArchiveExtension = (filename: string): boolean => {
   const extension = filename.split(".").pop()?.toLowerCase() ?? ""

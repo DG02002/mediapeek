@@ -86,7 +86,7 @@ describe("fetchMediaChunk", () => {
         })
       )
 
-    const result = await fetchMediaChunk(proxiedUrl)
+    const result = await fetchMediaChunk({ initialUrl: proxiedUrl })
 
     expect(result.fileSize).toBe(4_373_212_360)
     expect(result.filename).toBe(proxiedFilename)
@@ -114,7 +114,9 @@ describe("fetchMediaChunk", () => {
         })
       )
 
-    const result = await fetchMediaChunk("https://example.com/tokenized-media")
+    const result = await fetchMediaChunk({
+      initialUrl: "https://example.com/tokenized-media",
+    })
 
     expect(result.fileSize).toBe(4)
     expect(result.filename).toBe("from-get.mp4")
@@ -143,7 +145,9 @@ describe("fetchMediaChunk", () => {
         })
       )
 
-    const result = await fetchMediaChunk("https://example.com/archive")
+    const result = await fetchMediaChunk({
+      initialUrl: "https://example.com/archive",
+    })
 
     expect(result.fileSize).toBe(4)
     expect(Array.from(result.buffer)).toEqual([0xaa, 0xbb, 0xcc, 0xdd])
@@ -194,7 +198,9 @@ describe("fetchMediaChunk", () => {
         )
       )
 
-    const result = await fetchMediaChunk("https://example.com/audio")
+    const result = await fetchMediaChunk({
+      initialUrl: "https://example.com/audio",
+    })
 
     expect(result.byteSource).toBeDefined()
     await expect(result.byteSource?.readChunk(4, 2)).resolves.toEqual(
@@ -236,7 +242,9 @@ describe("fetchMediaChunk", () => {
         })
       )
 
-    const result = await fetchMediaChunk("https://example.com/non-range")
+    const result = await fetchMediaChunk({
+      initialUrl: "https://example.com/non-range",
+    })
 
     expect(result.byteSource).toBeUndefined()
     expect(fetchSpy).toHaveBeenCalledTimes(2)

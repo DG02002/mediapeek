@@ -1,5 +1,6 @@
 import {
-  AnalyzeErrorSchema,
+  AnalyzerValidationIssueSchema,
+  type AnalyzerRpcResponse,
   type AnalyzeErrorCode,
 } from "@mediapeek/shared/analyze-contract"
 import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
@@ -7,12 +8,17 @@ import {
   redactSensitiveUrl,
   summarizeSensitiveToken,
 } from "@mediapeek/shared/log-redaction"
-import { analyzeSchema, type AnalyzeInput } from "@mediapeek/shared/schemas"
-import { Match } from "effect"
-import { hc } from "hono/client"
-import type { AppType } from "mediapeek-analyzer"
-import { z } from "zod"
+import {
+  type AnalyzeInput,
+  TurnstileResponseSchema,
+  type TurnstileResponse,
+} from "@mediapeek/shared/schemas"
+import { Effect, Match, Result, Schema } from "effect"
 
+import {
+  DEFAULT_ANALYZER_REQUEST_TIMEOUT_MS,
+  MAX_ANALYZER_REQUEST_TIMEOUT_MS,
+} from "~/constants"
 import { cloudflareContext } from "~/lib/cloudflare-context.server"
 import { type LogContext, requestStorage } from "~/lib/logger.server"
 import {
@@ -20,97 +26,49 @@ import {
   getRequestIdFromLogger,
   getRequestLogger,
 } from "~/lib/request-logger.server"
-import { TurnstileResponseSchema } from "~/lib/schemas/turnstile"
 import {
   createTurnstileGrantToken,
   readTurnstileGrantCookie,
   serializeTurnstileGrantCookie,
   verifyTurnstileGrantToken,
 } from "~/lib/turnstile-grant.server"
-import { mediaPeekEmitter } from "~/services/event-bus.server"
-import { initTelemetry } from "~/services/telemetry.server"
+import {
+  AnalysisGateway,
+  AnalysisGatewayError,
+} from "~/services/analysis-gateway.server"
+import {
+  AnalysisPolicy,
+  AnalysisPolicyError,
+  type AnalysisPolicyInput,
+} from "~/services/analysis-policy.server"
+import { getWorkerAppRuntime } from "~/services/app-runtime.server"
+import {
+  createRequestContext,
+  RequestContext,
+} from "~/services/request-context.server"
 
 import type { Route } from "./+types/route"
-
-const RATE_LIMIT_WINDOW_MS = 60_000
-const DEFAULT_RATE_LIMIT_PER_MINUTE = 30
-const DEFAULT_ANALYZER_REQUEST_TIMEOUT_MS = 60_000
 
 const LEGACY_GET_WARNING =
   '299 - "GET /resource/analyze is deprecated. Use POST /resource/analyze with JSON body."'
 
-const rateLimitState = new Map<string, { count: number; resetAt: number }>()
-
-const fetchDiagnosticsSchema = z.object({
-  headRequestDurationMs: z.number(),
-  fetchRequestDurationMs: z.number(),
-  totalDurationMs: z.number(),
-  isGoogleDrive: z.boolean(),
-  resolvedFilename: z.string(),
-  resolvedFilenameSource: z.string(),
-  responseStatus: z.number(),
-  probeMethod: z.string(),
-  firstByteReadTimeoutMs: z.number().optional(),
-  firstByteReadRetries: z.number().optional(),
-  firstByteReadStrategy: z.enum(["range", "no_range_fallback"]).optional(),
-  seekFetchCount: z.number().optional(),
-  seekBytesFetched: z.number().optional(),
-  streamCloseError: z.string().optional(),
-})
-
-const mediaInfoDiagnosticsSchema = z.object({
-  wasmLoadTimeMs: z.number(),
-  factoryCreateTimeMs: z.number(),
-  formatGenerationTimes: z.record(z.string(), z.number()),
-  totalAnalysisTimeMs: z.number(),
-  wasmLoadError: z.string().optional(),
-  objectProcessError: z.string().optional(),
-  formatErrors: z.record(z.string(), z.string()),
-})
-
-const analyzerRpcResponseSchema = z.discriminatedUnion("success", [
-  z.object({
-    success: z.literal(true),
-    requestId: z.string().optional(),
-    fileSize: z.number().optional(),
-    results: z.record(z.string(), z.string()),
-    diagnostics: z.object({
-      fetch: fetchDiagnosticsSchema,
-      analysis: mediaInfoDiagnosticsSchema.extend({
-        resolvedFilename: z.string().optional(),
-        resolvedFilenameSource: z.string().optional(),
-      }),
-    }),
-  }),
-  z.object({
-    success: z.literal(false),
-    error: z.union([
-      z.array(z.object({ message: z.string() })),
-      AnalyzeErrorSchema,
-    ]),
-  }),
-])
-
-const archiveMediaSchema = z.object({
-  media: z
-    .object({
-      track: z.array(
-        z
-          .object({
-            "@type": z.string(),
-            Archive_Name: z.string().optional(),
-          })
-          .passthrough()
+const archiveMediaSchema = Schema.Struct({
+  media: Schema.optionalKey(
+    Schema.Struct({
+      track: Schema.Array(
+        Schema.StructWithRest(
+          Schema.Struct({
+            "@type": Schema.String,
+            Archive_Name: Schema.optionalKey(Schema.String),
+          }),
+          [Schema.Record(Schema.String, Schema.Json)]
+        )
       ),
     })
-    .optional(),
+  ),
 })
 
-type AnalyzerRpcResponse = z.infer<typeof analyzerRpcResponseSchema>
-
-type AnalyzerClientResponse = Awaited<
-  ReturnType<ReturnType<typeof hc<AppType>>["analyze"]["$post"]>
->
+type AnalyzerSuccessResponse = Extract<AnalyzerRpcResponse, { success: true }>
 
 type AnalyzeRouteArgs = {
   request: Request
@@ -164,33 +122,39 @@ interface AnalyzeFailure {
   headers?: HeadersInit
 }
 
-const analyzeRequestSchema = z.object({
-  url: analyzeSchema.shape.url,
-  format: z
-    .union([z.string(), z.array(z.string())])
-    .transform((format) => (Array.isArray(format) ? format : [format]))
-    .default(["JSON"]),
-})
+interface ParsedAnalyzeInput {
+  readonly policyInput: AnalysisPolicyInput
+  readonly legacyGet: boolean
+}
 
-type ParsedAnalyzeInput =
-  | { success: true; data: AnalyzeInput; legacyGet: boolean }
-  | {
-      success: false
-      legacyGet: boolean
-      parseError?: string
-      issues?: z.ZodIssue[]
-    }
+type AnalyzeQueryInput = typeof Schema.JsonObject.Type & {
+  url: string | null
+  format?: string[]
+}
+
+const createPolicyInput = (
+  input: typeof Schema.JsonObject.Type,
+  legacyGet: boolean,
+  parseError?: string
+): ParsedAnalyzeInput => {
+  if (parseError) {
+    return { policyInput: { input: {}, parseError }, legacyGet }
+  }
+
+  const { format } = input
+
+  const normalizedInput = Schema.is(Schema.String)(format)
+    ? { ...input, format: [format] }
+    : input
+
+  return { policyInput: { input: normalizedInput }, legacyGet }
+}
 
 const wantsProgressStream = (request: Request) =>
   request.headers
     .get("accept")
     ?.toLowerCase()
     .includes(ANALYZE_PROGRESS_STREAM_CONTENT_TYPE) ?? false
-
-const getClientIp = (request: Request) =>
-  request.headers.get("CF-Connecting-IP") ??
-  request.headers.get("x-real-ip") ??
-  "anonymous"
 
 const getCompatibilityHeaders = (legacyGet: boolean) =>
   legacyGet
@@ -223,60 +187,32 @@ const parseAnalyzeInput = async (
 ): Promise<ParsedAnalyzeInput> => {
   if (request.method === "POST") {
     try {
-      const raw = await request.json()
+      const raw: unknown = await request.json()
+      const decodedObject = Schema.decodeUnknownResult(Schema.JsonObject)(raw)
 
-      const result = analyzeRequestSchema.safeParse(raw)
-
-      if (!result.success) {
-        return { success: false, legacyGet: false, issues: result.error.issues }
+      if (Result.isFailure(decodedObject)) {
+        return createPolicyInput(
+          {},
+          false,
+          "Invalid JSON body. Expected an object payload."
+        )
       }
 
-      return {
-        success: true,
-        data: result.data,
-        legacyGet: false,
-      }
+      return createPolicyInput(decodedObject.success, false)
     } catch {
-      return {
-        success: false,
-        legacyGet: false,
-        parseError: "Invalid JSON body.",
-      }
+      return createPolicyInput({}, false, "Invalid JSON body.")
     }
   }
 
-  const result = analyzeRequestSchema.safeParse({
+  const queryInput: AnalyzeQueryInput = {
     url: url.searchParams.get("url"),
-    format: url.searchParams.has("format")
-      ? url.searchParams.getAll("format")
-      : undefined,
-  })
-
-  if (!result.success) {
-    return { success: false, legacyGet: true, issues: result.error.issues }
   }
 
-  return {
-    success: true,
-    data: result.data,
-    legacyGet: true,
-  }
-}
-
-const getApiKeyFromRequest = (request: Request): string | null => {
-  const xApiKey = request.headers.get("x-api-key")
-
-  if (xApiKey) {
-    return xApiKey
+  if (url.searchParams.has("format")) {
+    queryInput.format = url.searchParams.getAll("format")
   }
 
-  const authorization = request.headers.get("authorization")
-
-  if (!authorization?.startsWith("Bearer ")) {
-    return null
-  }
-
-  return authorization.slice("Bearer ".length).trim() || null
+  return createPolicyInput(queryInput, true)
 }
 
 const buildErrorResponse = (
@@ -314,52 +250,6 @@ const buildSuccessResponse = (
 const isCpuLimitError = (error: Error) =>
   /(exceeded cpu|cpu budget exceeded)/i.test(error.message)
 
-const applyRateLimit = (request: Request, maxPerMinute: number) => {
-  const now = Date.now()
-  const key = getClientIp(request)
-  const current = rateLimitState.get(key)
-
-  if (!current || now >= current.resetAt) {
-    rateLimitState.set(key, {
-      count: 1,
-      resetAt: now + RATE_LIMIT_WINDOW_MS,
-    })
-
-    return { allowed: true, retryAfterMs: 0 }
-  }
-
-  if (current.count >= maxPerMinute) {
-    return { allowed: false, retryAfterMs: current.resetAt - now }
-  }
-
-  current.count += 1
-  rateLimitState.set(key, current)
-
-  // Keep memory bounded for long-lived isolates.
-  if (rateLimitState.size > 4000) {
-    for (const [entryKey, entry] of rateLimitState.entries()) {
-      if (entry.resetAt <= now) {
-        rateLimitState.delete(entryKey)
-      }
-    }
-  }
-
-  return { allowed: true, retryAfterMs: 0 }
-}
-
-const getRateLimitConfig = (env: Env) => {
-  const configured = Number.parseInt(
-    env.ANALYZE_RATE_LIMIT_PER_MINUTE ?? "",
-    10
-  )
-
-  if (Number.isNaN(configured) || configured <= 0) {
-    return DEFAULT_RATE_LIMIT_PER_MINUTE
-  }
-
-  return configured
-}
-
 const getAnalyzerTimeoutMs = (env: Env) => {
   const configured = Number.parseInt(env.ANALYZER_REQUEST_TIMEOUT_MS ?? "", 10)
 
@@ -367,7 +257,7 @@ const getAnalyzerTimeoutMs = (env: Env) => {
     return DEFAULT_ANALYZER_REQUEST_TIMEOUT_MS
   }
 
-  return Math.min(180_000, configured)
+  return Math.min(MAX_ANALYZER_REQUEST_TIMEOUT_MS, configured)
 }
 
 interface TurnstileDecision {
@@ -434,106 +324,57 @@ const failRequest = (
   })
 }
 
-const failRateLimit = (
+const recordValidationFailure = (
   state: AnalyzeRequestState,
-  retryAfterMs: number,
-  source: "cloudflare_binding" | "in_memory"
+  error: AnalysisPolicyError
 ) => {
-  state.customContext.rateLimitSource = source
-
-  return failRequest(state, {
-    status: 429,
-    code: "RATE_LIMITED",
-    message: "Too many analysis requests. Try again in a moment.",
-    retryable: true,
-    severity: "WARNING",
-    errorClass: "ANALYZE_RATE_LIMITED",
-    headers: mergeHeaders(state.compatibilityHeaders, {
-      "Retry-After": String(Math.max(1, Math.ceil(retryAfterMs / 1000))),
-    }),
-  })
+  state.customContext.validationReason = error.reason
+  state.customContext.validationMessage = error.message
 }
 
-const checkAnalyzePolicy = async (
-  state: AnalyzeRequestState
-): Promise<Response | undefined> => {
-  const expectedApiKey = state.env.ANALYZE_PUBLIC_API_KEY?.trim()
-
-  if (expectedApiKey) {
-    const providedApiKey = getApiKeyFromRequest(state.request)
-
-    if (!providedApiKey) {
-      return failRequest(state, {
-        status: 401,
-        code: "AUTH_REQUIRED",
-        message: "Missing API key.",
-        retryable: false,
-        severity: "WARNING",
-        errorClass: "ANALYZE_AUTH_FAILED",
-      })
-    }
-
-    if (providedApiKey !== expectedApiKey) {
-      return failRequest(state, {
-        status: 403,
-        code: "AUTH_INVALID",
-        message: "Invalid API key.",
-        retryable: false,
-        severity: "WARNING",
-        errorClass: "ANALYZE_AUTH_FAILED",
-      })
-    }
-  }
-
-  const rateLimiter = state.env.ANALYZE_RATE_LIMITER
-
-  if (rateLimiter) {
-    try {
-      const outcome = await rateLimiter.limit({
-        key: getClientIp(state.request),
-      })
-
-      if (!outcome.success) {
-        return failRateLimit(state, 60_000, "cloudflare_binding")
-      }
-    } catch (error) {
-      state.customContext.rateLimitBindingError =
-        error instanceof Error ? error.message : String(error)
-    }
-  }
-
-  const rateLimitResult = applyRateLimit(
-    state.request,
-    getRateLimitConfig(state.env)
+const getAnalysisPolicyErrorClass = (reason: AnalysisPolicyError["reason"]) =>
+  Match.value(reason).pipe(
+    Match.when("rate-limited", () => "ANALYZE_RATE_LIMITED"),
+    Match.when(
+      "rate-limit-unavailable",
+      () => "ANALYZE_RATE_LIMIT_UNAVAILABLE"
+    ),
+    Match.when("rate-limit-missing", () => "ANALYZE_RATE_LIMIT_MISSING"),
+    Match.orElse(() => "ANALYZE_VALIDATION_FAILED")
   )
 
-  if (!rateLimitResult.allowed) {
-    return failRateLimit(state, rateLimitResult.retryAfterMs, "in_memory")
+const createPolicyErrorResponse = (
+  state: AnalyzeRequestState,
+  error: AnalysisPolicyError
+) => {
+  if (error.rateLimitSource) {
+    state.customContext.rateLimitSource = error.rateLimitSource
   }
 
-  return undefined
-}
+  if (error.rateLimitBindingError) {
+    state.customContext.rateLimitBindingError = error.rateLimitBindingError
+  }
 
-const getValidationMessage = (issues: z.ZodIssue[]) => {
-  const urlError = issues.find((issue) => issue.path[0] === "url")?.message
+  if (error.reason === "invalid-json" || error.reason === "validation-failed") {
+    recordValidationFailure(state, error)
+  }
 
-  const formatError = issues.find(
-    (issue) => issue.path[0] === "format"
-  )?.message
+  let headers = state.compatibilityHeaders
 
-  return urlError ?? formatError ?? "The input provided is invalid."
-}
+  if (error.retryAfterSeconds !== undefined) {
+    headers = mergeHeaders(state.compatibilityHeaders, {
+      "Retry-After": String(Math.max(1, Math.ceil(error.retryAfterSeconds))),
+    })
+  }
 
-const emitValidationFailure = (issues: z.ZodIssue[]) => {
-  mediaPeekEmitter.emit("error", {
-    error: new Error("Validation Failed"),
-    context: {
-      validationErrors: issues.map(({ code, message, path }) => ({
-        code,
-        message,
-        path: path.map(String),
-      })),
-    },
+  return failRequest(state, {
+    status: error.status,
+    code: error.code,
+    message: error.message,
+    retryable: error.retryable,
+    severity: error.status < 500 ? "WARNING" : "ERROR",
+    errorClass: getAnalysisPolicyErrorClass(error.reason),
+    headers,
   })
 }
 
@@ -548,26 +389,56 @@ const validateAnalyzeRequest = async (
     ? "legacy_get_query"
     : "post_json"
 
-  if (parsed.success) {
-    return { success: true, data: parsed.data }
-  }
+  const runtime = getWorkerAppRuntime(state.env)
 
-  if (parsed.issues) {
-    emitValidationFailure(parsed.issues)
-  }
-
-  const message = parsed.parseError ?? getValidationMessage(parsed.issues ?? [])
-
-  const response = failRequest(state, {
-    status: 422,
-    code: "VALIDATION_FAILED",
-    message,
-    retryable: false,
-    severity: "WARNING",
-    errorClass: "ANALYZE_VALIDATION_FAILED",
+  const requestContext = createRequestContext({
+    request: state.request,
+    requestId: state.requestId,
+    runtimeConfig: state.runtimeConfig,
   })
 
-  return { success: false, response }
+  try {
+    const decision = await runtime.runPromise(
+      Effect.gen(function* () {
+        const analysisPolicy = yield* AnalysisPolicy
+
+        return yield* analysisPolicy.authorize(parsed.policyInput)
+      }).pipe(Effect.provideService(RequestContext, requestContext))
+    )
+
+    if (decision.rateLimitBindingError) {
+      state.customContext.rateLimitBindingError = decision.rateLimitBindingError
+    }
+
+    return { success: true, data: decision.input }
+  } catch (caughtError) {
+    if (!(caughtError instanceof AnalysisPolicyError)) {
+      throw caughtError
+    }
+
+    return {
+      success: false,
+      response: createPolicyErrorResponse(state, caughtError),
+    }
+  }
+}
+
+const recordTurnstileVerification = (
+  state: AnalyzeRequestState,
+  input: {
+    success: boolean
+    tokenSummary: ReturnType<typeof summarizeSensitiveToken>
+    result: string
+    outcome?: TurnstileResponse
+  }
+) => {
+  state.customContext.turnstileVerification = {
+    success: input.success,
+    tokenPresent: input.tokenSummary.tokenPresent,
+    tokenLength: input.tokenSummary.tokenLength,
+    result: input.result,
+    errorCodes: input.outcome?.["error-codes"],
+  }
 }
 
 const rejectTurnstile = (
@@ -575,15 +446,16 @@ const rejectTurnstile = (
   input: {
     failure: AnalyzeFailure
     tokenSummary?: ReturnType<typeof summarizeSensitiveToken>
-    outcome?: ReturnType<typeof TurnstileResponseSchema.parse>
+    outcome?: TurnstileResponse
   }
 ): TurnstileDecision => {
   const { failure, tokenSummary, outcome } = input
 
   if (tokenSummary) {
-    mediaPeekEmitter.emit("turnstile:verify", {
+    recordTurnstileVerification(state, {
       success: false,
-      ...tokenSummary,
+      tokenSummary,
+      result: "REJECTED",
       outcome,
     })
   }
@@ -629,7 +501,8 @@ const verifyTurnstileToken = async (
     return { authorized: false, response }
   }
 
-  const outcome = TurnstileResponseSchema.parse(await result.json())
+  const rawOutcome: unknown = await result.json()
+  const outcome = Schema.decodeUnknownSync(TurnstileResponseSchema)(rawOutcome)
 
   if (!outcome.success) {
     return rejectTurnstile(state, {
@@ -647,10 +520,11 @@ const verifyTurnstileToken = async (
   }
 
   state.customContext.turnstileGrantOutcome = "TOKEN_VERIFIED"
-  mediaPeekEmitter.emit("turnstile:verify", {
+  recordTurnstileVerification(state, {
     success: true,
-    ...input.tokenSummary,
-    outcome: { result: "TOKEN_VERIFIED" },
+    tokenSummary: input.tokenSummary,
+    result: "TOKEN_VERIFIED",
+    outcome,
   })
 
   const grant = await createTurnstileGrantToken({
@@ -708,11 +582,10 @@ const authorizeTurnstile = async (
   state.customContext.turnstileGrantOutcome = grantResult.reason
 
   if (grantResult.valid) {
-    mediaPeekEmitter.emit("turnstile:verify", {
+    recordTurnstileVerification(state, {
       success: true,
-      tokenPresent: false,
-      tokenLength: 0,
-      outcome: { result: "GRANT_VALID" },
+      tokenSummary: summarizeSensitiveToken(null),
+      result: "GRANT_VALID",
     })
 
     return { authorized: true }
@@ -752,7 +625,10 @@ const createAnalyzerRequestOptions = (state: AnalyzeRequestState) => {
 
   return {
     headers,
-    signal: AbortSignal.timeout(getAnalyzerTimeoutMs(state.env)),
+    signal: AbortSignal.any([
+      state.request.signal,
+      AbortSignal.timeout(getAnalyzerTimeoutMs(state.env)),
+    ]),
   }
 }
 
@@ -761,7 +637,7 @@ const streamAnalyzerResponse = async (
   input: {
     binding: Fetcher
     url: string
-    format: string[]
+    format: ReadonlyArray<string>
     options: ReturnType<typeof createAnalyzerRequestOptions>
     grantCookieHeader?: string
   }
@@ -774,6 +650,7 @@ const streamAnalyzerResponse = async (
       ...input.options.headers,
     },
     body: JSON.stringify({ url: input.url, format: input.format }),
+    signal: input.options.signal,
   })
 
   state.customContext.analyzerStatus = response.status
@@ -793,69 +670,6 @@ const streamAnalyzerResponse = async (
   })
 }
 
-const failUnexpectedAnalyzerResponse = async (
-  state: AnalyzeRequestState,
-  response: AnalyzerClientResponse
-) => {
-  state.customContext.errorClass = "ANALYZER_INVALID_RESPONSE"
-  const preview = (await response.text()).slice(0, 240)
-  state.customContext.analyzerResponsePreview = preview
-
-  const isMissingLocalDevSession = /couldn't find a local dev session/i.test(
-    preview
-  )
-
-  const message = isMissingLocalDevSession
-    ? "Analyzer local dev worker is unavailable. Restart pnpm dev and retry."
-    : "Analyzer service returned an unexpected response. Try again."
-
-  return failRequest(state, {
-    status: 502,
-    code: "INTERNAL_ERROR",
-    message,
-    retryable: true,
-    severity: "ERROR",
-  })
-}
-
-const parseAnalyzerResponse = async (
-  state: AnalyzeRequestState,
-  response: AnalyzerClientResponse
-): Promise<
-  | { success: true; data: AnalyzerRpcResponse }
-  | { success: false; response: Response }
-> => {
-  const responseClone = response.clone()
-
-  try {
-    const parsed = analyzerRpcResponseSchema.safeParse(await response.json())
-
-    if (parsed.success) {
-      return { success: true, data: parsed.data }
-    }
-
-    state.customContext.analyzerJsonError = parsed.error.message
-  } catch (caughtError) {
-    state.customContext.analyzerJsonError =
-      caughtError instanceof Error ? caughtError.message : String(caughtError)
-  }
-
-  state.customContext.errorClass = "ANALYZER_INVALID_JSON"
-  state.customContext.analyzerResponsePreview = (
-    await responseClone.text()
-  ).slice(0, 240)
-
-  const failedResponse = failRequest(state, {
-    status: 502,
-    code: "INTERNAL_ERROR",
-    message: "Analyzer service returned malformed data. Try again.",
-    retryable: true,
-    severity: "ERROR",
-  })
-
-  return { success: false, response: failedResponse }
-}
-
 const getBackendErrorClass = (code: AnalyzeErrorCode) =>
   Match.value(code).pipe(
     Match.when("VALIDATION_FAILED", () => "ANALYZE_VALIDATION_FAILED"),
@@ -868,7 +682,7 @@ const handleAnalyzerError = (
   responseStatus: number,
   errorData: Extract<AnalyzerRpcResponse, { success: false }>["error"]
 ) => {
-  if (Array.isArray(errorData)) {
+  if (Schema.is(Schema.Array(AnalyzerValidationIssueSchema))(errorData)) {
     const firstIssue = errorData.at(0)
 
     return failRequest(state, {
@@ -899,13 +713,14 @@ const recordArchiveFilename = (
   resolvedFilename: string
 ) => {
   try {
-    const parsed = archiveMediaSchema.safeParse(JSON.parse(jsonResult || "{}"))
+    const raw: unknown = JSON.parse(jsonResult || "{}")
+    const parsed = Schema.decodeUnknownResult(archiveMediaSchema)(raw)
 
-    if (!parsed.success) {
+    if (Result.isFailure(parsed)) {
       return
     }
 
-    const general = parsed.data.media?.track.find(
+    const general = parsed.success.media?.track.find(
       (track) => track["@type"] === "General"
     )
 
@@ -922,7 +737,7 @@ const recordArchiveFilename = (
 
 const completeAnalyzeResponse = (
   state: AnalyzeRequestState,
-  data: Extract<AnalyzerRpcResponse, { success: true }>,
+  data: AnalyzerSuccessResponse,
   grantCookieHeader?: string
 ) => {
   const { results, diagnostics } = data
@@ -942,10 +757,6 @@ const completeAnalyzeResponse = (
     diagnostics.fetch.resolvedFilenameSource
 
   recordArchiveFilename(state, results.json ?? "{}", resolvedFilename)
-  mediaPeekEmitter.emit("analyze:complete", {
-    results,
-    diagnostics: diagnostics.analysis,
-  })
 
   return buildSuccessResponse(
     state.requestId,
@@ -957,30 +768,97 @@ const completeAnalyzeResponse = (
   )
 }
 
-const readAnalyzerRpcResponse = async (
+const getAnalysisGatewayErrorDetails = (error: AnalysisGatewayError) => {
+  let status = 502
+  let code: AnalyzeErrorCode = "INTERNAL_ERROR"
+
+  if (error.reason === "aborted") {
+    status = 504
+    code = "UPSTREAM_FETCH_FAILED"
+  } else if (error.reason === "binding-missing" || error.reason === "network") {
+    status = 503
+  }
+
+  const errorClass = Match.value(error.reason).pipe(
+    Match.when("binding-missing", () => "ANALYZER_BINDING_MISSING"),
+    Match.when("aborted", () => "ANALYZER_TIMEOUT"),
+    Match.when("network", () => "ANALYZER_NETWORK_ERROR"),
+    Match.orElse(() => "ANALYZER_INVALID_RESPONSE")
+  )
+
+  return { status, code, errorClass }
+}
+
+const handleAnalysisGatewayError = (
   state: AnalyzeRequestState,
-  response: AnalyzerClientResponse,
-  grantCookieHeader?: string
+  error: AnalysisGatewayError
 ) => {
-  const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
-  state.customContext.analyzerStatus = response.status
-  state.customContext.analyzerContentType = contentType
+  state.requestError = error
+  state.customContext.gatewayErrorReason = error.reason
 
-  if (!contentType.includes("application/json")) {
-    return failUnexpectedAnalyzerResponse(state, response)
+  if (error.responsePreview) {
+    state.customContext.analyzerResponsePreview = error.responsePreview
   }
 
-  const parsed = await parseAnalyzerResponse(state, response)
+  const { status, code, errorClass } = getAnalysisGatewayErrorDetails(error)
 
-  if (!parsed.success) {
-    return parsed.response
+  return failRequest(state, {
+    status,
+    code,
+    message: error.message,
+    retryable: error.retryable,
+    severity: "ERROR",
+    errorClass,
+  })
+}
+
+const callAnalyzerJson = async (
+  state: AnalyzeRequestState,
+  input: {
+    readonly data: AnalyzeInput
+    readonly grantCookieHeader?: string
+    readonly signal: AbortSignal
   }
+) => {
+  const runtime = getWorkerAppRuntime(state.env)
 
-  if (!parsed.data.success) {
-    return handleAnalyzerError(state, response.status, parsed.data.error)
+  const requestContext = createRequestContext({
+    request: state.request,
+    requestId: state.requestId,
+    runtimeConfig: state.runtimeConfig,
+    signal: input.signal,
+  })
+
+  try {
+    const response = await runtime.runPromise(
+      Effect.gen(function* () {
+        const analysisGateway = yield* AnalysisGateway
+        const apiKey = state.env.ANALYZE_API_KEY?.trim()
+        const gatewayRequest = apiKey ? { ...input.data, apiKey } : input.data
+
+        return yield* analysisGateway.analyze(gatewayRequest)
+      }).pipe(Effect.provideService(RequestContext, requestContext))
+    )
+
+    state.customContext.analyzerStatus = response.status
+    state.customContext.analyzerContentType = response.contentType
+
+    if (!response.data.success) {
+      return handleAnalyzerError(state, response.status, response.data.error)
+    }
+
+    return completeAnalyzeResponse(
+      state,
+      response.data,
+      input.grantCookieHeader
+    )
+  } catch (caughtError) {
+    if (caughtError instanceof AnalysisGatewayError) {
+      return handleAnalysisGatewayError(state, caughtError)
+    }
+
+    throw caughtError
   }
-
-  return completeAnalyzeResponse(state, parsed.data, grantCookieHeader)
 }
 
 const callAnalyzer = async (
@@ -993,10 +871,7 @@ const callAnalyzer = async (
   const initialUrl = input.data.url
   const requestedFormats = input.data.format
   const redactedUrl = redactSensitiveUrl(initialUrl)
-  mediaPeekEmitter.emit("request:start", {
-    requestId: state.requestId,
-    url: redactedUrl,
-  })
+  state.customContext.targetUrl = redactedUrl
 
   const analyzerBinding = state.env.ANALYZER
 
@@ -1023,24 +898,17 @@ const callAnalyzer = async (
     })
   }
 
-  const client = hc<AppType>("https://analyzer", {
-    fetch: analyzerBinding.fetch.bind(analyzerBinding),
+  return callAnalyzerJson(state, {
+    data: input.data,
+    grantCookieHeader: input.grantCookieHeader,
+    signal: options.signal,
   })
-
-  const response = await client.analyze.$post(
-    { json: { url: initialUrl, format: requestedFormats } },
-    options
-  )
-
-  return readAnalyzerRpcResponse(state, response, input.grantCookieHeader)
 }
 
-const remoteFetchErrorSchema = z.object({ remote: z.boolean() })
+const remoteFetchErrorSchema = Schema.Struct({ remote: Schema.Boolean })
 
 const isRemoteFetchError = (error: Error) => {
-  const parsed = remoteFetchErrorSchema.safeParse(error)
-
-  return parsed.success && parsed.data.remote
+  return Schema.is(remoteFetchErrorSchema)(error) && error.remote
 }
 
 const isAnalyzerTimeout = (error: Error) =>
@@ -1095,17 +963,12 @@ const handleUnexpectedError = (
     }
   }
 
-  const errorObj = {
+  state.customContext.errorClass ??= failure.errorClass
+  state.customContext.error = {
     code: failure.status,
     message: failure.message,
     details: caughtError.stack ?? caughtError.message,
   }
-
-  state.customContext.errorClass ??= failure.errorClass
-  mediaPeekEmitter.emit("error", {
-    error: caughtError,
-    context: { errorObj, requestId: state.requestId, code: failure.code },
-  })
 
   return failRequest(state, {
     ...failure,
@@ -1143,12 +1006,6 @@ const finalizeAnalyzeRequest = (execution: AnalyzeExecution) => {
 const executeAnalyzeRequest = async (
   state: AnalyzeRequestState
 ): Promise<Response> => {
-  const policyResponse = await checkAnalyzePolicy(state)
-
-  if (policyResponse) {
-    return policyResponse
-  }
-
   const validation = await validateAnalyzeRequest(state)
 
   if (!validation.success) {
@@ -1179,7 +1036,6 @@ const executeAnalyzeRequest = async (
 }
 
 async function handleAnalyzeRequest(args: AnalyzeRouteArgs) {
-  initTelemetry()
   const execution = createExecution(args)
 
   return requestStorage.run(execution.logContext, async () => {

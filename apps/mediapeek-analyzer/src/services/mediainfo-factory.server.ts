@@ -1,17 +1,37 @@
-import patchedMediaInfoFactory from "../lib/mediainfo-bundle.js"
-import wasmModule from "./MediaInfoModule.wasm"
+import { Schema } from "effect"
 
-type MediaInfoFormat = "object" | "Text" | "XML" | "HTML"
+import type { JsonMediaInfo } from "../lib/media-utils"
+import { mediaInfoFactory } from "../lib/mediainfo-bundle.js"
 
-const createPatchedMediaInfo = (format: MediaInfoFormat) =>
-  patchedMediaInfoFactory({ format, wasmModule })
+type MediaInfoOptions = Awaited<ReturnType<typeof mediaInfoFactory>>["options"]
 
-export type MediaInfo = Awaited<ReturnType<typeof createPatchedMediaInfo>>
+export interface MediaInfoInstance {
+  options: MediaInfoOptions
+  reset: () => void
+  analyzeData: (
+    size: () => number,
+    readChunk: (size: number, offset: number) => Promise<Uint8Array>
+  ) => Promise<JsonMediaInfo>
+  inform: () => string
+  close: () => void
+}
 
-/**
- * Creates a configured instance of MediaInfo.
- * Uses the esm-bundle which is environment-agnostic (web/worker compatible).
- * Imports WASM as a module to be bundled by Vite/Cloudflare (avoiding runtime compilation).
- */
-export const createMediaInfo = (format: MediaInfoFormat = "object") =>
-  createPatchedMediaInfo(format)
+export const createMediaInfo = async (): Promise<MediaInfoInstance> => {
+  const { default: wasmModule } = await import("./MediaInfoModule.wasm")
+
+  const mediaInfo = await mediaInfoFactory({
+    format: "object",
+    wasmModule,
+  })
+
+  return {
+    options: mediaInfo.options,
+    reset: () => mediaInfo.reset(),
+    analyzeData: async (size, readChunk) =>
+      Schema.decodeUnknownSync(Schema.Json)(
+        await mediaInfo.analyzeData(size, readChunk)
+      ),
+    inform: () => mediaInfo.inform(),
+    close: () => mediaInfo.close(),
+  }
+}

@@ -13,10 +13,10 @@ import {
   extractFilenameFromUrl,
   getEmulationHeaders,
   isArchiveExtension,
-  resolveGoogleDriveUrl,
   validateUrl,
 } from "../lib/server-utils"
-import { mediaPeekEmitter } from "./event-bus.server"
+import { resolveSource } from "../lib/source-resolver"
+import { safeMediaFetch } from "./safe-media-fetch.server"
 
 export interface FetchDiagnostics {
   headRequestDurationMs: number
@@ -66,6 +66,13 @@ export type FetchProgressReporter = (
   title: string,
   message: string
 ) => Promise<void> | void
+
+export interface FetchMediaChunkOptions {
+  initialUrl: string
+  chunkSize?: number
+  reportProgress?: FetchProgressReporter
+  signal?: AbortSignal
+}
 
 const resolveResponseFileSize = (response: Response): number | undefined => {
   const contentRange = response.headers.get("content-range")
@@ -294,7 +301,8 @@ const extractArchivePrefix = async (
 
 const fetchZipTailBuffer = async (
   url: string,
-  totalSize: number
+  totalSize: number,
+  signal?: AbortSignal
 ): Promise<Uint8Array | null> => {
   if (!Number.isFinite(totalSize) || totalSize <= 0) {
     return null
@@ -302,11 +310,12 @@ const fetchZipTailBuffer = async (
 
   const start = Math.max(0, totalSize - ZIP_TAIL_INSPECTION_BYTES)
 
-  const response = await fetch(url, {
+  const response = await safeMediaFetch(url, {
     headers: getEmulationHeaders(
       `bytes=${String(start)}-${String(totalSize - 1)}`
     ),
     redirect: "follow",
+    signal,
   })
 
   if (response.status !== 200 && response.status !== 206) {
@@ -322,6 +331,7 @@ type RemoteByteSourceOptions = {
   fileSize?: number
   diagnostics: FetchDiagnostics
   reportProgress?: FetchProgressReporter
+  signal?: AbortSignal
 }
 
 type RemoteCacheEntry = { bytes: Uint8Array; lastUsed: number }
@@ -365,6 +375,7 @@ const createRemoteByteSource = ({
   fileSize,
   diagnostics,
   reportProgress,
+  signal,
 }: RemoteByteSourceOptions): MediaByteSource => {
   const cache = new Map<number, RemoteCacheEntry>()
   const remoteBaseOffset = initialBuffer.byteLength
@@ -440,6 +451,7 @@ const createRemoteByteSource = ({
   }
 
   const fetchRemoteSpan = async (offset: number, requestedEnd: number) => {
+    signal?.throwIfAborted()
     const spanStart = getRemoteChunkStart(offset)
     const spanEnd = getRemoteSpanEnd(spanStart, requestedEnd)
 
@@ -456,11 +468,12 @@ const createRemoteByteSource = ({
       )
     }
 
-    const response = await fetch(url, {
+    const response = await safeMediaFetch(url, {
       headers: getEmulationHeaders(
         "bytes=" + String(spanStart) + "-" + String(spanEnd - 1)
       ),
       redirect: "follow",
+      signal,
     })
 
     assertByteFetchStatus(response)
@@ -535,6 +548,8 @@ const createRemoteByteSource = ({
     cursor: number
     writeOffset: number
   }): Promise<number> => {
+    signal?.throwIfAborted()
+
     if (options.cursor >= options.requestedEnd) {
       return options.writeOffset
     }
@@ -567,6 +582,8 @@ const createRemoteByteSource = ({
   return {
     initialBuffer,
     async readChunk(size: number, offset: number) {
+      signal?.throwIfAborted()
+
       if (size <= 0 || offset < 0) {
         return new Uint8Array(0)
       }
@@ -603,6 +620,7 @@ const createRemoteByteSource = ({
 type ProbeResult = {
   url: string
   isGoogleDrive: boolean
+  htmlResponseMessage: string
   fileSize?: number
   filename: string
   filenameSource: FilenameSource
@@ -636,21 +654,23 @@ const createFetchDiagnostics = (): FetchDiagnostics => ({
   probeMethod: "HEAD",
 })
 
-const fetchHeaderProbe = async (url: string) => {
+const fetchHeaderProbe = async (url: string, signal?: AbortSignal) => {
   let method = "HEAD"
 
-  let response = await fetch(url, {
+  let response = await safeMediaFetch(url, {
     method: "HEAD",
     headers: getEmulationHeaders(),
     redirect: "follow",
+    signal,
   })
 
   if (response.status === 405) {
     method = "GET"
-    response = await fetch(url, {
+    response = await safeMediaFetch(url, {
       method: "GET",
       headers: getEmulationHeaders("bytes=0-0"),
       redirect: "follow",
+      signal,
     })
   }
 
@@ -679,9 +699,17 @@ const assertProbeStatus = (response: Response) => {
 
 const probeRemoteSource = async (
   initialUrl: string,
-  reportProgress?: FetchProgressReporter
+  reportProgress?: FetchProgressReporter,
+  signal?: AbortSignal
 ): Promise<ProbeResult> => {
-  const { url, isGoogleDrive } = resolveGoogleDriveUrl(initialUrl)
+  const source = resolveSource(initialUrl)
+
+  if (source.status === "unsupported") {
+    throw new Error(source.message)
+  }
+
+  const url = source.targetUrl
+  const isGoogleDrive = source.provider === "google-drive"
   validateUrl(url)
   await reportProgress?.(
     "source_probe_started",
@@ -690,7 +718,7 @@ const probeRemoteSource = async (
   )
 
   const probeStart = performance.now()
-  const { method, response } = await fetchHeaderProbe(url)
+  const { method, response } = await fetchHeaderProbe(url, signal)
   const probeDurationMs = Math.round(performance.now() - probeStart)
   assertProbeStatus(response)
 
@@ -703,6 +731,7 @@ const probeRemoteSource = async (
   return {
     url,
     isGoogleDrive,
+    htmlResponseMessage: source.htmlResponseMessage,
     fileSize: resolveResponseFileSize(response),
     filename: headerFilename ?? filename,
     filenameSource: headerFilename ? "content-disposition-head" : "url",
@@ -717,12 +746,14 @@ const createInitialResponseRead = async (options: {
   timeoutMs: number
   strategy: InitialResponseRead["strategy"]
   reportProgress?: FetchProgressReporter
+  signal?: AbortSignal
   waitingMessage: string
   receivedMessage: string
 }): Promise<InitialResponseRead> => {
-  const response = await fetch(options.url, {
+  const response = await safeMediaFetch(options.url, {
     headers: options.headers,
     redirect: "follow",
+    signal: options.signal,
   })
 
   assertByteFetchStatus(response)
@@ -773,6 +804,7 @@ const fetchRangedInitialBytes = async (
     url: string
     fetchEnd: number
     reportProgress?: FetchProgressReporter
+    signal?: AbortSignal
   },
   attempt = 0
 ): Promise<RangedAttemptResult> => {
@@ -789,6 +821,7 @@ const fetchRangedInitialBytes = async (
       timeoutMs: FIRST_BYTE_READ_TIMEOUT_MS,
       strategy: "range",
       reportProgress: options.reportProgress,
+      signal: options.signal,
       waitingMessage:
         "The source accepted the request but has not started sending media bytes yet.",
       receivedMessage:
@@ -817,6 +850,7 @@ const fetchNoRangeFallback = async (options: {
   timeoutRetries: number
   didRangeTimeout: boolean
   reportProgress?: FetchProgressReporter
+  signal?: AbortSignal
 }): Promise<InitialResponseRead> => {
   await options.reportProgress?.(
     "no_range_fallback_started",
@@ -831,6 +865,7 @@ const fetchNoRangeFallback = async (options: {
       timeoutMs: NO_RANGE_FALLBACK_TIMEOUT_MS,
       strategy: "no_range_fallback",
       reportProgress: options.reportProgress,
+      signal: options.signal,
       waitingMessage:
         "Waiting for the source to start sending bytes for the fallback request.",
       receivedMessage: "Initial media bytes arrived from the fallback request.",
@@ -858,6 +893,7 @@ const fetchInitialResponse = async (options: {
   fetchEnd: number
   diagnostics: FetchDiagnostics
   reportProgress?: FetchProgressReporter
+  signal?: AbortSignal
 }): Promise<InitialReadResult> => {
   const fetchStart = performance.now()
   await options.reportProgress?.(
@@ -872,6 +908,7 @@ const fetchInitialResponse = async (options: {
     url: options.url,
     fetchEnd: options.fetchEnd,
     reportProgress: options.reportProgress,
+    signal: options.signal,
   })
 
   const didRangeTimeout = rangedResult.timeoutRetries > 0
@@ -883,6 +920,7 @@ const fetchInitialResponse = async (options: {
       timeoutRetries: rangedResult.timeoutRetries,
       didRangeTimeout,
       reportProgress: options.reportProgress,
+      signal: options.signal,
     }))
 
   options.diagnostics.responseStatus = initialRead.response.status
@@ -902,7 +940,7 @@ const fetchInitialResponse = async (options: {
 const assertMediaResponse = (
   response: Response,
   reader: ReadableStreamDefaultReader<Uint8Array>,
-  isGoogleDrive: boolean
+  htmlResponseMessage: string
 ) => {
   if (!isHtmlResponse(response)) {
     return
@@ -910,13 +948,7 @@ const assertMediaResponse = (
 
   void reader.cancel()
 
-  if (isGoogleDrive) {
-    throw new Error("Google Drive file is rate-limited. Try again in 24 hours.")
-  }
-
-  throw new Error(
-    "URL links to a webpage, not a media file. Provide a direct link."
-  )
+  throw new Error(htmlResponseMessage)
 }
 
 const resolveInitialMetadata = (options: {
@@ -979,6 +1011,7 @@ const fetchInitialSegment = async (options: {
   diagnostics: FetchDiagnostics
   startedAt: number
   reportProgress?: FetchProgressReporter
+  signal?: AbortSignal
 }) => {
   const fetchEnd =
     options.probe.fileSize !== undefined
@@ -990,12 +1023,13 @@ const fetchInitialSegment = async (options: {
     fetchEnd,
     diagnostics: options.diagnostics,
     reportProgress: options.reportProgress,
+    signal: options.signal,
   })
 
   assertMediaResponse(
     initialRead.response,
     initialRead.reader,
-    options.probe.isGoogleDrive
+    options.probe.htmlResponseMessage
   )
 
   const metadata = resolveInitialMetadata({
@@ -1039,6 +1073,7 @@ const inspectFetchedArchive = async (options: {
   isGoogleDrive: boolean
   supportsRemoteSeekReads: boolean
   url: string
+  signal?: AbortSignal
 }): Promise<ArchiveEntryInspection | undefined> => {
   const shouldCheckArchive =
     options.rawBuffer.byteLength > 0 &&
@@ -1061,7 +1096,11 @@ const inspectFetchedArchive = async (options: {
     return archiveEntry
   }
 
-  const tailBuffer = await fetchZipTailBuffer(options.url, options.fileSize)
+  const tailBuffer = await fetchZipTailBuffer(
+    options.url,
+    options.fileSize,
+    options.signal
+  )
 
   if (tailBuffer) {
     archiveEntry =
@@ -1115,6 +1154,7 @@ const createMediaFetchResult = (options: {
   archiveEntry?: ArchiveEntryInspection
   diagnostics: FetchDiagnostics
   reportProgress?: FetchProgressReporter
+  signal?: AbortSignal
 }): MediaFetchResult => {
   let byteSource: MediaByteSource | undefined
 
@@ -1125,6 +1165,7 @@ const createMediaFetchResult = (options: {
       fileSize: options.content.fileSize,
       diagnostics: options.diagnostics,
       reportProgress: options.reportProgress,
+      signal: options.signal,
     })
   }
 
@@ -1145,14 +1186,16 @@ const createMediaFetchResult = (options: {
   }
 }
 
-export async function fetchMediaChunk(
-  initialUrl: string,
-  chunkSize: number = SAFE_LIMIT,
-  reportProgress?: FetchProgressReporter
-): Promise<MediaFetchResult> {
+export async function fetchMediaChunk({
+  initialUrl,
+  chunkSize = SAFE_LIMIT,
+  reportProgress,
+  signal,
+}: FetchMediaChunkOptions): Promise<MediaFetchResult> {
+  signal?.throwIfAborted()
   const startedAt = performance.now()
   const diagnostics = createFetchDiagnostics()
-  const probe = await probeRemoteSource(initialUrl, reportProgress)
+  const probe = await probeRemoteSource(initialUrl, reportProgress, signal)
   diagnostics.isGoogleDrive = probe.isGoogleDrive
   diagnostics.headRequestDurationMs = probe.probeDurationMs
   diagnostics.probeMethod = probe.probeMethod
@@ -1165,6 +1208,7 @@ export async function fetchMediaChunk(
     diagnostics,
     startedAt,
     reportProgress,
+    signal,
   })
 
   const archiveEntry = await inspectFetchedArchive({
@@ -1174,6 +1218,7 @@ export async function fetchMediaChunk(
     isGoogleDrive: probe.isGoogleDrive,
     supportsRemoteSeekReads: initial.supportsRemoteSeekReads,
     url: probe.url,
+    signal,
   })
 
   const content = await extractAnalysisBuffer({
@@ -1192,13 +1237,7 @@ export async function fetchMediaChunk(
     archiveEntry,
     diagnostics,
     reportProgress,
-  })
-
-  mediaPeekEmitter.emit("fetch:complete", {
-    diagnostics: result.diagnostics,
-    fileSize: result.fileSize,
-    filename: result.filename,
-    hash: result.hash,
+    signal,
   })
 
   return result

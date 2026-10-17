@@ -1,22 +1,51 @@
-import { z } from "zod"
+import { Result, Schema } from "effect"
 
-const AnalyzeResponseSchema = z.object({
-  success: z.boolean().optional(),
-  requestId: z.string().optional(),
-  results: z.record(z.string(), z.string()).optional(),
-  error: z
-    .union([
-      z.string().transform((message) => ({ message, code: undefined })),
-      z.object({
-        code: z.string().optional(),
-        message: z.string().optional(),
-        retryable: z.boolean().optional(),
-      }),
-    ])
-    .optional(),
+const AnalyzeResponseErrorSchema = Schema.Struct({
+  code: Schema.optionalKey(Schema.String),
+  message: Schema.optionalKey(Schema.String),
+  retryable: Schema.optionalKey(Schema.Boolean),
 })
 
-export type AnalyzeResponse = z.infer<typeof AnalyzeResponseSchema>
+const AnalyzeResponseSchema = Schema.Struct({
+  success: Schema.optionalKey(Schema.Boolean),
+  requestId: Schema.optionalKey(Schema.String),
+  results: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
+  error: Schema.optionalKey(
+    Schema.Union([Schema.String, AnalyzeResponseErrorSchema])
+  ),
+})
+
+type AnalyzeResponseWire = typeof AnalyzeResponseSchema.Type
+
+export type AnalyzeResponse = Omit<AnalyzeResponseWire, "error"> & {
+  error?: { code?: string; message?: string; retryable?: boolean }
+}
+
+const normalizeAnalyzeResponse = (
+  response: AnalyzeResponseWire
+): AnalyzeResponse => {
+  const { error, ...fields } = response
+
+  if (error === undefined) {
+    return fields
+  }
+
+  const stringError = Schema.decodeUnknownResult(Schema.String)(error)
+
+  if (Result.isFailure(stringError)) {
+    const objectError = Schema.decodeUnknownResult(AnalyzeResponseErrorSchema)(
+      error
+    )
+
+    if (Result.isFailure(objectError)) {
+      return fields
+    }
+
+    return { ...fields, error: objectError.success }
+  }
+
+  return { ...fields, error: { message: stringError.success } }
+}
 
 export type AnalyzeClientResult =
   | {
@@ -100,9 +129,11 @@ const requestAnalyzeFormat = async ({
     }
   }
 
-  const parsed = AnalyzeResponseSchema.safeParse(await response.json())
+  const parsed = Schema.decodeUnknownResult(AnalyzeResponseSchema)(
+    await response.json()
+  )
 
-  if (!parsed.success) {
+  if (Result.isFailure(parsed)) {
     return {
       status: response.status,
       data: {
@@ -114,7 +145,7 @@ const requestAnalyzeFormat = async ({
 
   return {
     status: response.status,
-    data: parsed.data,
+    data: normalizeAnalyzeResponse(parsed.success),
   }
 }
 
