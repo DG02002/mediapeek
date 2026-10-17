@@ -1,0 +1,39 @@
+name: Question
+description: Ask a focused question about using or contributing to MediaPeek.
+title: '[Question]: '
+labels:
+  - question
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the [README](https://github.com/DG02002/mediapeek/blob/main/README.md),
+        [documentation index](https://github.com/DG02002/mediapeek/blob/main/docs/README.md),
+        and [contributing guide](https://github.com/DG02002/mediapeek/blob/main/CONTRIBUTING.md)
+        first. Never include credentials, private URLs, or personal data.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to do, and where are you stuck?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: context
+    attributes:
+      label: Context
+      options:
+        - Using MediaPeek
+        - Contributing to the repository
+        - Local development or release operations
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Include the relevant route, command, version, or error text. Redact sensitive information.

@@ -1,0 +1,147 @@
+[
+  {
+    "name": "accepted",
+    "color": "0e8a16",
+    "description": "Maintainers accepted this proposal for implementation."
+  },
+  {
+    "name": "bug",
+    "color": "d73a4a",
+    "description": "Something is broken or behaving incorrectly."
+  },
+  {
+    "name": "breaking-change",
+    "color": "b60205",
+    "description": "A change that requires a new major release or compatibility migration."
+  },
+  {
+    "name": "dependencies",
+    "color": "0366d6",
+    "description": "An automated dependency update."
+  },
+  {
+    "name": "documentation",
+    "color": "0075ca",
+    "description": "Documentation needs an improvement or correction."
+  },
+  {
+    "name": "duplicate",
+    "color": "cfd3d7",
+    "description": "This issue or pull request already exists."
+  },
+  {
+    "name": "enhancement",
+    "color": "a2eeef",
+    "description": "Requested improvement or new capability."
+  },
+  {
+    "name": "good first issue",
+    "color": "7057ff",
+    "description": "A focused issue suitable for a new contributor."
+  },
+  {
+    "name": "github_actions",
+    "color": "000000",
+    "description": "An automated GitHub Actions update."
+  },
+  {
+    "name": "help wanted",
+    "color": "008672",
+    "description": "Maintainers welcome help with this issue."
+  },
+  {
+    "name": "invalid",
+    "color": "e4e669",
+    "description": "This report does not describe a valid repository issue."
+  },
+  {
+    "name": "needs-more-info",
+    "color": "d876e3",
+    "description": "The report needs more information before triage can continue."
+  },
+  {
+    "name": "needs-triage",
+    "color": "fbca04",
+    "description": "The issue needs maintainer review and initial categorization."
+  },
+  {
+    "name": "planned",
+    "color": "5319e7",
+    "description": "Maintainers plan to work on this issue."
+  },
+  {
+    "name": "question",
+    "color": "d876e3",
+    "description": "The report asks for clarification or information."
+  },
+  {
+    "name": "security",
+    "color": "b60205",
+    "description": "This issue concerns security-sensitive behavior."
+  },
+  {
+    "name": "upstream",
+    "color": "0366d6",
+    "description": "The fix belongs in an upstream dependency or service."
+  },
+  {
+    "name": "via-triage",
+    "color": "cfd3d7",
+    "description": "Filed through the MediaPeek triage playbook."
+  },
+  {
+    "name": "wontfix",
+    "color": "ffffff",
+    "description": "Maintainers will not work on this issue."
+  },
+  {
+    "name": "size:XS",
+    "color": "0e8a16",
+    "description": "0-9 changed lines, additions plus deletions.",
+    "maximumChangedLines": 9
+  },
+  {
+    "name": "size:S",
+    "color": "5ebd3e",
+    "description": "10-29 changed lines, additions plus deletions.",
+    "maximumChangedLines": 29
+  },
+  {
+    "name": "size:M",
+    "color": "fbca04",
+    "description": "30-99 changed lines, additions plus deletions.",
+    "maximumChangedLines": 99
+  },
+  {
+    "name": "size:L",
+    "color": "fe7d37",
+    "description": "100-499 changed lines, additions plus deletions.",
+    "maximumChangedLines": 499
+  },
+  {
+    "name": "size:XL",
+    "color": "d93f0b",
+    "description": "500-999 changed lines, additions plus deletions.",
+    "maximumChangedLines": 999
+  },
+  {
+    "name": "size:XXL",
+    "color": "b60205",
+    "description": "1,000 or more changed lines, additions plus deletions."
+  },
+  {
+    "name": "vouch:trusted",
+    "color": "1f883d",
+    "description": "PR author is trusted by repository access or the VOUCHED list."
+  },
+  {
+    "name": "vouch:unvouched",
+    "color": "fbca04",
+    "description": "PR author is not yet trusted in the VOUCHED list."
+  },
+  {
+    "name": "vouch:denounced",
+    "color": "d1242f",
+    "description": "PR author is explicitly blocked by the VOUCHED list."
+  }
+]

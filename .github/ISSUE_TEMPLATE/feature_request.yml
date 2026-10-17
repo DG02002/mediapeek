@@ -1,0 +1,70 @@
+name: Feature request
+description: Propose a focused product improvement or new capability.
+title: '[Feature]: '
+labels:
+  - enhancement
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start with the problem, not a complete implementation plan. Keep one
+        proposal focused. Security issues belong in private reporting.
+
+  - type: checkboxes
+    id: before-submitting
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I read the contribution policy for changes that affect product scope.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or maintainer problem should MediaPeek solve?
+      placeholder: When ... I need to ... because ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: desired-outcome
+    attributes:
+      label: Desired outcome
+      description: What should be possible after this change? Describe the result, not the preferred implementation.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of MediaPeek would this affect?
+      options:
+        - Browser app or analysis form
+        - Analysis queue
+        - Web Worker route or rate limiting
+        - Analyzer Worker or MediaInfo
+        - Range-based media fetching
+        - Stored report library or structural diff
+        - Export, sharing, or Turnstile
+        - CI, release, or operations
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What do you use today, and why is it insufficient?
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints or risks
+      description: Note compatibility, privacy, performance, reliability, or scope concerns you already see.

@@ -1,0 +1,8 @@
+version: 2
+
+githubApp:
+  enabled: true
+  pullRequestAlertsEnabled: true
+  dependencyOverviewEnabled: true
+  projectReportsEnabled: true
+  disableCommentsAndCheckRuns: false

@@ -1,175 +1,56 @@
 # Contributing
 
-This guide covers the development workflow, workspace layout, and common commands for working on MediaPeek.
+## Developer setup
 
-Unless noted otherwise, run commands from the repository root.
+See the [development guide](docs/internals/development.md#first-checkout) for
+the first checkout, local secrets, development commands, and verification.
 
-## Workspaces
+## Read this first
 
-- `apps/mediapeek`: frontend app
-- `apps/mediapeek-analyzer`: analyzer worker
-- `packages/ui`: shared shadcn/ui package
-- `packages/shared`: shared non-UI code
+MediaPeek is a focused browser-based media metadata analyzer. We welcome
+focused fixes and maintenance work that preserve its product invariants.
+Discuss substantial feature requests and changes in direction before
+implementation.
 
-## Rules
+Bug reports and pull requests are welcome. Keep changes scoped, tested, and
+consistent with the product. Pull requests receive automated size and trust
+labels. External contributors remain `vouch:unvouched` until maintainers add
+them to [`.github/VOUCHED.td`](.github/VOUCHED.td).
 
-- Use the repository root for most commands
-- Use `pnpm --filter ...` for one workspace
-- Use `apps/mediapeek` as the shadcn app configuration
-- Let `packages/ui` own the generated shared shadcn components
-- Do not run shadcn in `packages/shared`
+## What we are most likely to accept
 
-## Notes
+- Focused bug fixes.
+- Reliability fixes for retries, timeouts, partial responses, and upstream
+  failures.
+- Measured performance improvements.
+- Scoped maintenance that keeps the product's direction intact.
 
-- Run shadcn from the repository root with the app config: `pnpm dlx shadcn@latest add <component> -c apps/mediapeek`
-- The app config writes shared UI output to `packages/ui/src/components`
-- Keep shared shadcn dependencies and generated components in `packages/ui`
-- Do not run shadcn commands in `packages/shared`
-- Use the repository root for `pnpm install`, `pnpm update -r`, `pnpm lint`, `pnpm test`, `pnpm typecheck`, and `pnpm build`
-- Use `pnpm fmt` and `pnpm fmt:check` for `oxfmt` formatting
-- After dependency or shadcn updates, review the git diff before committing
-- The sample app in `sample/react-router-monorepo` is reference-only; do not migrate or clean its tooling as part of main repo work
+## What we are least likely to accept
 
-## Root Commands
+- Large pull requests with unrelated changes.
+- Drive-by features or opinionated rewrites.
+- New product direction without maintainer discussion.
+- New heavyweight dependencies without a clear need and prior discussion.
 
-```bash
-pnpm install
-pnpm dev
-pnpm lint
-pnpm fmt
-pnpm fmt:check
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm format
-pnpm clean
-pnpm approve-builds
-```
+## If you open a pull request
 
-## Filter Names
+Keep it small. Explain what changed and why, and do not combine unrelated
+work. Include focused tests for behavior changes and run the repository's
+verification commands before requesting review.
 
-```bash
-mediapeek
-mediapeek-analyzer
-@mediapeek/ui
-@mediapeek/shared
-```
+For interface changes, include clear before and after images. For changes that
+depend on motion, timing, or interaction details, include a short video.
 
-## Web Commands
+Use the repository's pull request template. Describe only results visible in
+the diff, and complete its `Release Notes:` section.
 
-```bash
-pnpm --filter mediapeek dev
-pnpm --filter mediapeek lint
-pnpm --filter mediapeek typecheck
-pnpm --filter mediapeek test
-pnpm --filter mediapeek build
-pnpm --filter mediapeek deploy
-pnpm --filter mediapeek cf-typegen
-```
+## Discuss changes first
 
-## Analyzer Commands
+Open an issue or discussion for non-trivial proposals before starting work.
+That gives maintainers a chance to confirm the direction and scope.
 
-```bash
-pnpm --filter mediapeek-analyzer dev
-pnpm --filter mediapeek-analyzer lint
-pnpm --filter mediapeek-analyzer typecheck
-pnpm --filter mediapeek-analyzer test
-pnpm --filter mediapeek-analyzer build
-pnpm --filter mediapeek-analyzer deploy
-pnpm --filter mediapeek-analyzer cf-typegen
-```
+## Be realistic
 
-## Shared Package Commands
-
-```bash
-pnpm --filter @mediapeek/ui lint
-pnpm --filter @mediapeek/ui typecheck
-pnpm --filter @mediapeek/ui test
-
-pnpm --filter @mediapeek/shared lint
-pnpm --filter @mediapeek/shared typecheck
-pnpm --filter @mediapeek/shared test
-```
-
-## Dependency Update Commands
-
-```bash
-pnpm update -r
-pnpm update -r --latest
-```
-
-Update one workspace:
-
-```bash
-pnpm --filter mediapeek update --latest
-pnpm --filter mediapeek-analyzer update --latest
-pnpm --filter @mediapeek/ui update --latest
-pnpm --filter @mediapeek/shared update --latest
-```
-
-Update one package:
-
-```bash
-pnpm --filter mediapeek update react --latest
-pnpm --filter @mediapeek/ui update shadcn --latest
-```
-
-## Shadcn Commands
-
-Preferred shared UI workflow:
-
-```bash
-pnpm dlx shadcn@latest add button -c apps/mediapeek
-```
-
-This uses `apps/mediapeek/components.json` and writes shared UI files to:
-
-```bash
-packages/ui/src/components
-```
-
-Do not use:
-
-```bash
-cd packages/shared
-```
-
-## Env Files
-
-```bash
-apps/mediapeek/.dev.vars
-apps/mediapeek-analyzer/.dev.vars
-```
-
-## Wrangler Commands
-
-```bash
-pnpm dlx wrangler login
-
-pnpm --filter mediapeek exec wrangler secret put TURNSTILE_SECRET_KEY
-pnpm --filter mediapeek exec wrangler secret put ANALYZE_API_KEY
-pnpm --filter mediapeek exec wrangler secret put SESSION_SECRET
-
-pnpm --filter mediapeek-analyzer exec wrangler secret put ANALYZE_API_KEY
-```
-
-## Deploy Order
-
-```bash
-pnpm --filter mediapeek-analyzer run deploy
-pnpm --filter mediapeek run deploy
-```
-
-## Validation
-
-```bash
-pnpm lint
-pnpm fmt:check
-pnpm typecheck
-pnpm test
-pnpm build
-```
-
-## Docs
-
-- `docs/shadcn-monorepo-setup.md`
+Opening a pull request does not obligate maintainers to review or merge it.
+They may ask you to reduce its scope, close it, or implement a different
+approach.

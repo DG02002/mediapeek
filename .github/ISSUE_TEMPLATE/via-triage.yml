@@ -1,0 +1,91 @@
+name: Triage report
+description: Record a maintainer or agent investigation of a MediaPeek failure.
+labels:
+  - via-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this structure after an investigation. Keep one problem per issue.
+        Redact credentials, private URLs, and personal data.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Describe the problem in the user's own words.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: boundary
+    attributes:
+      label: Affected boundary
+      options:
+        - Browser app or route behavior
+        - Web Worker analysis route or rate limiting
+        - Analyzer Worker or MediaInfo
+        - Range-based media fetch
+        - Browser storage, report library, or diff
+        - Export or sharing
+        - Deployment or operations
+        - Unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnosis
+    attributes:
+      label: Diagnosis
+      description: State what the investigation found and connect it to logs, configuration, or source.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Give a minimal deterministic reproduction, or write "Not reproduced" and explain what was checked.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Production release identity, commit SHA, or local branch.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser, device, local mode, deployment, or other relevant context.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Include only relevant redacted log lines, traces, or source references.
+      render: shell
+
+  - type: input
+    id: related
+    attributes:
+      label: Related issues
+      description: Link similar reports and explain why this is not a duplicate.
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Fix applied or workaround
+      description: Record an approved configuration or service-level workaround. Do not include secrets.
+
+  - type: input
+    id: filed-by
+    attributes:
+      label: Filed by
+      description: Which maintainer, agent, or model produced this report?
