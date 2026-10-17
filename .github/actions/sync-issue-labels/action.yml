@@ -1,0 +1,75 @@
+name: Sync issue labels
+description: Replace stale labels from a managed group with the selected label.
+inputs:
+  token:
+    description: GitHub token with permission to update issue labels.
+    required: true
+  managed-labels:
+    description: JSON array of label names managed by this sync.
+    required: true
+  targets:
+    description: JSON array of objects with issueNumber and labelName fields.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Apply managed labels
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        MANAGED_LABELS: ${{ inputs.managed-labels }}
+        TARGETS: ${{ inputs.targets }}
+      with:
+        github-token: ${{ inputs.token }}
+        script: |
+          const managedLabelNames = new Set(JSON.parse(process.env.MANAGED_LABELS));
+          const targets = JSON.parse(process.env.TARGETS);
+
+          for (const target of targets) {
+            if (!Number.isInteger(target.issueNumber) || !target.labelName) {
+              throw new Error(`Invalid label target: ${JSON.stringify(target)}`);
+            }
+
+            if (!managedLabelNames.has(target.labelName)) {
+              throw new Error(`Missing managed label definition: ${target.labelName}`);
+            }
+
+            const { data: currentLabels } = await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: target.issueNumber,
+              per_page: 100,
+            });
+
+            for (const label of currentLabels) {
+              if (
+                !managedLabelNames.has(label.name) ||
+                label.name === target.labelName
+              ) {
+                continue;
+              }
+
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: target.issueNumber,
+                  name: label.name,
+                });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+              }
+            }
+
+            if (!currentLabels.some((label) => label.name === target.labelName)) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: target.issueNumber,
+                labels: [target.labelName],
+              });
+            }
+
+            core.info(`Issue #${target.issueNumber} -> ${target.labelName}`);
+          }

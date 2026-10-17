@@ -1,0 +1,24 @@
+name: Issue labels
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/ISSUE_TEMPLATE/**
+      - .github/labels.json
+      - .github/workflows/issue-labels.yml
+      - .github/workflows/sync-managed-labels.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync:
+    name: Sync managed labels
+    uses: $/.github/workflows/sync-managed-labels.yml
+    permissions:
+      contents: read
+      issues: write

@@ -1,0 +1,227 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*.*.*"
+      - "!v*-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  HUSKY: 0
+
+jobs:
+  workflow-security:
+    name: Workflow security
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          advanced-security: false
+
+  verify-release-tag:
+    name: Verify stable release tag
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Check tag ancestry
+        env:
+          TAG_COMMIT: ${{ github.sha }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Unsupported product release tag: ${TAG_NAME}"
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$TAG_COMMIT" origin/main; then
+            echo "::error::Product release tag ${TAG_NAME} does not point to a commit on main"
+            exit 1
+          fi
+
+  verify:
+    name: Repository verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_OPTIONS: --no-experimental-webstorage
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26.12.0
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.30.3
+          cache: true
+          run_install: false
+      - name: Install the verified dependency graph
+        run: pnpm install --frozen-lockfile
+      - name: Run repository checks
+        run: pnpm check
+      - name: Run the test suites
+        run: pnpm test
+      - name: Build the verified release
+        run: |
+          set -o pipefail
+          pnpm build 2>&1 | tee build.log
+      - name: Dry-run analyzer Worker deployment
+        working-directory: apps/mediapeek-analyzer
+        run: pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
+      - name: Dry-run web Worker deployment
+        working-directory: apps/mediapeek
+        run: pnpm exec wrangler deploy --dry-run --config build/server/wrangler.json
+
+  deploy-production:
+    name: Deploy production
+    if: github.ref_type == 'tag'
+    needs:
+      - workflow-security
+      - verify-release-tag
+      - verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    concurrency:
+      group: production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26.12.0
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.30.3
+          cache: true
+          run_install: false
+      - name: Check production credentials are configured
+        run: |
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Set CLOUDFLARE_ACCOUNT_ID in the production GitHub Environment"; exit 1; }
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Set CLOUDFLARE_API_TOKEN in the production GitHub Environment"; exit 1; }
+      - name: Install the verified dependency graph
+        run: pnpm install --frozen-lockfile
+      - name: Build both Workers
+        run: pnpm build
+      - name: Capture current analyzer version for rollback
+        id: previous-analyzer
+        working-directory: apps/mediapeek-analyzer
+        run: |
+          deployments="$(pnpm exec wrangler deployments list --config wrangler.jsonc --json)"
+          version_id="$(jq -r '.deployments[0].versions[]? | select(.percentage == 100) | .version_id' <<< "$deployments" | head -n 1)"
+          printf 'version_id=%s\n' "$version_id" >> "$GITHUB_OUTPUT"
+      - name: Deploy analyzer Worker
+        id: deploy-analyzer
+        working-directory: apps/mediapeek-analyzer
+        env:
+          COMMIT_HASH: ${{ github.sha }}
+          SERVICE_VERSION: ${{ github.ref_name }}
+        run: >-
+          pnpm exec wrangler deploy --config wrangler.jsonc
+          --var "COMMIT_HASH:${COMMIT_HASH}"
+          --var "SERVICE_VERSION:${SERVICE_VERSION}"
+      - name: Capture current web version for rollback
+        id: previous-web
+        working-directory: apps/mediapeek
+        run: |
+          deployments="$(pnpm exec wrangler deployments list --config build/server/wrangler.json --json)"
+          version_id="$(jq -r '.deployments[0].versions[]? | select(.percentage == 100) | .version_id' <<< "$deployments" | head -n 1)"
+          printf 'version_id=%s\n' "$version_id" >> "$GITHUB_OUTPUT"
+      - name: Deploy web Worker
+        id: deploy-web
+        working-directory: apps/mediapeek
+        env:
+          COMMIT_HASH: ${{ github.sha }}
+          SERVICE_VERSION: ${{ github.ref_name }}
+        run: >-
+          pnpm exec wrangler deploy --config build/server/wrangler.json
+          --var "COMMIT_HASH:${COMMIT_HASH}"
+          --var "SERVICE_VERSION:${SERVICE_VERSION}"
+      - name: Check deployed release identity
+        env:
+          EXPECTED_COMMIT: ${{ github.sha }}
+          EXPECTED_VERSION: ${{ github.ref_name }}
+        run: |
+          for attempt in {1..12}; do
+            if response="$(curl --fail --silent --connect-timeout 10 --max-time 20 https://mediapeek.plnk.workers.dev/healthz)"; then
+              if jq -e --arg commit "$EXPECTED_COMMIT" --arg version "$EXPECTED_VERSION" '.ok == true and .commit == $commit and .version == $version' <<< "$response" >/dev/null; then
+                echo "The deployed Worker reports the expected release identity."
+                exit 0
+              fi
+            fi
+
+            echo "Health check attempt ${attempt}/12 did not report the expected release identity."
+            sleep 10
+          done
+
+          echo "::error::The deployed Worker did not report the expected release identity."
+          exit 1
+      - name: Roll back web Worker after failure
+        if: failure() && steps.deploy-web.outcome != 'skipped' && steps.previous-web.outputs.version_id != ''
+        working-directory: apps/mediapeek
+        env:
+          PREVIOUS_VERSION_ID: ${{ steps.previous-web.outputs.version_id }}
+        run: >-
+          pnpm exec wrangler rollback "$PREVIOUS_VERSION_ID"
+          --config build/server/wrangler.json
+          --message "Rollback after release health check failure"
+          --yes
+      - name: Roll back analyzer Worker after failure
+        if: failure() && steps.deploy-analyzer.outcome != 'skipped' && steps.previous-analyzer.outputs.version_id != ''
+        working-directory: apps/mediapeek-analyzer
+        env:
+          PREVIOUS_VERSION_ID: ${{ steps.previous-analyzer.outputs.version_id }}
+        run: >-
+          pnpm exec wrangler rollback "$PREVIOUS_VERSION_ID"
+          --config wrangler.jsonc
+          --message "Rollback after release health check failure"
+          --yes

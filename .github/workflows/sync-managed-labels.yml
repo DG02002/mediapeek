@@ -1,0 +1,89 @@
+name: Sync managed labels
+
+on:
+  workflow_call:
+    inputs:
+      prefix:
+        description: Only synchronize labels whose names start with this prefix.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync:
+    name: Sync managed labels
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sync label definitions
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          LABEL_PREFIX: ${{ inputs.prefix }}
+        with:
+          script: |
+            const labelFile = await github.rest.repos.getContent({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path: ".github/labels.json",
+              ref: context.payload.repository.default_branch,
+            });
+
+            if (Array.isArray(labelFile.data) || labelFile.data.type !== "file") {
+              throw new Error(".github/labels.json must be a file");
+            }
+
+            const allLabels = JSON.parse(
+              Buffer.from(labelFile.data.content, "base64").toString("utf8"),
+            );
+            const prefix = process.env.LABEL_PREFIX ?? "";
+            const managedLabels = allLabels.filter(
+              (label) => !prefix || label.name.startsWith(prefix),
+            );
+
+            for (const label of managedLabels) {
+              try {
+                const { data: existingLabel } = await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name,
+                });
+
+                if (
+                  existingLabel.color !== label.color ||
+                  (existingLabel.description ?? "") !== label.description
+                ) {
+                  await github.rest.issues.updateLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                    color: label.color,
+                    description: label.description,
+                  });
+                }
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+
+                try {
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                    color: label.color,
+                    description: label.description,
+                  });
+                } catch (createError) {
+                  if (createError.status !== 422) {
+                    throw createError;
+                  }
+                }
+              }
+            }
+
+            core.info(
+              `Synchronized ${managedLabels.length} managed label${managedLabels.length === 1 ? "" : "s"}${prefix ? ` with prefix ${prefix}` : ""}.`,
+            );

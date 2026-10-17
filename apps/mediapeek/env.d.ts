@@ -8,6 +8,7 @@ interface Env {
   ANALYZE_RATE_LIMIT_PER_MINUTE?: string;
   ANALYZER_REQUEST_TIMEOUT_MS?: string;
   APP_ENV?: string;
+  COMMIT_HASH?: string;
   LOG_SAMPLE_RATE?: string;
   LOG_SLOW_REQUEST_MS?: string;
   LOG_FORCE_ALL_REQUESTS?: string;
@@ -19,6 +20,7 @@ interface Env {
   TURNSTILE_SITE_KEY: string;
   ENABLE_TURNSTILE?: string;
   SESSION_SECRET?: string;
+  SERVICE_VERSION?: string;
 }
 
 

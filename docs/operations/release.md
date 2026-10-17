@@ -1,30 +1,62 @@
 # Release and deployment
 
-GitHub Actions owns production. A push to `main` verifies the repository but
-does not deploy. Production deploys only for a verified stable `vX.Y.Z` tag
-that points to a commit on `main`.
+GitHub Actions is the production deployment path. Pull requests and pushes to
+`main` run verification only. Production runs only for a stable `vX.Y.Z` tag
+that points to a commit on `main`; the tag workflow verifies the release before
+it enters the `production` GitHub Environment.
 
 ## One-time GitHub setup
 
-Create a GitHub Environment named `production` and add the environment secrets
-`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. These account-level values
-are maintained in GitHub and Cloudflare; they do not belong in the repository.
+Create a GitHub Environment named `production` and add these environment
+secrets:
+
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`
+
+Scope the Cloudflare API token to the MediaPeek account and the Worker
+deployment and rollback permissions it needs. Keep these values in GitHub and
+Cloudflare; they do not belong in the repository.
+
+The web Worker configuration currently enables Turnstile with
+`ENABLE_TURNSTILE=true`. Configure `TURNSTILE_SECRET_KEY` and
+`TURNSTILE_GRANT_SECRET` as Cloudflare Worker secrets before the first stable
+release. The release workflow preserves the configured Turnstile setting.
+
+Protect `main`, require pull requests, and require the successful
+`Verify / Repository verification` check before merging. Restrict creation of
+the stable `v*.*.*` release tags to maintainers. These GitHub settings are
+external to this repository and must be configured in GitHub.
 
 ## Stable release flow
 
 1. Merge a reviewed pull request into `main` after verification passes.
-2. Create and push a stable version tag on the approved `main` commit.
-3. The tag workflow verifies the commit and builds both Workers.
-4. The workflow deploys `apps/mediapeek-analyzer` first, then
-   `apps/mediapeek`.
-5. The web Worker `/healthz` check confirms the expected commit after deploy.
+2. Create and push a stable `vX.Y.Z` tag on the approved `main` commit.
+3. The tag workflow checks that the tag is stable and points to a commit on
+   `main`, then reruns repository verification and both Worker dry-runs.
+4. After verification, the workflow enters the `production` environment,
+   installs the frozen dependency graph, and builds both Workers.
+5. It captures the currently deployed Worker version IDs, then deploys
+   `mediapeek-analyzer` followed by `mediapeek`. Both Workers receive the tag
+   as `SERVICE_VERSION` and the tagged commit as `COMMIT_HASH`. The web Worker
+   keeps the `ENABLE_TURNSTILE` value from its Wrangler configuration.
+6. The workflow checks `https://mediapeek.plnk.workers.dev/healthz` until it
+   reports `ok: true` and the expected commit and service version.
+7. If a deployment succeeded but the health check or a later deploy step
+   fails, the workflow rolls back the changed Workers in reverse deployment
+   order to their captured prior version IDs.
 
-The workflow passes the release identity to both Workers and keeps Turnstile
-disabled unless the production configuration explicitly enables it. If the
-post-deploy health check fails, the workflow restores the prior Cloudflare
-Worker versions. Do not deploy from a development shell or use Wrangler's
-remote commands as a release shortcut.
+The first deployment of a Worker has no earlier version to restore. If that
+first deployment fails its health check, the job reports the failure for
+maintainer action instead of attempting a rollback to a nonexistent version.
+Worker rollback restores Worker code; it does not reverse changes to connected
+resources, and Cloudflare can reject a rollback when resource or Durable Object
+lifecycle changes prevent it. See [Cloudflare's rollback limits](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/).
 
-Keep this guide aligned with `.github/workflows/verify.yml`. Workflow changes
-must preserve the verified-tag gate, analyzer-first deployment order, and
-post-deploy health check.
+Do not deploy from a development shell or use Wrangler remote commands as a
+release shortcut. A local deployment can bypass the verified tag and the
+coordinated analyzer-first order.
+
+The release job is in [`.github/workflows/verify.yml`](../../.github/workflows/verify.yml).
+Keep its stable-tag gate, verification dependencies, Worker order, release
+identity variables, health check, and rollback behavior aligned with this
+guide.

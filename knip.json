@@ -13,6 +13,7 @@
       },
       "project": [
         "app/**/*.{ts,tsx}!",
+        "!app/test/**!",
         "../../packages/ui/src/styles/globals.css",
         "*.{ts,tsx,mjs}"
       ],
