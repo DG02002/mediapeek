@@ -17,8 +17,8 @@ interface Env {
   };
   TURNSTILE_SECRET_KEY?: string;
   TURNSTILE_GRANT_SECRET?: string;
-  TURNSTILE_SITE_KEY: string;
-  ENABLE_TURNSTILE?: string;
+  TURNSTILE_SITE_KEY?: string;
+  TURNSTILE_ENABLED?: string;
   SESSION_SECRET?: string;
   SERVICE_VERSION?: string;
 }

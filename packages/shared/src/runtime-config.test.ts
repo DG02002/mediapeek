@@ -14,13 +14,24 @@ describe("resolveRuntimeConfig", () => {
         LOG_SAMPLE_RATE: "0.35",
         LOG_SLOW_REQUEST_MS: "5000",
         LOG_FORCE_ALL_REQUESTS: "true",
+        TURNSTILE_ENABLED: "true",
       })
     ).toEqual({
       appEnv: "staging",
       logSampleRate: 0.35,
       logSlowRequestMs: 5000,
       logForceAllRequests: true,
+      turnstileEnabled: true,
     })
+  })
+
+  it("enables Turnstile only for the exact true string", () => {
+    expect(
+      resolveRuntimeConfig({ TURNSTILE_ENABLED: "TRUE" }).turnstileEnabled
+    ).toBe(false)
+    expect(
+      resolveRuntimeConfig({ TURNSTILE_ENABLED: "true" }).turnstileEnabled
+    ).toBe(true)
   })
 
   it("clamps out-of-range numeric values", () => {

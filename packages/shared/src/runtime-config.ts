@@ -5,6 +5,7 @@ export interface RuntimeConfig {
   logSampleRate: number
   logSlowRequestMs: number
   logForceAllRequests: boolean
+  turnstileEnabled: boolean
 }
 
 export interface RuntimeConfigEnv {
@@ -12,6 +13,7 @@ export interface RuntimeConfigEnv {
   LOG_SAMPLE_RATE?: string
   LOG_SLOW_REQUEST_MS?: string
   LOG_FORCE_ALL_REQUESTS?: string
+  TURNSTILE_ENABLED?: string
 }
 
 export const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
@@ -19,6 +21,7 @@ export const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
   logSampleRate: 0.1,
   logSlowRequestMs: 2_000,
   logForceAllRequests: false,
+  turnstileEnabled: false,
 }
 
 const APP_ENV_VALUES: AppEnvironment[] = [
@@ -115,4 +118,5 @@ export const resolveRuntimeConfig = (
     env?.LOG_FORCE_ALL_REQUESTS,
     DEFAULT_RUNTIME_CONFIG.logForceAllRequests
   ),
+  turnstileEnabled: env?.TURNSTILE_ENABLED === "true",
 })

@@ -455,9 +455,7 @@ export function MediaForm() {
   const shouldShowPendingStatus = usePendingStatusVisibility(isPending)
 
   const enableTurnstile =
-    typeof window !== "undefined"
-      ? window.ENV.ENABLE_TURNSTILE === "true"
-      : false
+    typeof window !== "undefined" ? window.ENV.TURNSTILE_ENABLED : false
 
   const {
     clipboardUrl,
@@ -542,7 +540,7 @@ export function MediaForm() {
     try {
       const data = await performAnalyzeRequest({
         url,
-        turnstileToken,
+        turnstileToken: enableTurnstile ? turnstileToken : "",
         updatePendingStatus: setPendingStatus,
       })
 
@@ -680,12 +678,14 @@ export function MediaForm() {
                 </InputGroup>
               </div>
             </div>
-            <input
-              type="hidden"
-              name="cf-turnstile-response"
-              id="cf-turnstile-response"
-              ref={turnstileInputRef}
-            />
+            {enableTurnstile ? (
+              <input
+                type="hidden"
+                name="cf-turnstile-response"
+                id="cf-turnstile-response"
+                ref={turnstileInputRef}
+              />
+            ) : null}
 
             {enableTurnstile && (
               <Dialog

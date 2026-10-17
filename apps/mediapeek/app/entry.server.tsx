@@ -8,6 +8,7 @@ import {
 } from "react-router"
 
 import { cloudflareContext } from "~/lib/cloudflare-context.server"
+import { createContentSecurityPolicy } from "~/security/content-security-policy"
 
 type HandleRequestArguments = [
   request: Request,
@@ -59,9 +60,10 @@ export default async function handleRequest(...args: HandleRequestArguments) {
     cloudflare.runtimeConfig.appEnv
   )
 
-  const contentSecurityPolicy = isDevelopment
-    ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: blob:; font-src 'self' https: data:; connect-src 'self' https: ws: wss:; worker-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com;"
-    : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https: data:; connect-src 'self' https:; frame-src 'self' https://challenges.cloudflare.com;"
+  const contentSecurityPolicy = createContentSecurityPolicy({
+    isDevelopment,
+    turnstileEnabled: cloudflare.runtimeConfig.turnstileEnabled,
+  })
 
   responseHeaders.set("Content-Security-Policy", contentSecurityPolicy)
   responseHeaders.set("X-Content-Type-Options", "nosniff")

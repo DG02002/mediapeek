@@ -26,7 +26,7 @@ export default function PrivacyPolicy() {
 
           <div className="mt-6! flex items-center gap-2">
             <span className="bg-muted text-muted-foreground rounded-md px-2 py-1 text-sm font-medium">
-              Last Updated: January 27, 2026
+              Last Updated: October 17, 2026
             </span>
           </div>
 
@@ -82,8 +82,21 @@ export default function PrivacyPolicy() {
                 provider (Cloudflare) for security and analytics purposes.
               </li>
               <li>
-                <strong>Security Tokens:</strong> CAPTCHA or Turnstile tokens
-                used to verify that requests are made by humans.
+                <strong>Optional Turnstile verification:</strong> Turnstile is
+                disabled by default. When enabled, your browser loads Cloudflare
+                Turnstile and MediaPeek sends its response token to Cloudflare
+                for server-side verification before analyzing a URL. When
+                disabled, MediaPeek does not load the widget or require a
+                Turnstile token. Read Cloudflare’s{" "}
+                <a
+                  href="https://www.cloudflare.com/en-au/turnstile-privacy-policy/"
+                  className="underline underline-offset-4"
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Turnstile Privacy Addendum
+                </a>{" "}
+                for information about its processing.
               </li>
             </ul>
           </section>

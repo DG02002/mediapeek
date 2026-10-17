@@ -544,7 +544,7 @@ const authorizeTurnstile = async (
   state: AnalyzeRequestState,
   url: string
 ): Promise<TurnstileDecision> => {
-  if (state.env.ENABLE_TURNSTILE !== "true") {
+  if (!state.runtimeConfig.turnstileEnabled) {
     return { authorized: true }
   }
 

@@ -67,7 +67,7 @@ Legacy compatibility is still available temporarily through `GET /resource/analy
 | `LOG_SAMPLE_RATE`               | Fraction of requests sampled for logs.                            | `0.1`               |
 | `LOG_SLOW_REQUEST_MS`           | Threshold for slow-request logging.                               | `2000`              |
 | `LOG_FORCE_ALL_REQUESTS`        | Forces logging for every request when set to `"true"`.            | `"false"`           |
-| `ENABLE_TURNSTILE`              | Enables Turnstile gating for public analyze access.               | Disabled unless set |
+| `TURNSTILE_ENABLED`             | Enables Turnstile gating for public analyze access.               | `false`             |
 | `TURNSTILE_SITE_KEY`            | Public Turnstile site key.                                        | None                |
 | `TURNSTILE_SECRET_KEY`          | Secret Turnstile key.                                             | None                |
 | `TURNSTILE_GRANT_SECRET`        | Secret used to sign short-lived Turnstile grant cookies.          | None                |

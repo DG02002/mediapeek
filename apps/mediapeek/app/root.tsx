@@ -83,16 +83,25 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     )
   }
 
-  const turnstileSiteKey = cloudflare.env.TURNSTILE_SITE_KEY?.trim() ?? ""
+  const { TURNSTILE_SITE_KEY } = cloudflare.env
+  const { turnstileEnabled } = runtimeConfig
 
-  return {
-    theme,
-    env: {
-      TURNSTILE_SITE_KEY: turnstileSiteKey,
-      ENABLE_TURNSTILE: cloudflare.env.ENABLE_TURNSTILE,
-      APP_ENV: runtimeConfig.appEnv,
-    },
+  const publicEnvironment = {
+    TURNSTILE_ENABLED: turnstileEnabled,
+    APP_ENV: runtimeConfig.appEnv,
   }
+
+  if (turnstileEnabled) {
+    return {
+      theme,
+      env: {
+        ...publicEnvironment,
+        TURNSTILE_SITE_KEY: TURNSTILE_SITE_KEY?.trim() ?? "",
+      },
+    }
+  }
+
+  return { theme, env: publicEnvironment }
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -116,8 +125,7 @@ function AppWithProviders({ children }: { children: React.ReactNode }) {
   const data = useRouteLoaderData<typeof loader>("root")
 
   const env = data?.env ?? {
-    TURNSTILE_SITE_KEY: "",
-    ENABLE_TURNSTILE: "false",
+    TURNSTILE_ENABLED: false,
     APP_ENV: "production",
   }
 
@@ -174,11 +182,13 @@ function AppWithProviders({ children }: { children: React.ReactNode }) {
             __html: `window.ENV = ${JSON.stringify(env)}`,
           }}
         />
-        <script
-          src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
-          async
-          defer
-        />
+        {env.TURNSTILE_ENABLED ? (
+          <script
+            src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+            async
+            defer
+          />
+        ) : null}
       </head>
       <body className="bg-background text-foreground antialiased">
         <div className="w-full" vaul-drawer-wrapper="">

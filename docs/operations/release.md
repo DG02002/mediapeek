@@ -17,10 +17,10 @@ Scope the Cloudflare API token to the MediaPeek account and the Worker
 deployment and rollback permissions it needs. Keep these values in GitHub and
 Cloudflare; they do not belong in the repository.
 
-The web Worker configuration currently enables Turnstile with
-`ENABLE_TURNSTILE=true`. Configure `TURNSTILE_SECRET_KEY` and
-`TURNSTILE_GRANT_SECRET` as Cloudflare Worker secrets before the first stable
-release. The release workflow preserves the configured Turnstile setting.
+The web Worker configuration defaults to `TURNSTILE_ENABLED=false`. The
+release workflow preserves that setting. If you enable Turnstile, configure
+`TURNSTILE_SECRET_KEY` and `TURNSTILE_GRANT_SECRET` as Cloudflare Worker
+secrets and `TURNSTILE_SITE_KEY` as a Worker variable before releasing.
 
 Protect `main`, require pull requests, and require the successful
 `Verify / Repository verification` check before merging. Restrict creation of
@@ -38,7 +38,7 @@ external to this repository and must be configured in GitHub.
 5. It captures the currently deployed Worker version IDs, then deploys
    `mediapeek-analyzer` followed by `mediapeek`. Both Workers receive the tag
    as `SERVICE_VERSION` and the tagged commit as `COMMIT_HASH`. The web Worker
-   keeps the `ENABLE_TURNSTILE` value from its Wrangler configuration.
+   keeps the `TURNSTILE_ENABLED` value from its Wrangler configuration.
 6. The workflow checks `https://mediapeek.plnk.workers.dev/healthz` until it
    reports `ok: true` and the expected commit and service version.
 7. If a deployment succeeded but the health check or a later deploy step

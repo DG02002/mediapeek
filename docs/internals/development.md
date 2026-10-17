@@ -22,9 +22,11 @@ Generate a local `SESSION_SECRET` with `openssl rand -base64 32`. Keep real
 values in per-app `.dev.vars` files and never commit them. The analyzer Worker
 currently needs no local secrets, so it does not need a `.dev.vars` file.
 
-The web app runs with Turnstile disabled by default and needs no Turnstile keys
-in that mode. To exercise the enabled path locally, set the flag and provide
-the local site and secret keys in the web app's `.dev.vars`.
+The web app runs with `TURNSTILE_ENABLED=false` by default and needs no
+Turnstile keys in that mode. To exercise the enabled path locally, set
+`TURNSTILE_ENABLED=true` and provide `TURNSTILE_SITE_KEY`,
+`TURNSTILE_SECRET_KEY`, and `TURNSTILE_GRANT_SECRET` in the web app's
+`.dev.vars`.
 
 ## Run the Workers
 
