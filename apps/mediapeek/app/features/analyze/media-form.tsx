@@ -2,12 +2,17 @@
 
 import {
   AlertCircleIcon,
-  ArrowRight01Icon,
-  ClipboardIcon,
+  ArrowRight02Icon,
   Loading03Icon,
 } from "@hugeicons/core-free-icons"
 import { Schema } from "effect"
-import { type SyntheticEvent, useEffect, useRef, useState } from "react"
+import {
+  type ClipboardEvent,
+  type SyntheticEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
 
 import { MediaSkeleton } from "~/components/media-skeleton"
 import { MediaView } from "~/components/media-view"
@@ -23,8 +28,9 @@ import {
 import { Icon } from "~/components/ui/icon"
 import {
   InputGroup,
+  InputGroupAddon,
   InputGroupButton,
-  InputGroupTextarea,
+  InputGroupInput,
 } from "~/components/ui/input-group"
 import { ClipboardAccessIcon } from "~/features/analyze/clipboard-access-icon"
 import { ClipboardPermissionDialog } from "~/features/analyze/clipboard-permission-dialog"
@@ -39,7 +45,6 @@ import {
 import { useClipboardUrl } from "~/features/analyze/use-clipboard-url"
 import { useTurnstileVerification } from "~/features/analyze/use-turnstile-verification"
 import { SaveAnalysisButton } from "~/features/library/save-analysis-button"
-import { useHapticFeedback } from "~/hooks/use-haptic"
 
 const usePendingStatusVisibility = (isPending: boolean) => {
   const [isVisible, setIsVisible] = useState(false)
@@ -60,48 +65,6 @@ const getFormString = (formData: FormData, name: string) => {
   const value = formData.get(name)
 
   return Schema.is(Schema.String)(value) ? value : null
-}
-
-function AddToQueueButton() {
-  return (
-    <InputGroupButton type="submit" className="h-8 px-3">
-      <Icon icon={ArrowRight01Icon} size={16} />
-      <span>Add to queue</span>
-    </InputGroupButton>
-  )
-}
-
-function PasteButton({
-  onPaste,
-  readClipboard,
-}: {
-  onPaste: (text: string) => void
-  readClipboard: () => Promise<string | null>
-}) {
-  const { triggerSuccess, triggerError } = useHapticFeedback()
-
-  const handlePaste = async () => {
-    const text = await readClipboard()
-
-    if (text) {
-      onPaste(text)
-      triggerSuccess()
-    } else {
-      triggerError()
-    }
-  }
-
-  return (
-    <InputGroupButton
-      type="button"
-      onClick={() => void handlePaste()}
-      title="Paste from clipboard"
-      className="mr-1 h-8"
-    >
-      <Icon icon={ClipboardIcon} size={16} />
-      <span className="sr-only">Paste</span>
-    </InputGroupButton>
-  )
 }
 
 const statusLabels: Record<AnalysisQueueItemStatus, string> = {
@@ -141,9 +104,8 @@ export function MediaForm() {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [isClipboardDialogOpen, setIsClipboardDialogOpen] = useState(false)
 
-  const pendingFormDataRef = useRef<FormData | null>(null)
+  const pendingUrlsRef = useRef<string | null>(null)
   const pendingRetryItemIdRef = useRef<string | null>(null)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   const {
     enabled: turnstileEnabled,
@@ -163,22 +125,16 @@ export function MediaForm() {
   const isPending = queueSnapshot.activeItemId !== null
   const shouldShowPendingStatus = usePendingStatusVisibility(isPending)
 
-  const activeItem = queueSnapshot.items.find(
-    (item) => item.id === queueSnapshot.activeItemId
-  )
-
   const {
     clipboardUrl,
     clipboardPermission,
     ignoreClipboard,
     checkClipboard,
     isClipboardApiSupported,
-    pasteClipboardText,
     requestClipboardAccess,
   } = useClipboardUrl(selectedAnalysis?.url)
 
-  const enqueueFormData = (formData: FormData, turnstileToken?: string) => {
-    const rawUrls = getFormString(formData, "url") ?? ""
+  const enqueueUrls = (rawUrls: string, turnstileToken?: string) => {
     const outcomes = queue.add(rawUrls, turnstileToken)
     const queuedOutcome = outcomes.find((outcome) => outcome.kind === "queued")
 
@@ -204,29 +160,42 @@ export function MediaForm() {
     }
   }
 
-  const onSubmit = (event: SyntheticEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const formData = new FormData(event.currentTarget)
-    const rawUrls = getFormString(formData, "url") ?? ""
-
+  const submitUrls = (rawUrls: string) => {
     if (!rawUrls.trim()) {
       setFormError("Enter a media URL.")
 
       return
     }
 
-    const turnstileToken =
-      getFormString(formData, "cf-turnstile-response")?.trim() ?? ""
+    const turnstileToken = turnstileEnabled
+      ? (turnstileInputRef.current?.value.trim() ?? "")
+      : ""
 
     if (turnstileEnabled && !turnstileToken) {
-      pendingFormDataRef.current = formData
+      pendingUrlsRef.current = rawUrls
       setFormError(null)
       void requestTurnstileToken()
 
       return
     }
 
-    enqueueFormData(formData, turnstileToken || undefined)
+    enqueueUrls(rawUrls, turnstileToken || undefined)
+  }
+
+  const onSubmit = (event: SyntheticEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    submitUrls(getFormString(new FormData(event.currentTarget), "url") ?? "")
+  }
+
+  const handleInputPaste = (event: ClipboardEvent<HTMLInputElement>) => {
+    const text = event.clipboardData.getData("text/plain")
+
+    if (!text.includes("\n")) {
+      return
+    }
+
+    event.preventDefault()
+    submitUrls(text)
   }
 
   const handleRetry = (itemId: string) => {
@@ -262,42 +231,28 @@ export function MediaForm() {
                     type="button"
                     onClick={(event) => {
                       event.preventDefault()
+                      const url = clipboardUrl
+
                       ignoreClipboard()
-                      setInputValue(clipboardUrl)
-
-                      if (inputRef.current) {
-                        inputRef.current.value = clipboardUrl
-                      }
-
-                      event.currentTarget.closest("form")?.requestSubmit()
+                      submitUrls(url)
                     }}
-                    className="hover:bg-muted/50 group flex max-w-full cursor-pointer flex-col items-start gap-1 rounded-xl px-4 py-3 text-left transition-colors"
+                    className="group w-full cursor-pointer rounded-md px-1 py-2 text-left"
                   >
-                    <span className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
-                      Link from Clipboard
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <span className="shimmer block max-w-full truncate text-sm font-medium break-all text-primary">
-                        {clipboardUrl}
-                      </span>
-                      <Icon
-                        icon={ArrowRight01Icon}
-                        size={16}
-                        className="text-muted-foreground group-hover:text-foreground shrink-0 -rotate-45 transition-colors group-hover:rotate-0"
-                      />
+                    <span className="shimmer block max-w-full truncate text-base font-normal break-all text-primary">
+                      {clipboardUrl}
                     </span>
                   </button>
                 ) : null}
               </div>
             </div>
 
-            <InputGroup className="min-h-24 items-end">
-              <InputGroupTextarea
-                ref={inputRef}
+            <InputGroup className="h-13.5 rounded-full border-2 bg-muted/30 has-[[data-slot=input-group-control]:focus-visible]:border-primary has-[[data-slot=input-group-control]:focus-visible]:ring-0">
+              <InputGroupInput
                 name="url"
-                placeholder="Paste one media URL per line"
+                placeholder="https://example.com/video"
                 autoComplete="off"
-                rows={3}
+                inputMode="url"
+                enterKeyHint="done"
                 value={inputValue}
                 onChange={(event) => setInputValue(event.currentTarget.value)}
                 onFocus={() => {
@@ -305,35 +260,39 @@ export function MediaForm() {
                     void checkClipboard()
                   }
                 }}
-                aria-label="Media URLs, one per line"
-                className="min-h-24 max-h-48 py-3"
+                onPaste={handleInputPaste}
+                aria-label="Media URL"
+                className="pl-5 text-base"
               />
-              {(clipboardPermission === "prompt" ||
-                clipboardPermission === "denied") && (
+              <InputGroupAddon align="inline-end">
+                {(clipboardPermission === "prompt" ||
+                  clipboardPermission === "denied") && (
+                  <InputGroupButton
+                    type="button"
+                    onClick={() => setIsClipboardDialogOpen(true)}
+                    title="Enable clipboard suggestions"
+                    aria-label="Enable clipboard suggestions"
+                    className="size-11 rounded-full bg-transparent hover:bg-transparent hover:text-inherit active:scale-[0.96] dark:hover:bg-transparent"
+                  >
+                    <ClipboardAccessIcon className="size-6" />
+                  </InputGroupButton>
+                )}
                 <InputGroupButton
-                  type="button"
-                  onClick={() => setIsClipboardDialogOpen(true)}
-                  title="Enable clipboard suggestions"
-                  aria-label="Enable clipboard suggestions"
-                  className="mr-1 h-8"
+                  type="submit"
+                  size="icon-xs"
+                  variant="default"
+                  disabled={!inputValue.trim()}
+                  title="Add to queue"
+                  aria-label="Add to queue"
+                  className="size-11 rounded-full"
                 >
-                  <ClipboardAccessIcon className="size-5" />
+                  <Icon
+                    icon={ArrowRight02Icon}
+                    strokeWidth={2}
+                    className="size-6"
+                  />
                 </InputGroupButton>
-              )}
-              {isClipboardApiSupported && clipboardPermission === "granted" && (
-                <PasteButton
-                  readClipboard={pasteClipboardText}
-                  onPaste={(text) => {
-                    setInputValue(text)
-
-                    if (inputRef.current) {
-                      inputRef.current.value = text
-                      inputRef.current.focus()
-                    }
-                  }}
-                />
-              )}
-              <AddToQueueButton />
+              </InputGroupAddon>
             </InputGroup>
             <ClipboardPermissionDialog
               clipboardPermission={clipboardPermission}
@@ -342,7 +301,8 @@ export function MediaForm() {
               onOpenChange={setIsClipboardDialogOpen}
             />
             <p className="text-muted-foreground text-sm">
-              Add one URL or paste several, with one media URL on each line.
+              Paste one media URL, or paste several at once to analyze them one
+              by one.
             </p>
 
             {turnstileEnabled ? (
@@ -365,10 +325,10 @@ export function MediaForm() {
                   }
 
                   const hadPendingAction =
-                    pendingFormDataRef.current !== null ||
+                    pendingUrlsRef.current !== null ||
                     pendingRetryItemIdRef.current !== null
 
-                  pendingFormDataRef.current = null
+                  pendingUrlsRef.current = null
                   pendingRetryItemIdRef.current = null
                   settleTurnstileTokenRequest(null)
 
@@ -394,17 +354,17 @@ export function MediaForm() {
                           turnstileInputRef.current.value = token
                         }
 
-                        const pendingFormData = pendingFormDataRef.current
+                        const pendingUrls = pendingUrlsRef.current
 
                         const pendingRetryItemId = pendingRetryItemIdRef.current
 
-                        pendingFormDataRef.current = null
+                        pendingUrlsRef.current = null
                         pendingRetryItemIdRef.current = null
                         settleTurnstileTokenRequest(token)
                         setIsTurnstileDialogOpen(false)
 
-                        if (pendingFormData) {
-                          enqueueFormData(pendingFormData, token)
+                        if (pendingUrls) {
+                          enqueueUrls(pendingUrls, token)
                         } else if (pendingRetryItemId) {
                           const outcome = queue.retry(pendingRetryItemId, token)
 
@@ -418,7 +378,7 @@ export function MediaForm() {
                           turnstileInputRef.current.value = ""
                         }
 
-                        pendingFormDataRef.current = null
+                        pendingUrlsRef.current = null
                         pendingRetryItemIdRef.current = null
                         settleTurnstileTokenRequest(null)
                         setIsTurnstileDialogOpen(false)
@@ -526,10 +486,14 @@ export function MediaForm() {
           <Alert>
             <Icon icon={Loading03Icon} size={16} className="animate-spin" />
             <AlertTitle>
-              {activeItem?.progress?.title ?? "Submitting Request"}
+              {queueSnapshot.items.find(
+                (item) => item.id === queueSnapshot.activeItemId
+              )?.progress?.title ?? "Submitting Request"}
             </AlertTitle>
             <AlertDescription>
-              {activeItem?.progress?.message ?? "Sending the analysis request."}
+              {queueSnapshot.items.find(
+                (item) => item.id === queueSnapshot.activeItemId
+              )?.progress?.message ?? "Sending the analysis request."}
             </AlertDescription>
           </Alert>
         </div>
@@ -540,7 +504,10 @@ export function MediaForm() {
       {selectedAnalysis?.outputs.json && (
         <div className="mt-6 w-full">
           <div className="animate-in fade-in slide-in-from-bottom-4 ease-smooth duration-300">
-            <SaveAnalysisButton analysis={selectedAnalysis} />
+            <SaveAnalysisButton
+              analysis={selectedAnalysis}
+              requestTurnstileToken={requestTurnstileToken}
+            />
             <MediaView
               data={selectedAnalysis.outputs}
               url={selectedAnalysis.url}

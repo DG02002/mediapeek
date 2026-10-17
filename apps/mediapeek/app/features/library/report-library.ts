@@ -241,16 +241,6 @@ const addImportedReport = async (report: StoredReport) =>
     return report
   })
 
-export const getReport = async (
-  id: string
-): Promise<StoredReport | undefined> =>
-  withReportStore("readonly", async (store) => {
-    const value = await waitForRequest<PersistedJsonValue>(store.get(id))
-    const decoded = decodeStoredReport(value)
-
-    return Result.isSuccess(decoded) ? decoded.success : undefined
-  })
-
 export const deleteReport = async (id: string): Promise<void> =>
   withReportStore("readwrite", async (store) => {
     await waitForRequest(store.delete(id))

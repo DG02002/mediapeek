@@ -1,26 +1,14 @@
-import { Link, NavLink } from "react-router"
+import { Link } from "react-router"
 
-import { buttonVariants } from "~/components/ui/button"
 import { ModeToggle } from "~/features/settings/mode-toggle"
 import { cn } from "~/lib/utils"
 
 interface HeaderProps {
   className?: string
-  showNav?: boolean
   sticky?: boolean
 }
 
-const navigationItems = [
-  { label: "App", to: "/app" },
-  { label: "Library", to: "/library" },
-  { label: "Compare", to: "/diff" },
-]
-
-export function Header({
-  className,
-  showNav = true,
-  sticky = true,
-}: HeaderProps) {
+export function Header({ className, sticky = true }: HeaderProps) {
   return (
     <header
       className={cn(
@@ -54,28 +42,7 @@ export function Header({
           </div>
         </Link>
 
-        {showNav ? (
-          <nav className="ml-auto hidden items-center gap-1 sm:flex">
-            {navigationItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                viewTransition
-                end={item.to === "/"}
-                className={({ isActive }) =>
-                  cn(
-                    buttonVariants({ variant: "ghost", size: "sm" }),
-                    isActive && "bg-muted text-foreground"
-                  )
-                }
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-        ) : null}
-
-        <div className="ml-auto flex items-center gap-2 sm:ml-0">
+        <div className="ml-auto flex items-center gap-2">
           <ModeToggle />
         </div>
       </div>

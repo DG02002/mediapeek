@@ -28,7 +28,8 @@ outside them.
   output format; reports leave the device only when the visitor exports or
   shares them.
 - The analysis queue runs in the browser and processes one URL at a time.
-- The diff view compares normalized report structure, not rendered text.
+- The compare view diffs the visitor-chosen JSON or text output line by line,
+  like git diff. It never diffs rendered views.
 - Browser and Worker contracts live in `packages/shared`, which both Workers
   consume.
 - Effect v4 is the runtime and schema library. Keep Zod out of the codebase.

@@ -1,4 +1,22 @@
-import { Button } from "~/components/ui/button"
+"use client"
+
+import {
+  Delete02Icon,
+  File01Icon,
+  GitMergeIcon,
+  MoreVerticalIcon,
+} from "@hugeicons/core-free-icons"
+
+import { Button, buttonVariants } from "~/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu"
+import { Icon } from "~/components/ui/icon"
+import { cn } from "~/lib/utils"
 
 import { parseMediaReport } from "./media-report"
 import type { StoredReport } from "./report-library"
@@ -7,6 +25,7 @@ interface ReportRowProps {
   report: StoredReport
   selected: boolean
   onOpen: () => void
+  onCompare: () => void
   onDelete: () => void
 }
 
@@ -40,24 +59,36 @@ const getReportSummary = (report: StoredReport) => {
   return details.filter(Boolean).join(" · ")
 }
 
+const analyzedAtFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeStyle: "short",
+})
+
 export function ReportRow({
   report,
   selected,
   onOpen,
+  onCompare,
   onDelete,
 }: ReportRowProps) {
   const summary = getReportSummary(report)
+  const analyzedAt = new Date(report.analyzedAt)
 
   return (
-    <li className="bg-card flex flex-wrap items-center gap-3 rounded-xl border p-4">
+    <li
+      className={cn(
+        "bg-card flex items-center gap-3 rounded-xl border p-4 transition-colors",
+        selected && "border-primary/60"
+      )}
+    >
       <button
         type="button"
         onClick={onOpen}
         aria-pressed={selected}
         className="min-w-0 flex-1 text-left"
       >
-        <span className="block break-all font-medium">{report.filename}</span>
-        <span className="text-muted-foreground mt-1 block break-all text-sm">
+        <span className="block truncate font-medium">{report.filename}</span>
+        <span className="text-muted-foreground mt-1 block truncate text-sm">
           {report.sourceUrl}
         </span>
         <span className="text-muted-foreground mt-2 block text-sm">
@@ -65,16 +96,41 @@ export function ReportRow({
         </span>
         <time
           dateTime={report.analyzedAt}
-          className="text-muted-foreground mt-2 block text-xs"
+          className="text-muted-foreground/80 mt-2 block text-xs"
         >
-          {report.analyzedAt}
+          {Number.isNaN(analyzedAt.getTime())
+            ? report.analyzedAt
+            : analyzedAtFormatter.format(analyzedAt)}
         </time>
       </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          className={cn(buttonVariants({ variant: "ghost", size: "icon" }))}
+        >
+          <Icon icon={MoreVerticalIcon} size={18} />
+          <span className="sr-only">Actions for {report.filename}</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuItem onClick={onOpen}>
+            <Icon icon={File01Icon} size={16} />
+            Open
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onCompare}>
+            <Icon icon={GitMergeIcon} size={16} />
+            Compare
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={onDelete}
+            className="text-destructive focus:text-destructive"
+          >
+            <Icon icon={Delete02Icon} size={16} />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <Button type="button" size="sm" variant="outline" onClick={onOpen}>
         Open
-      </Button>
-      <Button type="button" size="sm" variant="ghost" onClick={onDelete}>
-        Delete
       </Button>
     </li>
   )

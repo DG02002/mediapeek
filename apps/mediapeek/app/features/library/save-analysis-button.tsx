@@ -5,8 +5,18 @@ import { Button } from "~/components/ui/button"
 import type { AnalysisResult } from "~/features/analyze/analysis-session"
 import { parseMediaReport } from "~/features/library/media-report"
 import { saveReport } from "~/features/library/report-library"
+import { notifyReportsChanged } from "~/features/library/reports-changed"
+import { fetchAnalyzeFormat } from "~/lib/analyze-client"
 
-export function SaveAnalysisButton({ analysis }: { analysis: AnalysisResult }) {
+interface SaveAnalysisButtonProps {
+  analysis: AnalysisResult
+  requestTurnstileToken?: () => Promise<string | null>
+}
+
+export function SaveAnalysisButton({
+  analysis,
+  requestTurnstileToken,
+}: SaveAnalysisButtonProps) {
   const [message, setMessage] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -14,7 +24,24 @@ export function SaveAnalysisButton({ analysis }: { analysis: AnalysisResult }) {
     setIsSaving(true)
 
     try {
-      const json = analysis.outputs.json ?? ""
+      const outputs = { ...analysis.outputs }
+      let textUnavailable = false
+
+      if (outputs.text === undefined) {
+        const textResult = await fetchAnalyzeFormat({
+          url: analysis.url,
+          format: "text",
+          requestTurnstileToken,
+        })
+
+        if (textResult.ok) {
+          outputs.text = textResult.content
+        } else {
+          textUnavailable = true
+        }
+      }
+
+      const json = outputs.json ?? ""
       const parsed = parseMediaReport({ json, sourceUrl: analysis.url })
 
       const filename = parsed.ok
@@ -25,10 +52,15 @@ export function SaveAnalysisButton({ analysis }: { analysis: AnalysisResult }) {
         sourceUrl: analysis.url,
         filename,
         analyzedAt: new Date().toISOString(),
-        outputs: analysis.outputs,
+        outputs,
       })
 
-      setMessage("Saved to your library.")
+      notifyReportsChanged()
+      setMessage(
+        textUnavailable
+          ? "Saved to your reports. The text output could not be added."
+          : "Saved to your reports."
+      )
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Unable to save this report."

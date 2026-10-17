@@ -46,5 +46,9 @@ the request is active.
 
 A Media Report contains the requested output formats for one completed
 analysis. The browser library owns persistence, import, export, and deletion.
-The diff feature compares normalized report structure, with presentation kept
-separate from analysis and storage.
+Reports render on the app page: the list of stored reports, an opened report,
+and the compare mode all live beside the analysis form.
+
+Compare takes two stored reports and diffs the visitor-chosen JSON or text
+output line by line, in the style of a git diff. It works only on outputs the
+reports actually contain, never on rendered views.

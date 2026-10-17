@@ -1,6 +1,7 @@
 import { Footer } from "~/components/footer"
 import { Header } from "~/components/header"
 import { MediaForm } from "~/features/analyze/media-form"
+import { ReportsSection } from "~/features/library/reports-section"
 import { useHydrated } from "~/hooks/use-hydrated"
 
 import type { Route } from "./+types/route"
@@ -24,7 +25,10 @@ export default function AppRoute() {
       <Header sticky={false} />
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-12 sm:px-12">
         {isHydrated ? (
-          <MediaForm />
+          <>
+            <MediaForm />
+            <ReportsSection />
+          </>
         ) : (
           <div className="flex w-full max-w-3xl animate-pulse flex-col gap-8 py-8">
             <div className="bg-muted/20 h-32 w-full rounded-lg" />

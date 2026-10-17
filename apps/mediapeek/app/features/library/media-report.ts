@@ -55,7 +55,7 @@ interface ContainerReport {
   readonly uniqueId?: string
 }
 
-export interface VideoTrackReport {
+interface VideoTrackReport {
   readonly key: string
   readonly id?: string
   readonly uniqueId?: string
@@ -104,7 +104,7 @@ export interface VideoTrackReport {
   readonly codecConfigurationBox?: string
 }
 
-export interface AudioTrackReport {
+interface AudioTrackReport {
   readonly key: string
   readonly order?: string
   readonly id?: string
@@ -183,7 +183,7 @@ interface MediaAccessibilityReport {
   readonly audioDescription: boolean
 }
 
-export interface MediaReport {
+interface MediaReport {
   readonly file: MediaFileReport
   readonly container?: ContainerReport
   readonly videos: readonly VideoTrackReport[]
