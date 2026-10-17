@@ -10,7 +10,10 @@ interface HeaderProps {
   sticky?: boolean
 }
 
-const navigationItems = [{ label: "App", to: "/app" }]
+const navigationItems = [
+  { label: "App", to: "/app" },
+  { label: "Library", to: "/library" },
+]
 
 export function Header({
   className,

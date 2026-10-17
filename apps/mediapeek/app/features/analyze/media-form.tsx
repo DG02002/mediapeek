@@ -43,6 +43,7 @@ import {
 } from "~/features/analyze/queue/use-analysis-queue"
 import { useClipboardSuggestion } from "~/features/analyze/use-clipboard-suggestion"
 import { useTurnstileVerification } from "~/features/analyze/use-turnstile-verification"
+import { SaveAnalysisButton } from "~/features/library/save-analysis-button"
 import { useHapticFeedback } from "~/hooks/use-haptic"
 
 const subscribeWithoutChanges = () => () => {}
@@ -536,6 +537,7 @@ export function MediaForm() {
       {selectedAnalysis?.outputs.json && (
         <div className="mt-6 w-full">
           <div className="animate-in fade-in slide-in-from-bottom-4 ease-smooth duration-300">
+            <SaveAnalysisButton analysis={selectedAnalysis} />
             <MediaView
               data={selectedAnalysis.outputs}
               url={selectedAnalysis.url}

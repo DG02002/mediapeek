@@ -32,8 +32,10 @@ import { MediaHeader } from "./media-view/media-header"
 import { SubtitleSection } from "./media-view/subtitle-section"
 import { VideoSection } from "./media-view/video-section"
 
+export type MediaViewData = Record<string, string>
+
 interface MediaViewProps {
-  data: Record<string, string>
+  data: MediaViewData
   url: string
   requestTurnstileToken?: () => Promise<string | null>
   fetchFormat?: typeof fetchAnalyzeFormat

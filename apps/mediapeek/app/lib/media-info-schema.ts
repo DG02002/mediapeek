@@ -1,6 +1,6 @@
 import { Schema } from "effect"
 
-import type { MediaInfoJSON } from "~/types/media"
+import type { MediaInfoJSON, MediaTrackJSON } from "~/types/media"
 
 const isMediaInfoScalar = (value: Schema.Json) =>
   Schema.is(
@@ -26,7 +26,7 @@ function isMediaInfoExtraValue(value: Schema.Json): boolean {
   )
 }
 
-const isMediaInfoTrack = (value: Schema.Json) => {
+const isMediaInfoTrack = (value: unknown): value is MediaTrackJSON => {
   if (
     !Schema.is(Schema.JsonObject)(value) ||
     !Schema.is(Schema.String)(value["@type"])
@@ -41,6 +41,9 @@ const isMediaInfoTrack = (value: Schema.Json) => {
       : isMediaInfoScalar(property)
   )
 }
+
+export const MediaTrackJSONSchema =
+  Schema.declare<MediaTrackJSON>(isMediaInfoTrack)
 
 const isMediaInfoJSON = (value: unknown): value is MediaInfoJSON => {
   if (!Schema.is(Schema.JsonObject)(value)) {

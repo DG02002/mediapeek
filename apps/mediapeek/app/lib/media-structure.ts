@@ -35,11 +35,13 @@ export const isMediaStructureArray = <Value>(
   value: Value
 ): value is Value & MediaStructureArray => isJsonArray(value)
 
-const isMediaStructureString = <Value>(value: Value): value is Value & string =>
-  isJsonString(value)
+export const isMediaStructureString = <Value>(
+  value: Value
+): value is Value & string => isJsonString(value)
 
-const isMediaStructureNumber = <Value>(value: Value): value is Value & number =>
-  isJsonNumber(value)
+export const isMediaStructureNumber = <Value>(
+  value: Value
+): value is Value & number => isJsonNumber(value)
 
 const isMediaStructureBoolean = <Value>(
   value: Value
