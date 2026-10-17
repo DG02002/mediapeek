@@ -2,7 +2,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@mediapeek/ui/components/tooltip"
+} from "~/components/ui/tooltip"
 
 interface ArchiveEstimateTooltipProps {
   warning?: string

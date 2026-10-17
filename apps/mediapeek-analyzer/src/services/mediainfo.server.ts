@@ -70,7 +70,7 @@ export type AnalysisProgressReporter = (
   message: string
 ) => Promise<void> | void
 
-export interface MediaInfoAnalysisDependencies {
+interface MediaInfoAnalysisDependencies {
   readonly createMediaInfo: () => Promise<MediaInfoInstance>
 }
 

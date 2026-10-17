@@ -76,7 +76,5 @@ tmp/
 !apps/mediapeek/app/lib/**
 !apps/mediapeek-analyzer/src/lib/
 !apps/mediapeek-analyzer/src/lib/**
-!packages/ui/src/lib/
-!packages/ui/src/lib/**
 !scripts/
 !scripts/**

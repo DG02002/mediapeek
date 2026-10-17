@@ -1,7 +1,5 @@
-import "@mediapeek/ui/globals.css"
+import "./app.css"
 import { isDevelopmentEnvironment } from "@mediapeek/shared/runtime-config"
-import { Toaster } from "@mediapeek/ui/components/sonner"
-import { TooltipProvider } from "@mediapeek/ui/components/tooltip"
 import cx from "clsx"
 import { Match } from "effect"
 import {
@@ -19,6 +17,9 @@ import {
   ThemeProvider,
   useTheme,
 } from "remix-themes"
+
+import { Toaster } from "~/components/ui/sonner"
+import { TooltipProvider } from "~/components/ui/tooltip"
 
 import type { Route } from "./+types/root"
 import { RouteAnnouncer } from "./components/route-announcer"

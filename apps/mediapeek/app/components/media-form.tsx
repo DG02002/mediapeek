@@ -7,24 +7,6 @@ import {
   Loading03Icon,
 } from "@hugeicons/core-free-icons"
 import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@mediapeek/ui/components/alert"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@mediapeek/ui/components/dialog"
-import { Icon } from "@mediapeek/ui/components/icon"
-import {
-  InputGroup,
-  InputGroupButton,
-  InputGroupInput,
-} from "@mediapeek/ui/components/input-group"
 import { Result, Schema } from "effect"
 import { AnimatePresence, motion } from "motion/react"
 import {
@@ -39,6 +21,20 @@ import {
 } from "react"
 
 import { MediaSkeleton } from "~/components/media-skeleton"
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog"
+import { Icon } from "~/components/ui/icon"
+import {
+  InputGroup,
+  InputGroupButton,
+  InputGroupInput,
+} from "~/components/ui/input-group"
 import { useClipboardSuggestion } from "~/hooks/use-clipboard-suggestion"
 import {
   isAnalyzeProgressStreamResponse,

@@ -61,7 +61,7 @@ export interface MediaFetchResult {
   archiveEntry?: ArchiveEntryInspection
 }
 
-export type FetchProgressReporter = (
+type FetchProgressReporter = (
   stage: AnalyzeProgressStage,
   title: string,
   message: string

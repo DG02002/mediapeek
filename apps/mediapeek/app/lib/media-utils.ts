@@ -27,43 +27,6 @@ const isAppleTvFilename = (filename: string): boolean => {
 }
 
 /**
- * Recursively normalizes MediaInfo output to ensure a flat, friendly JSON structure.
- * It unwraps objects like { "@dt": "...", "#value": "..." } into their raw value.
- */
-type JsonMediaInfo = Schema.Json
-
-const normalizeJsonValue = (data: JsonMediaInfo): JsonMediaInfo => {
-  if (Schema.is(Schema.Array(Schema.Json))(data)) {
-    return data.map(normalizeJsonValue)
-  }
-
-  if (!Schema.is(Schema.JsonObject)(data)) {
-    return data
-  }
-
-  const wrappedValue = data["#value"]
-
-  if (wrappedValue !== undefined) {
-    return wrappedValue
-  }
-
-  const normalized: Record<string, JsonMediaInfo> = {}
-
-  for (const [key, value] of Object.entries(data)) {
-    normalized[key] = normalizeJsonValue(value)
-  }
-
-  return normalized
-}
-
-/**
- * Recursively normalizes MediaInfo output to ensure a flat, friendly JSON structure.
- * It unwraps objects like { "@dt": "...", "#value": "..." } into their raw value.
- */
-export const normalizeMediaInfo = (data: JsonMediaInfo): JsonMediaInfo =>
-  normalizeJsonValue(data)
-
-/**
  * Derived accessibility feature flags.
  */
 export interface AccessibilityFeatures {
@@ -520,13 +483,4 @@ export const parseChapters = (
  */
 export function extractFirstFileFromArchive(buffer: Uint8Array): string | null {
   return inspectFirstArchiveFile(buffer)
-}
-
-/**
- * Checks if the filename has an archive extension.
- */
-export const isArchiveExtension = (filename: string): boolean => {
-  const ext = filename.split(".").pop()?.toLowerCase() ?? ""
-
-  return ["zip", "tar", "rar", "7z", "gz", "bz2", "xz"].includes(ext)
 }

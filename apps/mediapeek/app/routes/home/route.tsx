@@ -4,22 +4,22 @@ import {
   KeyframesMultipleIcon,
   SecurityLockIcon,
 } from "@hugeicons/core-free-icons"
-import { buttonVariants } from "@mediapeek/ui/components/button"
+import { Link } from "react-router"
+
+import { Footer } from "~/components/footer"
+import { Header } from "~/components/header"
+import { TrademarkNotice } from "~/components/media-view/trademark-notice"
+import { buttonVariants } from "~/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@mediapeek/ui/components/card"
-import { Icon } from "@mediapeek/ui/components/icon"
-import { cn } from "@mediapeek/ui/lib/utils"
-import { Link } from "react-router"
-
-import { Footer } from "~/components/footer"
-import { Header } from "~/components/header"
-import { TrademarkNotice } from "~/components/media-view/trademark-notice"
+} from "~/components/ui/card"
+import { Icon } from "~/components/ui/icon"
 import { MEDIA_CONSTANTS } from "~/lib/media/constants"
+import { cn } from "~/lib/utils"
 
 import type { Route } from "./+types/route"
 

@@ -1,7 +1,5 @@
-"use client"
-
-import { cn } from "@mediapeek/ui/lib/utils"
 import * as React from "react"
+import { cn } from "~/lib/utils"
 
 function Label({ className, ...props }: React.ComponentProps<"label">) {
   return (

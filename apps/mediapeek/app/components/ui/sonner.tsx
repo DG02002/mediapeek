@@ -1,3 +1,5 @@
+import { useTheme } from "remix-themes"
+import { Toaster as Sonner, type ToasterProps } from "sonner"
 import {
   Alert02Icon,
   CheckmarkCircle02Icon,
@@ -5,10 +7,9 @@ import {
   Loading03Icon,
   MultiplicationSignCircleIcon,
 } from "@hugeicons/core-free-icons"
-import { Icon } from "@mediapeek/ui/components/icon"
 import type { CSSProperties } from "react"
-import { useTheme } from "remix-themes"
-import { Toaster as Sonner, type ToasterProps } from "sonner"
+
+import { Icon } from "~/components/ui/icon"
 
 type SonnerStyle = CSSProperties & {
   "--normal-bg": string
@@ -33,20 +34,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
       className="toaster group"
       icons={{
         success: (
-          <Icon
-            icon={CheckmarkCircle02Icon}
-            strokeWidth={2}
-            className="size-4"
-          />
+          <Icon icon={CheckmarkCircle02Icon} strokeWidth={2} className="size-4" />
         ),
         info: (
-          <Icon
-            icon={InformationCircleIcon}
-            strokeWidth={2}
-            className="size-4"
-          />
+          <Icon icon={InformationCircleIcon} strokeWidth={2} className="size-4" />
         ),
-        warning: <Icon icon={Alert02Icon} strokeWidth={2} className="size-4" />,
+        warning: (
+          <Icon icon={Alert02Icon} strokeWidth={2} className="size-4" />
+        ),
         error: (
           <Icon
             icon={MultiplicationSignCircleIcon}

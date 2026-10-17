@@ -2,7 +2,7 @@ import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import { evlog, type EvlogHonoOptions, type EvlogVariables } from "evlog/hono"
 import type { MiddlewareHandler } from "hono"
 
-export interface AnalyzerBindings {
+interface AnalyzerBindings {
   ANALYZE_API_KEY?: string
   ANALYZE_CPU_BUDGET_MS?: string
   APP_ENV?: string

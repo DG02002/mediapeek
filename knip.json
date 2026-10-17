@@ -7,14 +7,14 @@
       "project": ["scripts/**/*.{ts,mjs}"]
     },
     "apps/mediapeek": {
-      "entry": ["*.{ts,tsx,mjs}"],
+      "entry": ["*.{ts,tsx,mjs}", "app/lib/analysis-session.ts"],
       "paths": {
         "~/*": ["./app/*"]
       },
       "project": [
         "app/**/*.{ts,tsx}!",
+        "app/**/*.css!",
         "!app/test/**!",
-        "../../packages/ui/src/styles/globals.css",
         "*.{ts,tsx,mjs}"
       ],
       "ignoreIssues": {
@@ -22,11 +22,7 @@
       }
     },
     "apps/mediapeek-analyzer": {
-      "project": ["src/**/*.ts", "*.{ts,tsx,mjs}"],
-      "ignoreDependencies": ["mediainfo.js"]
-    },
-    "packages/ui": {
-      "project": ["src/**/*.{ts,tsx,css}", "test/**/*.{ts,tsx}"]
+      "project": ["src/**/*.ts", "*.{ts,tsx,mjs}"]
     },
     "packages/shared": {
       "entry": ["src/**/*.ts"],

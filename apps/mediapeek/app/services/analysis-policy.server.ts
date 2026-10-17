@@ -46,16 +46,13 @@ export interface AnalysisPolicyDecision {
   readonly rateLimitBindingError?: string
 }
 
-export const AnalysisPolicyErrorReasonSchema = Schema.Literals([
+const AnalysisPolicyErrorReasonSchema = Schema.Literals([
   "invalid-json",
   "validation-failed",
   "rate-limited",
   "rate-limit-unavailable",
   "rate-limit-missing",
 ])
-
-export type AnalysisPolicyErrorReason =
-  typeof AnalysisPolicyErrorReasonSchema.Type
 
 export class AnalysisPolicyError extends Schema.TaggedError<AnalysisPolicyError>()(
   "AnalysisPolicyError",

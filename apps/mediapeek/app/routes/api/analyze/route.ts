@@ -10,7 +10,6 @@ import {
 } from "@mediapeek/shared/log-redaction"
 import {
   type AnalyzeInput,
-  TurnstileResponseSchema,
   type TurnstileResponse,
 } from "@mediapeek/shared/schemas"
 import { Effect, Match, Result, Schema } from "effect"
@@ -26,6 +25,7 @@ import {
   getRequestIdFromLogger,
   getRequestLogger,
 } from "~/lib/request-logger.server"
+import { TurnstileResponseSchema } from "~/lib/schemas/turnstile"
 import {
   createTurnstileGrantToken,
   readTurnstileGrantCookie,

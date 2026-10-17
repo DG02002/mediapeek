@@ -1,9 +1,9 @@
-import { Badge } from "@mediapeek/ui/components/badge"
 import { AnimatePresence, motion } from "motion/react"
 import { memo, useMemo } from "react"
 
 import { AudioStreamStructure } from "~/components/media-view/audio-stream-structure"
 import { AudioTechDetails } from "~/components/media-view/audio-tech-details"
+import { Badge } from "~/components/ui/badge"
 import {
   cleanAudioTrackTitle,
   cleanMetadataString,

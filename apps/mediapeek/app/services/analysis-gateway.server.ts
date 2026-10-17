@@ -40,7 +40,7 @@ export interface AnalysisGatewayResponse {
   readonly data: AnalyzerRpcResponse
 }
 
-export const AnalysisGatewayErrorReasonSchema = Schema.Literals([
+const AnalysisGatewayErrorReasonSchema = Schema.Literals([
   "aborted",
   "binding-missing",
   "network",
@@ -49,8 +49,7 @@ export const AnalysisGatewayErrorReasonSchema = Schema.Literals([
   "invalid-contract",
 ])
 
-export type AnalysisGatewayErrorReason =
-  typeof AnalysisGatewayErrorReasonSchema.Type
+type AnalysisGatewayErrorReason = typeof AnalysisGatewayErrorReasonSchema.Type
 
 export class AnalysisGatewayError extends Schema.TaggedError<AnalysisGatewayError>()(
   "AnalysisGatewayError",

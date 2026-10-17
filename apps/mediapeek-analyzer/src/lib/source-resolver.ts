@@ -1,4 +1,4 @@
-export type SourceProvider = "direct" | "google-drive" | "onedrive"
+type SourceProvider = "direct" | "google-drive" | "onedrive"
 
 export type SourceResolution =
   | {

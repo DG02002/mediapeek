@@ -10,12 +10,12 @@ import {
 } from "@mediapeek/shared/analyze-progress"
 import { createEvlogLoggerConfig } from "@mediapeek/shared/evlog"
 import { redactSensitiveUrl } from "@mediapeek/shared/log-redaction"
-import { analyzeSchema, type AnalyzeInput } from "@mediapeek/shared/schemas"
 import { Result, Schema } from "effect"
 import { initWorkersLogger } from "evlog/workers"
 import { Hono, type Context } from "hono"
 
 import { unknownToError } from "./lib/error"
+import { analyzeSchema, type AnalyzeInput } from "./lib/schemas"
 import {
   executeAnalysis,
   type AnalysisExecutionInput,

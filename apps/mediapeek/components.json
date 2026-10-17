@@ -5,7 +5,7 @@
   "tsx": true,
   "tailwind": {
     "config": "",
-    "css": "../../packages/ui/src/styles/globals.css",
+    "css": "app/app.css",
     "baseColor": "neutral",
     "cssVariables": true,
     "prefix": ""
@@ -13,8 +13,8 @@
   "iconLibrary": "hugeicons",
   "aliases": {
     "components": "~/components",
-    "utils": "@mediapeek/ui/lib/utils",
-    "ui": "@mediapeek/ui/components",
+    "utils": "~/lib/utils",
+    "ui": "~/components/ui",
     "lib": "~/lib",
     "hooks": "~/hooks"
   },

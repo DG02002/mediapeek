@@ -1,6 +1,5 @@
+import { extractFilenameFromUrl } from "@mediapeek/shared/filename-resolution"
 import { describe, expect, it } from "vitest"
-
-import { extractFilenameFromUrl } from "./server-utils"
 
 describe("extractFilenameFromUrl", () => {
   it("should extract and decode filename from URL", () => {

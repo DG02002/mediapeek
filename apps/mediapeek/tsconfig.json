@@ -4,7 +4,6 @@
     "types": ["node", "vite/client"],
     "paths": {
       "~/*": ["./app/*"],
-      "@mediapeek/ui/*": ["../../packages/ui/src/*"],
       "@mediapeek/shared/*": ["../../packages/shared/src/*"]
     },
     "rootDirs": [".", "./.react-router/types"]

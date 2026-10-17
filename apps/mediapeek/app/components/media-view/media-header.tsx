@@ -1,7 +1,7 @@
-import { Separator } from "@mediapeek/ui/components/separator"
 import { memo, useMemo } from "react"
 
 import { OptionsMenu } from "~/components/media-view/options-menu"
+import { Separator } from "~/components/ui/separator"
 import { getMediaBadges, isValidFilename } from "~/lib/media-utils"
 import type { MediaTrackJSON } from "~/types/media"
 

@@ -1,4 +1,4 @@
-import { Skeleton } from "@mediapeek/ui/components/skeleton"
+import { Skeleton } from "~/components/ui/skeleton"
 
 const videoFieldKeys = [
   "video-field-one",

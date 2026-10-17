@@ -1,11 +1,11 @@
+import { memo } from "react"
+
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@mediapeek/ui/components/accordion"
-import { memo } from "react"
-
+} from "~/components/ui/accordion"
 import {
   getMediaStructureString as getString,
   isMediaStructureArray as isArray,

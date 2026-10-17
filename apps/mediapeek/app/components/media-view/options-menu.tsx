@@ -5,6 +5,10 @@ import {
   QuoteDownIcon,
   Share01Icon,
 } from "@hugeicons/core-free-icons"
+import * as React from "react"
+import { useId } from "react"
+import { toast } from "sonner"
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,8 +18,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@mediapeek/ui/components/alert-dialog"
-import { Button, buttonVariants } from "@mediapeek/ui/components/button"
+} from "~/components/ui/alert-dialog"
+import { Button, buttonVariants } from "~/components/ui/button"
 import {
   Drawer,
   DrawerContent,
@@ -23,7 +27,7 @@ import {
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
-} from "@mediapeek/ui/components/drawer"
+} from "~/components/ui/drawer"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,25 +37,16 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@mediapeek/ui/components/dropdown-menu"
-import { Icon } from "@mediapeek/ui/components/icon"
-import { Input } from "@mediapeek/ui/components/input"
-import { Label } from "@mediapeek/ui/components/label"
-import { Separator } from "@mediapeek/ui/components/separator"
-import { Switch } from "@mediapeek/ui/components/switch"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@mediapeek/ui/components/tabs"
-import { cn } from "@mediapeek/ui/lib/utils"
-import * as React from "react"
-import { useId } from "react"
-import { toast } from "sonner"
-
+} from "~/components/ui/dropdown-menu"
+import { Icon } from "~/components/ui/icon"
+import { Input } from "~/components/ui/input"
+import { Label } from "~/components/ui/label"
+import { Separator } from "~/components/ui/separator"
+import { Switch } from "~/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { useMediaActions } from "~/hooks/use-media-actions"
 import { useMediaQuery } from "~/hooks/use-media-query"
+import { cn } from "~/lib/utils"
 
 interface OptionsMenuProps {
   data: Record<string, string>

@@ -12,7 +12,6 @@
     "moduleDetection": "force",
     "jsx": "react-jsx",
     "paths": {
-      "@mediapeek/ui/*": ["./packages/ui/src/*"],
       "@mediapeek/shared/*": ["./packages/shared/src/*"]
     },
     "composite": true,
@@ -23,7 +22,6 @@
   "references": [
     { "path": "./apps/mediapeek" },
     { "path": "./apps/mediapeek-analyzer" },
-    { "path": "./packages/shared" },
-    { "path": "./packages/ui" }
+    { "path": "./packages/shared" }
   ]
 }

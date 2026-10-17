@@ -1,8 +1,8 @@
-import { buttonVariants } from "@mediapeek/ui/components/button"
-import { cn } from "@mediapeek/ui/lib/utils"
 import { Link, NavLink } from "react-router"
 
 import { ModeToggle } from "~/components/mode-toggle"
+import { buttonVariants } from "~/components/ui/button"
+import { cn } from "~/lib/utils"
 
 interface HeaderProps {
   className?: string

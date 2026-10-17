@@ -1,4 +1,4 @@
-import { cn } from "@mediapeek/ui/lib/utils"
+import { cn } from "~/lib/utils"
 
 const BADGE_ASPECT_RATIOS = new Map<string, number>(
   Object.entries({

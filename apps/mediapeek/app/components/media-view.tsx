@@ -1,11 +1,6 @@
 "use client"
 
 import { ArrowExpandIcon, ArrowShrink02Icon } from "@hugeicons/core-free-icons"
-import { Button } from "@mediapeek/ui/components/button"
-import { Icon } from "@mediapeek/ui/components/icon"
-import { Skeleton } from "@mediapeek/ui/components/skeleton"
-import { SmoothTransition } from "@mediapeek/ui/lib/animation"
-import { cn } from "@mediapeek/ui/lib/utils"
 import { Schema } from "effect"
 import { AnimatePresence, motion } from "motion/react"
 import {
@@ -18,9 +13,14 @@ import {
   useTransition,
 } from "react"
 
+import { Button } from "~/components/ui/button"
+import { Icon } from "~/components/ui/icon"
+import { Skeleton } from "~/components/ui/skeleton"
 import { fetchAnalyzeFormat } from "~/lib/analyze-client"
+import { SmoothTransition } from "~/lib/animation"
 import { MediaInfoJSONSchema } from "~/lib/media-info-schema"
 import { removeEmptyStrings } from "~/lib/media-utils"
+import { cn } from "~/lib/utils"
 import { startNativeViewTransition } from "~/lib/view-transition"
 
 import { AccessibilitySection } from "./media-view/accessibility-section"

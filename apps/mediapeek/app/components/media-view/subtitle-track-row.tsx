@@ -1,7 +1,7 @@
-import { Badge } from "@mediapeek/ui/components/badge"
 import { AnimatePresence, motion } from "motion/react"
 import { memo, useMemo } from "react"
 
+import { Badge } from "~/components/ui/badge"
 import { cleanSubtitleTrackTitle } from "~/lib/formatters"
 import type { MediaTrackJSON } from "~/types/media"
 

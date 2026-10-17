@@ -1,6 +1,6 @@
 import { Context, Layer } from "effect"
 
-export interface RuntimeEnvironmentFetcher {
+interface RuntimeEnvironmentFetcher {
   readonly fetch: (
     input: RequestInfo | URL,
     init?: RequestInit

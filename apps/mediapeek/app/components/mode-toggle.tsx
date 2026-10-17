@@ -1,6 +1,7 @@
-import { cn } from "@mediapeek/ui/lib/utils"
 import { flushSync } from "react-dom"
 import { Theme, useTheme } from "remix-themes"
+
+import { cn } from "~/lib/utils"
 
 export function ModeToggle() {
   const [themeState, setTheme] = useTheme()

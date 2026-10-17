@@ -1,5 +1,6 @@
-import { analyzeSchema } from "@mediapeek/shared/schemas"
 import { describe, expect, it } from "vitest"
+
+import { analyzeSchema } from "./schemas"
 
 describe("analyzeSchema", () => {
   it("validates a correct URL and applies default format", () => {
