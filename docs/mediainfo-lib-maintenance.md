@@ -1,7 +1,7 @@
 # MediaInfo.js Maintenance & Update Guide
 
-**Last Updated:** January 2026
-**Library Version:** `mediainfo.js` v0.3.7
+**Last Updated:** October 2026
+**Library Version:** `mediainfo.js` v0.3.8
 
 ## Overview
 
@@ -11,9 +11,12 @@ We have implemented a workaround that loads a **pre-compiled** WebAssembly modul
 
 ## Files Involved
 
-1. **`app/lib/mediainfo-bundle.js`**: The vendored (and patched) library code. This is a copy of `dist/esm-bundle/index.js` from the npm package.
-2. **`app/services/MediaInfoModule.wasm`**: The WASM binary. This is imported by our factory to be processed by the build system.
-3. **`app/services/mediainfo-factory.server.ts`**: The factory that initializes the library using the patched bundle and the imported WASM module.
+The application and analyzer Worker each use the same vendored package and
+Cloudflare WASM patches:
+
+1. **`apps/mediapeek/app/lib/mediainfo-bundle.js`** and **`apps/mediapeek-analyzer/src/lib/mediainfo-bundle.js`**: The vendored (and patched) library code, copied from `dist/esm-bundle/index.js` in the npm package.
+2. **`apps/mediapeek/app/services/MediaInfoModule.wasm`** and **`apps/mediapeek-analyzer/src/services/MediaInfoModule.wasm`**: The precompiled WASM binaries imported by the app and analyzer factories.
+3. **`apps/mediapeek/app/services/mediainfo-factory.server.ts`** and **`apps/mediapeek-analyzer/src/services/mediainfo-factory.server.ts`**: Factories that initialize the library using the patched bundles and imported WASM modules.
 
 ## Why Patching is Required
 
@@ -29,9 +32,9 @@ When you need to update the library to a newer version, you cannot just run `pnp
 
 ### Step 1: Get the New Files
 
-1. Install the new version locally or in a temp folder: `pnpm i mediainfo.js@latest`.
-2. Copy `node_modules/mediainfo.js/dist/MediaInfoModule.wasm` to `app/services/MediaInfoModule.wasm`.
-3. Copy `node_modules/mediainfo.js/dist/esm-bundle/index.js` to `app/lib/mediainfo-bundle.js`.
+1. Install the selected version locally or in a temp folder: `pnpm i mediainfo.js@<version>`.
+2. Copy `node_modules/mediainfo.js/dist/MediaInfoModule.wasm` to both app service directories listed above.
+3. Copy `node_modules/mediainfo.js/dist/esm-bundle/index.js` to both bundle paths listed above.
 
 ### Step 2: Apply Patch 1 (The Factory Wrapper)
 
@@ -49,7 +52,7 @@ const mediaInfoModuleFactoryOpts = {
   onAbort: (err) => {
     // ...
   },
-};
+}
 ```
 
 **Change it to:**
@@ -66,7 +69,7 @@ const mediaInfoModuleFactoryOpts = {
   onAbort: (err) => {
     // ...
   },
-};
+}
 ```
 
 ### Step 3: Apply Patch 2 (The Instantiation Logic)
@@ -116,7 +119,7 @@ In `app/services/mediainfo-factory.server.ts`, you will notice the following dir
 
 ```typescript
 // @ts-expect-error - Import collocated WASM module for bundling
-import wasmModule from './MediaInfoModule.wasm';
+import wasmModule from "./MediaInfoModule.wasm"
 ```
 
 **Reasoning:**

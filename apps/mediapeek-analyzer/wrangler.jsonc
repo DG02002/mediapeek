@@ -2,8 +2,11 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mediapeek-analyzer",
   "main": "src/index.ts",
-  "compatibility_date": "2026-03-06",
+  "compatibility_date": "2026-10-17",
   "compatibility_flags": ["nodejs_compat"],
+  "limits": {
+    "cpu_ms": 30000,
+  },
   "workers_dev": false,
   "dev": {
     "port": 0,

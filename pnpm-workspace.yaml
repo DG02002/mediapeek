@@ -10,32 +10,34 @@ allowBuilds:
 
 blockExoticSubdeps: true
 
-minimumReleaseAge: 10080
-minimumReleaseAgeStrict: true
-
-strictDepBuilds: true
-
 catalog:
-  "@cloudflare/workers-types": 4.20260510.1
-  "@oxlint/plugins": 1.82.0
-  evlog: 2.21.0
-  effect: rc
+  '@cloudflare/workers-types': 5.20261010.1
+  '@oxlint/plugins': 1.87.0
+  effect: ^4.0.2
+  evlog: 2.30.1
   husky: 9.1.7
-  knip: ^6.35.1
-  lint-staged: 17.5.1
-  markdownlint-cli2: ^0.23.2
-  oxfmt: ^0.67.0
-  oxlint: 1.82.0
-  oxlint-tsgolint: 7.0.2001
-  tsx: ^4.23.13
-  typescript: 6.0.3
-  vite: 8.0.11
-  vitest: 4.1.5
-  wrangler: 4.90.0
+  knip: ^6.41.0
+  lint-staged: 17.6.0
+  markdownlint-cli2: ^0.23.3
+  oxfmt: ^0.72.0
+  oxlint: 1.87.0
+  oxlint-tsgolint: 7.0.2003
+  tsx: ^4.23.15
+  typescript: 7.0.2
+  vite: 8.3.4
+  vitest: 5.0.3
+  wrangler: 4.149.0
+
+minimumReleaseAge: 10080
+
+minimumReleaseAgeStrict: true
 
 saveWorkspaceProtocol: rolling
 
 sharedWorkspaceLockfile: true
 
+strictDepBuilds: true
+
 trustPolicy: no-downgrade
+
 trustPolicyIgnoreAfter: 10080

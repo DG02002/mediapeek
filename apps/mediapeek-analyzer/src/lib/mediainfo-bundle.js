@@ -1,174 +1,28 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck
-/* eslint-disable */
+// MediaPeek vendored copy of mediainfo.js v0.3.8 esm-bundle.
+// Cloudflare patches pass the imported WebAssembly.Module through the factory
+// and instantiate it directly, avoiding runtime WebAssembly compilation.
 function isError(error) {
-  return (
-    error !== null &&
-    typeof error === 'object' &&
-    Object.prototype.hasOwnProperty.call(error, 'message')
-  );
+  return error !== null && typeof error === 'object' && Object.prototype.hasOwnProperty.call(error, 'message');
 }
 function unknownToError(error) {
-  if (isError(error)) {
-    return error;
-  }
-  return new Error(typeof error === 'string' ? error : 'Unknown error');
+  return isError(error) ? error : new Error(typeof error === 'string' ? error : 'Unknown error');
 }
 
 // DO NOT EDIT! File generated using `generate-types` script.
-//
-// -----------------------------------------------------------------------------
-// PATCHED FOR CLOUDFLARE WORKERS (MEDIA PEEK)
-// -----------------------------------------------------------------------------
-// This file is a vendored copy of `mediainfo.js` (v0.3.7) esm-bundle.
-// It has been patched to support pre-compiled WebAssembly Modules, which is
-// required for Cloudflare Workers where 'Wasm code generation' is disallowed.
-//
-// PATCH DESCRIPTION:
-// 1. mediaInfoFactory (Bottom of file): Modified to pass `options.wasmModule`
-//    to the inner `Module` constructor. Upstream filters this out.
-// 2. instantiateAsync (Middle of file): Modified to check for `Module['wasmModule']`
-//    and use `WebAssembly.instantiate(module, imports)` directly.
-//
-// HOW TO UPDATE:
-// If you update `mediainfo.js`, you must copy `dist/esm-bundle/index.js` here
-// and Re-Apply the changes described above.
-// -----------------------------------------------------------------------------
 
-const INT_FIELDS = [
-  'Active_Height',
-  'Active_Width',
-  'AudioCount',
-  'Audio_Channels_Total',
-  'BitDepth_Detected',
-  'BitDepth',
-  'BitDepth_Stored',
-  'Channels',
-  'Channels_Original',
-  'Chapters_Pos_Begin',
-  'Chapters_Pos_End',
-  'Comic_Position_Total',
-  'Count',
-  'DataSize',
-  'ElementCount',
-  'EPG_Positions_Begin',
-  'EPG_Positions_End',
-  'FirstPacketOrder',
-  'FooterSize',
-  'Format_Settings_GMC',
-  'Format_Settings_RefFrames',
-  'Format_Settings_SliceCount',
-  'FrameCount',
-  'FrameRate_Den',
-  'FrameRate_Num',
-  'GeneralCount',
-  'HeaderSize',
-  'Height_CleanAperture',
-  'Height',
-  'Height_Offset',
-  'Height_Original',
-  'ImageCount',
-  'Lines_MaxCharacterCount',
-  'Lines_MaxCountPerEvent',
-  'Matrix_Channels',
-  'MenuCount',
-  'OtherCount',
-  'Part_Position',
-  'Part_Position_Total',
-  'Played_Count',
-  'Reel_Position',
-  'Reel_Position_Total',
-  'Resolution',
-  'Sampled_Height',
-  'Sampled_Width',
-  'SamplingCount',
-  'Season_Position',
-  'Season_Position_Total',
-  'Source_FrameCount',
-  'Source_SamplingCount',
-  'Source_StreamSize_Encoded',
-  'Source_StreamSize',
-  'Status',
-  'Stored_Height',
-  'Stored_Width',
-  'StreamCount',
-  'StreamKindID',
-  'StreamKindPos',
-  'StreamSize_Demuxed',
-  'StreamSize_Encoded',
-  'StreamSize',
-  'TextCount',
-  'Track_Position',
-  'Track_Position_Total',
-  'Video0_Delay',
-  'VideoCount',
-  'Width_CleanAperture',
-  'Width',
-  'Width_Offset',
-  'Width_Original',
-];
-const FLOAT_FIELDS = [
-  'Active_DisplayAspectRatio',
-  'BitRate_Encoded',
-  'BitRate_Maximum',
-  'BitRate_Minimum',
-  'BitRate',
-  'BitRate_Nominal',
-  'Bits-Pixel_Frame',
-  'BitsPixel_Frame',
-  'Compression_Ratio',
-  'Delay',
-  'Delay_Original',
-  'DisplayAspectRatio_CleanAperture',
-  'DisplayAspectRatio',
-  'DisplayAspectRatio_Original',
-  'Duration_End_Command',
-  'Duration_End',
-  'Duration_FirstFrame',
-  'Duration_LastFrame',
-  'Duration',
-  'Duration_Start2End',
-  'Duration_Start_Command',
-  'Duration_Start',
-  'Events_MinDuration',
-  'FrameRate_Maximum',
-  'FrameRate_Minimum',
-  'FrameRate',
-  'FrameRate_Nominal',
-  'FrameRate_Original_Den',
-  'FrameRate_Original',
-  'FrameRate_Original_Num',
-  'FrameRate_Real',
-  'Interleave_Duration',
-  'Interleave_Preload',
-  'Interleave_VideoFrames',
-  'MasteringDisplay_Luminance_Max',
-  'MasteringDisplay_Luminance_Min',
-  'MaxCLL',
-  'MaxCLL_Original',
-  'MaxFALL',
-  'MaxFALL_Original',
-  'OverallBitRate_Maximum',
-  'OverallBitRate_Minimum',
-  'OverallBitRate',
-  'OverallBitRate_Nominal',
-  'PixelAspectRatio_CleanAperture',
-  'PixelAspectRatio',
-  'PixelAspectRatio_Original',
-  'SamplesPerFrame',
-  'SamplingRate',
-  'Source_Duration_FirstFrame',
-  'Source_Duration_LastFrame',
-  'Source_Duration',
-  'TimeStamp_FirstFrame',
-  'Video_Delay',
-];
+const INT_FIELDS = ['Active_Height', 'Active_Width', 'AudioCount', 'Audio_Channels_Total', 'BitDepth_Detected', 'BitDepth', 'BitDepth_Stored', 'Channels', 'Channels_Original', 'Chapters_Pos_Begin', 'Chapters_Pos_End', 'Comic_Position_Total', 'Count', 'DataSize', 'ElementCount', 'EPG_Positions_Begin', 'EPG_Positions_End', 'FirstPacketOrder', 'FooterSize', 'Format_Settings_GMC', 'Format_Settings_RefFrames', 'Format_Settings_SliceCount', 'FrameCount', 'FrameRate_Den', 'FrameRate_Num', 'GeneralCount', 'HeaderSize', 'Height_CleanAperture', 'Height', 'Height_Offset', 'Height_Original', 'ImageCount', 'Lines_MaxCharacterCount', 'Lines_MaxCountPerEvent', 'Matrix_Channels', 'MenuCount', 'OtherCount', 'Part_Position', 'Part_Position_Total', 'Played_Count', 'Reel_Position', 'Reel_Position_Total', 'Resolution', 'Sampled_Height', 'Sampled_Width', 'SamplingCount', 'Season_Position', 'Season_Position_Total', 'Source_FrameCount', 'Source_SamplingCount', 'Source_StreamSize_Encoded', 'Source_StreamSize', 'Status', 'Stored_Height', 'Stored_Width', 'StreamCount', 'StreamKindID', 'StreamKindPos', 'StreamSize_Demuxed', 'StreamSize_Encoded', 'StreamSize', 'TextCount', 'Track_Position', 'Track_Position_Total', 'Video0_Delay', 'VideoCount', 'Width_CleanAperture', 'Width', 'Width_Offset', 'Width_Original'];
+const FLOAT_FIELDS = ['Active_DisplayAspectRatio', 'BitRate_Encoded', 'BitRate_Maximum', 'BitRate_Minimum', 'BitRate', 'BitRate_Nominal', 'Bits-Pixel_Frame', 'BitsPixel_Frame', 'Compression_Ratio', 'Delay', 'Delay_Original', 'DisplayAspectRatio_CleanAperture', 'DisplayAspectRatio', 'DisplayAspectRatio_Original', 'Duration_End_Command', 'Duration_End', 'Duration_FirstFrame', 'Duration_LastFrame', 'Duration', 'Duration_Start2End', 'Duration_Start_Command', 'Duration_Start', 'Events_MinDuration', 'FrameRate_Maximum', 'FrameRate_Minimum', 'FrameRate', 'FrameRate_Nominal', 'FrameRate_Original_Den', 'FrameRate_Original', 'FrameRate_Original_Num', 'FrameRate_Real', 'Interleave_Duration', 'Interleave_Preload', 'Interleave_VideoFrames', 'MasteringDisplay_Luminance_Max', 'MasteringDisplay_Luminance_Min', 'MaxCLL', 'MaxCLL_Original', 'MaxFALL', 'MaxFALL_Original', 'OverallBitRate_Maximum', 'OverallBitRate_Minimum', 'OverallBitRate', 'OverallBitRate_Nominal', 'PixelAspectRatio_CleanAperture', 'PixelAspectRatio', 'PixelAspectRatio_Original', 'SamplesPerFrame', 'SamplingRate', 'Source_Duration_FirstFrame', 'Source_Duration_LastFrame', 'Source_Duration', 'TimeStamp_FirstFrame', 'Video_Delay'];
 
+/**
+ * MediaInfoLib's `(int64u)-1` file size: `Open_Buffer_Init()` then only moves the read position
+ * instead of re-initializing the parser. The native file reader uses it for every seek.
+ */
+const POSITION_ONLY = -1;
 const DEFAULT_OPTIONS = {
   coverData: false,
   chunkSize: 256 * 1024,
   format: 'object',
-  full: true,
+  full: false
 };
 /**
  * Wrapper for the MediaInfoLib WASM module.
@@ -179,9 +33,12 @@ const DEFAULT_OPTIONS = {
  * @typeParam TFormat - The format type, defaults to `object`.
  */
 class MediaInfo {
+  mediainfoModule;
+  ptr;
   isAnalyzing = false;
 
   /** @group General Use */
+  options;
 
   /**
    * The constructor should not be called directly, instead use {@link mediaInfoFactory}.
@@ -229,10 +86,7 @@ class MediaInfo {
       });
     }
     if (this.isAnalyzing) {
-      callback(
-        null,
-        new Error('cannot start a new analysis while another is in progress'),
-      );
+      callback(null, new Error('cannot start a new analysis while another is in progress'));
       return;
     }
     this.reset();
@@ -250,57 +104,72 @@ class MediaInfo {
         this.isAnalyzing = false;
       }
     };
+    const fail = error => {
+      this.isAnalyzing = false;
+      callback(null, unknownToError(error));
+    };
     let offset = 0;
-    const runReadDataLoop = (fileSize) => {
-      const readNextChunk = (data) => {
-        if (continueBuffer(data)) {
-          getChunk();
-        } else {
-          finalize();
-        }
-      };
-      const getChunk = () => {
-        let dataValue;
-        try {
-          const safeSize = Math.min(this.options.chunkSize, fileSize - offset);
-          dataValue = readChunk(safeSize, offset);
-        } catch (error) {
-          this.isAnalyzing = false;
-          callback(null, unknownToError(error));
-          return;
-        }
-        if (dataValue instanceof Promise) {
-          dataValue.then(readNextChunk).catch((error) => {
-            this.isAnalyzing = false;
-            callback(null, unknownToError(error));
-          });
-        } else {
-          readNextChunk(dataValue);
-        }
-      };
-      const continueBuffer = (data) => {
-        if (data.length === 0 || this.openBufferContinue(data, data.length)) {
+    let lastSeekTo = -1;
+    const runReadDataLoop = async fileSize => {
+      /**
+       * Hand one chunk to MediaInfoLib and update the read position.
+       *
+       * @returns `true` when more data has to be read
+       */
+      const shouldReadMore = data => {
+        if (data.length === 0) {
           return false;
         }
+        const isFinished = this.openBufferContinue(data, data.length);
         const seekTo = this.openBufferContinueGotoGet();
-        if (seekTo === -1) {
-          offset += data.length;
-        } else {
+
+        // A pending seek wins over the "finished" flag: MediaInfoLib can raise both in the same
+        // call, e.g. when the MP4 parser jumps back to a codec config box after having been given
+        // the whole file at once (issue #188). Skipping the seek loses the fields it would fill.
+        if (seekTo !== -1) {
+          // Past the end of the file, or asked for a second time without any progress in between:
+          // the parser can not be satisfied, so let the finalizer wrap it up. Only catches a parser
+          // stuck on one target, not an alternating X->Y->X cycle.
+          if (seekTo === lastSeekTo || seekTo >= fileSize) {
+            return false;
+          }
           offset = seekTo;
-          this.openBufferInit(fileSize, seekTo);
+          lastSeekTo = seekTo;
+          // While the parser still expects data, a seek is just a reposition: passing the known
+          // file size runs a full re-init, which clears the durations collected so far and aborts
+          // the walk FLV does backwards from end of file to find them (issue #164). Only a parser
+          // that already reported "finished" needs the full re-init, to get that flag cleared
+          // (issue #188).
+          // Known limit: when one readChunk() call delivers the whole file, MediaInfoLib raises the
+          // walk seek together with "finished", so the re-init is unavoidable and resets the walk -
+          // handing the parser smaller pieces internally is what would be needed to cover it.
+          this.openBufferInit(isFinished ? fileSize : POSITION_ONLY, seekTo);
+          return true;
         }
-        return true;
+        lastSeekTo = -1;
+        offset += data.length;
+        return offset < fileSize && !isFinished;
       };
-      this.openBufferInit(fileSize, offset);
-      getChunk();
+      try {
+        this.openBufferInit(fileSize, offset);
+        for (;;) {
+          // await (also for synchronous readers) keeps this iterative, a mutual recursion with
+          // shouldReadMore() would add a stack frame per chunk
+          const data = await readChunk(Math.min(this.options.chunkSize, fileSize - offset), offset);
+          if (!shouldReadMore(data)) {
+            break;
+          }
+        }
+        finalize();
+      } catch (error) {
+        fail(error);
+      }
     };
     const fileSizeValue = typeof size === 'function' ? size() : size;
     if (fileSizeValue instanceof Promise) {
-      fileSizeValue.then(runReadDataLoop).catch((error) => {
-        callback(null, unknownToError(error));
-      });
+      fileSizeValue.then(runReadDataLoop).catch(fail);
     } else {
-      runReadDataLoop(fileSizeValue);
+      void runReadDataLoop(fileSizeValue);
     }
   }
 
@@ -355,11 +224,7 @@ class MediaInfo {
     // Copy data to Wasm heap
     const dataPtr = this.mediainfoModule._malloc(size);
     this.mediainfoModule.HEAPU8.set(data, dataPtr);
-    const result = this.mediainfoModule._mi_open_buffer_continue(
-      this.ptr,
-      dataPtr,
-      size,
-    );
+    const result = this.mediainfoModule._mi_open_buffer_continue(this.ptr, dataPtr, size);
     this.mediainfoModule._free(dataPtr);
     // Bit 3 set (0x08) means processing is complete
     return !!(result & 0x08);
@@ -378,9 +243,7 @@ class MediaInfo {
    */
   openBufferContinueGotoGet() {
     // BigInt return value converted to standard JS number
-    const seekTo = this.mediainfoModule._mi_open_buffer_continue_goto_get(
-      this.ptr,
-    );
+    const seekTo = this.mediainfoModule._mi_open_buffer_continue_goto_get(this.ptr);
     return Number(seekTo);
   }
 
@@ -400,17 +263,14 @@ class MediaInfo {
    *
    * (This is a low-level MediaInfoLib function.)
    *
-   * @param size Expected buffer size
+   * @param size Expected buffer size, or -1 to keep the parser state and only move the read
+   * position
    * @param offset Buffer offset
    * @group Low-level
    */
   openBufferInit(size, offset) {
     // Use BigInt for 64-bit compatibility
-    this.mediainfoModule._mi_open_buffer_init(
-      this.ptr,
-      BigInt(size),
-      BigInt(offset),
-    );
+    this.mediainfoModule._mi_open_buffer_init(this.ptr, BigInt(size), BigInt(offset));
   }
 
   /**
@@ -428,31 +288,28 @@ class MediaInfo {
     if (result.media) {
       const newMedia = {
         ...result.media,
-        track: [],
+        track: []
       };
       if (Array.isArray(result.media.track)) {
         for (const track of result.media.track) {
           let newTrack = {
-            '@type': track['@type'],
+            '@type': track['@type']
           };
           for (const [key, val] of Object.entries(track)) {
-            if (key === '@type') {
-              continue;
-            }
             if (typeof val === 'string' && intFields.includes(key)) {
               newTrack = {
                 ...newTrack,
-                [key]: Number.parseInt(val, 10),
+                [key]: Number.parseInt(val, 10)
               };
             } else if (typeof val === 'string' && floatFields.includes(key)) {
               newTrack = {
                 ...newTrack,
-                [key]: Number.parseFloat(val),
+                [key]: Number.parseFloat(val)
               };
             } else {
               newTrack = {
                 ...newTrack,
-                [key]: val,
+                [key]: val
               };
             }
           }
@@ -461,7 +318,7 @@ class MediaInfo {
       }
       return {
         ...result,
-        media: newMedia,
+        media: newMedia
       };
     }
     return result;
@@ -473,17 +330,12 @@ class MediaInfo {
    * @returns MediaInfo module instance
    */
   instantiateModuleInstance() {
-    const format =
-      this.options.format === 'object' ? 'JSON' : this.options.format;
+    const format = this.options.format === 'object' ? 'JSON' : this.options.format;
     const bytesNeeded = this.mediainfoModule.lengthBytesUTF8(format) + 1;
     const formatPtr = this.mediainfoModule._malloc(bytesNeeded);
     try {
       this.mediainfoModule.stringToUTF8(format, formatPtr, bytesNeeded);
-      return this.mediainfoModule._mi_new(
-        formatPtr,
-        this.options.coverData ? 1 : 0,
-        this.options.full ? 1 : 0,
-      );
+      return this.mediainfoModule._mi_new(formatPtr, this.options.coverData ? 1 : 0, this.options.full ? 1 : 0);
     } finally {
       this.mediainfoModule._free(formatPtr);
     }
@@ -491,19 +343,18 @@ class MediaInfo {
 }
 
 async function Module(moduleArg = {}) {
-  var moduleRtn;
   var Module = moduleArg;
   var thisProgram = './this.program';
   var quit_ = (status, toThrow) => {
-    throw toThrow;
+    throw toThrow
   };
   var _scriptName = import.meta.url;
   var scriptDirectory = '';
   function locateFile(path) {
     if (Module['locateFile']) {
-      return Module['locateFile'](path, scriptDirectory);
+      return Module['locateFile'](path, scriptDirectory)
     }
-    return scriptDirectory + path;
+    return scriptDirectory + path
   }
   var readAsync;
   {
@@ -514,9 +365,9 @@ async function Module(moduleArg = {}) {
       readAsync = async (url) => {
         var response = await fetch(url, { credentials: 'same-origin' });
         if (response.ok) {
-          return response.arrayBuffer();
+          return response.arrayBuffer()
         }
-        throw new Error(response.status + ' : ' + response.url);
+        throw new Error(response.status + ' : ' + response.url)
       };
     }
   }
@@ -525,125 +376,122 @@ async function Module(moduleArg = {}) {
   var wasmBinary;
   var ABORT = false;
   var EXITSTATUS;
-  var readyPromiseResolve, readyPromiseReject;
-  var HEAPU8, HEAP32, HEAPU32;
-  var runtimeInitialized = false;
+  function getMemoryBuffer() {
+    return wasmMemory.buffer
+  }
   function updateMemoryViews() {
-    var b = wasmMemory.buffer;
+    if (HEAP8?.buffer?.resizable) return
+    var b = getMemoryBuffer();
+    HEAP8 = new Int8Array(b);
     Module['HEAPU8'] = HEAPU8 = new Uint8Array(b);
     HEAP32 = new Int32Array(b);
     HEAPU32 = new Uint32Array(b);
-    new BigInt64Array(b);
-    new BigUint64Array(b);
   }
   function initRuntime() {
-    runtimeInitialized = true;
     wasmExports['n']();
   }
   function abort(what) {
     Module['onAbort']?.(what);
-    what = 'Aborted(' + what + ')';
+    what = `Aborted(${what})`;
     err(what);
     ABORT = true;
     what += '. Build with -sASSERTIONS for more info.';
     var e = new WebAssembly.RuntimeError(what);
-    readyPromiseReject?.(e);
-    throw e;
+    throw e
   }
   var wasmBinaryFile;
   function findWasmBinary() {
     if (Module['locateFile']) {
-      return locateFile('MediaInfoModule.wasm');
+      return locateFile('MediaInfoModule.wasm')
     }
-    return new URL('MediaInfoModule.wasm', import.meta.url).href;
+    return new URL('MediaInfoModule.wasm', import.meta.url).href
   }
   function getBinarySync(file) {
-    throw 'both async and sync fetching of the wasm failed';
+    throw 'both async and sync fetching of the wasm failed'
   }
   async function getWasmBinary(binaryFile) {
     {
       try {
         var response = await readAsync(binaryFile);
-        return new Uint8Array(response);
+        return new Uint8Array(response)
       } catch {}
     }
-    return getBinarySync();
+    return getBinarySync()
   }
   async function instantiateArrayBuffer(binaryFile, imports) {
     try {
       var binary = await getWasmBinary(binaryFile);
       var instance = await WebAssembly.instantiate(binary, imports);
-      return instance;
+      return instance
     } catch (reason) {
       err(`failed to asynchronously prepare wasm: ${reason}`);
       abort(reason);
     }
   }
   async function instantiateAsync(binary, binaryFile, imports) {
-    // Use pre-compiled module if provided
+    // Use the pre-compiled module imported by Vite for Cloudflare Workers.
     if (Module['wasmModule']) {
       try {
-        var instance = await WebAssembly.instantiate(
-          Module['wasmModule'],
-          imports,
-        );
+        var instance = await WebAssembly.instantiate(Module['wasmModule'], imports);
         return { instance: instance, module: Module['wasmModule'] };
-      } catch (e) {
-        err(`wasm instantiation failed: ${e}`);
-        abort(e);
+      } catch (reason) {
+        err(`wasm instantiation failed: ${reason}`);
+        abort(reason);
       }
     }
     {
       try {
         var response = fetch(binaryFile, { credentials: 'same-origin' });
-        var instantiationResult = await WebAssembly.instantiateStreaming(
-          response,
-          imports,
-        );
-        return instantiationResult;
+        var instantiationResult = await WebAssembly.instantiateStreaming(response, imports);
+        return instantiationResult
       } catch (reason) {
         err(`wasm streaming compile failed: ${reason}`);
         err('falling back to ArrayBuffer instantiation');
       }
     }
-    return instantiateArrayBuffer(binaryFile, imports);
+    return instantiateArrayBuffer(binaryFile, imports)
   }
   function getWasmImports() {
     var imports = { a: wasmImports };
-    return imports;
+    return imports
   }
   async function createWasm() {
-    function receiveInstance(instance, module) {
+    function receiveInstance(instance) {
       wasmExports = instance.exports;
       assignWasmExports(wasmExports);
       updateMemoryViews();
-      return wasmExports;
+      return wasmExports
     }
     function receiveInstantiationResult(result) {
-      return receiveInstance(result['instance']);
+      return receiveInstance(result['instance'])
     }
     var info = getWasmImports();
     wasmBinaryFile ??= findWasmBinary();
     var result = await instantiateAsync(wasmBinary, wasmBinaryFile, info);
-    var exports$1 = receiveInstantiationResult(result);
-    return exports$1;
+    var exports = receiveInstantiationResult(result);
+    return exports
   }
   class ExitStatus {
-    name = 'ExitStatus';
+    name = 'ExitStatus'
     constructor(status) {
       this.message = `Program terminated with exit(${status})`;
       this.status = status;
     }
   }
+  var HEAP8;
   var __abort_js = () => abort('');
-  var __emscripten_runtime_keepalive_clear = () => {};
+  var __emscripten_runtime_keepalive_clear = () => {
+  };
   var INT53_MAX = 9007199254740992;
   var INT53_MIN = -9007199254740992;
-  var bigintToI53Checked = (num) =>
-    num < INT53_MIN || num > INT53_MAX ? NaN : Number(num);
+  var bigintToI53Checked = (num) => (num < INT53_MIN || num > INT53_MAX ? NaN : Number(num));
+  var HEAP32;
   function __gmtime_js(time, tmPtr) {
     time = bigintToI53Checked(time);
     var date = new Date(time * 1e3);
+    if (isNaN(date.getTime())) {
+      return 1
+    }
     HEAP32[tmPtr >> 2] = date.getUTCSeconds();
     HEAP32[(tmPtr + 4) >> 2] = date.getUTCMinutes();
     HEAP32[(tmPtr + 8) >> 2] = date.getUTCHours();
@@ -654,11 +502,12 @@ async function Module(moduleArg = {}) {
     var start = Date.UTC(date.getUTCFullYear(), 0, 1, 0, 0, 0, 0);
     var yday = ((date.getTime() - start) / (1e3 * 60 * 60 * 24)) | 0;
     HEAP32[(tmPtr + 28) >> 2] = yday;
+    return 0
   }
   var timers = {};
   var handleException = (e) => {
     if (e instanceof ExitStatus || e == 'unwind') {
-      return EXITSTATUS;
+      return EXITSTATUS
     }
     quit_(1, e);
   };
@@ -666,16 +515,15 @@ async function Module(moduleArg = {}) {
     EXITSTATUS = code;
     quit_(code, new ExitStatus(code));
   };
-  var maybeExit = () => {};
   var callUserCallback = (func) => {
     if (ABORT) {
-      return;
+      return
     }
     try {
-      func();
-      maybeExit();
+      return func()
     } catch (e) {
       handleException(e);
+    } finally {
     }
   };
   var _emscripten_get_now = () => performance.now();
@@ -684,36 +532,34 @@ async function Module(moduleArg = {}) {
       clearTimeout(timers[which].id);
       delete timers[which];
     }
-    if (!timeout_ms) return 0;
+    if (!timeout_ms) return 0
     var id = setTimeout(() => {
       delete timers[which];
-      callUserCallback(() =>
-        __emscripten_timeout(which, _emscripten_get_now()),
-      );
+      callUserCallback(() => __emscripten_timeout(which, _emscripten_get_now()));
     }, timeout_ms);
     timers[which] = { id, timeout_ms };
-    return 0;
+    return 0
   };
   var stringToUTF8Array = (str, heap, outIdx, maxBytesToWrite) => {
-    if (!(maxBytesToWrite > 0)) return 0;
+    if (!(maxBytesToWrite > 0)) return 0
     var startIdx = outIdx;
     var endIdx = outIdx + maxBytesToWrite - 1;
     for (var i = 0; i < str.length; ++i) {
       var u = str.codePointAt(i);
       if (u <= 127) {
-        if (outIdx >= endIdx) break;
+        if (outIdx >= endIdx) break
         heap[outIdx++] = u;
       } else if (u <= 2047) {
-        if (outIdx + 1 >= endIdx) break;
+        if (outIdx + 1 >= endIdx) break
         heap[outIdx++] = 192 | (u >> 6);
         heap[outIdx++] = 128 | (u & 63);
       } else if (u <= 65535) {
-        if (outIdx + 2 >= endIdx) break;
+        if (outIdx + 2 >= endIdx) break
         heap[outIdx++] = 224 | (u >> 12);
         heap[outIdx++] = 128 | ((u >> 6) & 63);
         heap[outIdx++] = 128 | (u & 63);
       } else {
-        if (outIdx + 3 >= endIdx) break;
+        if (outIdx + 3 >= endIdx) break
         heap[outIdx++] = 240 | (u >> 18);
         heap[outIdx++] = 128 | ((u >> 12) & 63);
         heap[outIdx++] = 128 | ((u >> 6) & 63);
@@ -722,10 +568,12 @@ async function Module(moduleArg = {}) {
       }
     }
     heap[outIdx] = 0;
-    return outIdx - startIdx;
+    return outIdx - startIdx
   };
+  var HEAPU8;
   var stringToUTF8 = (str, outPtr, maxBytesToWrite) =>
     stringToUTF8Array(str, HEAPU8, outPtr, maxBytesToWrite);
+  var HEAPU32;
   var __tzset_js = (timezone, daylight, std_name, dst_name) => {
     var currentYear = new Date().getFullYear();
     var winter = new Date(currentYear, 0, 1);
@@ -740,7 +588,7 @@ async function Module(moduleArg = {}) {
       var absOffset = Math.abs(timezoneOffset);
       var hours = String(Math.floor(absOffset / 60)).padStart(2, '0');
       var minutes = String(absOffset % 60).padStart(2, '0');
-      return `UTC${sign}${hours}${minutes}`;
+      return `UTC${sign}${hours}${minutes}`
     };
     var winterName = extractZone(winterOffset);
     var summerName = extractZone(summerOffset);
@@ -754,15 +602,14 @@ async function Module(moduleArg = {}) {
   };
   var _emscripten_date_now = () => Date.now();
   var getHeapMax = () => 2147483648;
-  var alignMemory = (size, alignment) =>
-    Math.ceil(size / alignment) * alignment;
+  var alignMemory = (size, alignment) => Math.ceil(size / alignment) * alignment;
   var growMemory = (size) => {
     var oldHeapSize = wasmMemory.buffer.byteLength;
     var pages = ((size - oldHeapSize + 65535) / 65536) | 0;
     try {
       wasmMemory.grow(pages);
       updateMemoryViews();
-      return 1;
+      return 1
     } catch (e) {}
   };
   var _emscripten_resize_heap = (requestedSize) => {
@@ -770,31 +617,27 @@ async function Module(moduleArg = {}) {
     requestedSize >>>= 0;
     var maxHeapSize = getHeapMax();
     if (requestedSize > maxHeapSize) {
-      return false;
+      return false
     }
     for (var cutDown = 1; cutDown <= 4; cutDown *= 2) {
       var overGrownHeapSize = oldSize * (1 + 0.2 / cutDown);
-      overGrownHeapSize = Math.min(
-        overGrownHeapSize,
-        requestedSize + 100663296,
-      );
+      overGrownHeapSize = Math.min(overGrownHeapSize, requestedSize + 100663296);
       var newSize = Math.min(
         maxHeapSize,
-        alignMemory(Math.max(requestedSize, overGrownHeapSize), 65536),
+        alignMemory(Math.max(requestedSize, overGrownHeapSize), 65536)
       );
       var replacement = growMemory(newSize);
       if (replacement) {
-        return true;
+        return true
       }
     }
-    return false;
+    return false
   };
   var ENV = {};
   var getExecutableName = () => thisProgram;
   var getEnvStrings = () => {
     if (!getEnvStrings.strings) {
-      var lang =
-        (globalThis.navigator?.language ?? 'C').replace('-', '_') + '.UTF-8';
+      var lang = (globalThis.navigator?.language ?? 'C').replace('-', '_') + '.UTF-8';
       var env = {
         USER: 'web_user',
         LOGNAME: 'web_user',
@@ -814,7 +657,7 @@ async function Module(moduleArg = {}) {
       }
       getEnvStrings.strings = strings;
     }
-    return getEnvStrings.strings;
+    return getEnvStrings.strings
   };
   var _environ_get = (__environ, environ_buf) => {
     var bufSize = 0;
@@ -825,7 +668,7 @@ async function Module(moduleArg = {}) {
       bufSize += stringToUTF8(string, ptr, Infinity) + 1;
       envp += 4;
     }
-    return 0;
+    return 0
   };
   var lengthBytesUTF8 = (str) => {
     var len = 0;
@@ -842,7 +685,7 @@ async function Module(moduleArg = {}) {
         len += 3;
       }
     }
-    return len;
+    return len
   };
   var _environ_sizes_get = (penviron_count, penviron_buf_size) => {
     var strings = getEnvStrings();
@@ -852,38 +695,38 @@ async function Module(moduleArg = {}) {
       bufSize += lengthBytesUTF8(string) + 1;
     }
     HEAPU32[penviron_buf_size >> 2] = bufSize;
-    return 0;
+    return 0
   };
   var _fd_close = (fd) => 52;
   var printCharBuffers = [null, [], []];
   var UTF8Decoder = new TextDecoder();
   var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     var maxIdx = idx + maxBytesToRead;
-    if (ignoreNul) return maxIdx;
+    if (ignoreNul) return maxIdx
     while (heapOrArray[idx] && !(idx >= maxIdx)) ++idx;
-    return idx;
+    return idx
   };
   var UTF8ArrayToString = (heapOrArray, idx = 0, maxBytesToRead, ignoreNul) => {
     var endPtr = findStringEnd(heapOrArray, idx, maxBytesToRead, ignoreNul);
     return UTF8Decoder.decode(
       heapOrArray.buffer
         ? heapOrArray.subarray(idx, endPtr)
-        : new Uint8Array(heapOrArray.slice(idx, endPtr)),
-    );
+        : new Uint8Array(heapOrArray.slice(idx, endPtr))
+    )
   };
   var printChar = (stream, curr) => {
     var buffer = printCharBuffers[stream];
-    if (curr === 0 || curr === 10) {
-      (stream === 1 ? out : err)(UTF8ArrayToString(buffer));
+    if (!curr || curr === 10) {
+(stream === 1 ? out : err)(UTF8ArrayToString(buffer));
       buffer.length = 0;
     } else {
       buffer.push(curr);
     }
   };
   var UTF8ToString = (ptr, maxBytesToRead, ignoreNul) => {
-    if (!ptr) return '';
+    if (!ptr) return ''
     var end = findStringEnd(HEAPU8, ptr, maxBytesToRead, ignoreNul);
-    return UTF8Decoder.decode(HEAPU8.subarray(ptr, end));
+    return UTF8Decoder.decode(HEAPU8.subarray(ptr, end))
   };
   var _fd_write = (fd, iov, iovcnt, pnum) => {
     var num = 0;
@@ -897,7 +740,7 @@ async function Module(moduleArg = {}) {
       num += len;
     }
     HEAPU32[pnum >> 2] = num;
-    return 0;
+    return 0
   };
   {
     if (Module['print']) out = Module['print'];
@@ -906,13 +749,15 @@ async function Module(moduleArg = {}) {
   Module['UTF8ToString'] = UTF8ToString;
   Module['stringToUTF8'] = stringToUTF8;
   Module['lengthBytesUTF8'] = lengthBytesUTF8;
-  var __emscripten_timeout, wasmMemory;
+  var __emscripten_timeout,
+    wasmMemory;
   function assignWasmExports(wasmExports) {
     Module['_mi_new'] = wasmExports['o'];
     Module['_mi_delete'] = wasmExports['p'];
     Module['_mi_open_buffer_init'] = wasmExports['q'];
     Module['_mi_open_buffer_continue'] = wasmExports['r'];
-    Module['_mi_open_buffer_continue_goto_get'] = wasmExports['s'];
+    Module['_mi_open_buffer_continue_goto_get'] =
+      wasmExports['s'];
     Module['_mi_open_buffer_finalize'] = wasmExports['t'];
     Module['_mi_inform'] = wasmExports['u'];
     Module['_mi_close'] = wasmExports['v'];
@@ -924,41 +769,26 @@ async function Module(moduleArg = {}) {
   }
   var wasmImports = {
     l: __abort_js,
-    i: __emscripten_runtime_keepalive_clear,
+    c: __emscripten_runtime_keepalive_clear,
     d: __gmtime_js,
-    j: __setitimer_js,
+    h: __setitimer_js,
     e: __tzset_js,
     k: _emscripten_date_now,
-    a: _emscripten_resize_heap,
-    b: _environ_get,
-    c: _environ_sizes_get,
+    i: _emscripten_resize_heap,
+    j: _environ_get,
+    a: _environ_sizes_get,
     f: _fd_close,
     g: _fd_write,
-    h: _proc_exit,
+    b: _proc_exit,
   };
-  function run() {
-    function doRun() {
-      Module['calledRun'] = true;
-      if (ABORT) return;
-      initRuntime();
-      readyPromiseResolve?.(Module);
-    }
-    {
-      doRun();
-    }
+  async function run() {
+    if (ABORT) return
+    initRuntime();
   }
   var wasmExports;
   wasmExports = await createWasm();
-  run();
-  if (runtimeInitialized) {
-    moduleRtn = Module;
-  } else {
-    moduleRtn = new Promise((resolve, reject) => {
-      readyPromiseResolve = resolve;
-      readyPromiseReject = reject;
-    });
-  }
-  return moduleRtn;
+  await run();
+  return Module
 }
 
 const noopPrint = () => {
@@ -993,20 +823,19 @@ function defaultLocateFile(path, prefix) {
  * @param errCallback - Optional function to call on error.
  */
 
-function mediaInfoFactory() {
-  let options =
-    arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
-  let callback = arguments.length > 1 ? arguments[1] : undefined;
-  let errCallback = arguments.length > 2 ? arguments[2] : undefined;
+function mediaInfoFactory(options = {}, callback, errCallback) {
   if (callback === undefined) {
     return new Promise((resolve, reject) => {
       mediaInfoFactory(options, resolve, reject);
     });
   }
-  const { locateFile, ...mergedOptions } = {
+  const {
+    locateFile,
+    ...mergedOptions
+  } = {
     ...DEFAULT_OPTIONS,
     ...options,
-    format: options.format ?? DEFAULT_OPTIONS.format,
+    format: options.format ?? DEFAULT_OPTIONS.format
   };
 
   // Options passed to the Emscripten module loader
@@ -1015,25 +844,23 @@ function mediaInfoFactory() {
     print: noopPrint,
     printErr: noopPrint,
     locateFile: locateFile ?? defaultLocateFile,
-    // Pass custom WASM module if provided
+    // Pass through the pre-compiled WASM module required by Cloudflare Workers.
     wasmModule: options.wasmModule,
-    onAbort: (err) => {
+    onAbort: err => {
       if (errCallback) {
         errCallback(err);
       }
-    },
+    }
   };
 
   // Fetch and load WASM module
-  Module(mediaInfoModuleFactoryOpts)
-    .then((wasmModule) => {
-      callback(new MediaInfo(wasmModule, mergedOptions));
-    })
-    .catch((error) => {
-      if (errCallback) {
-        errCallback(error);
-      }
-    });
+  Module(mediaInfoModuleFactoryOpts).then(wasmModule => {
+    callback(new MediaInfo(wasmModule, mergedOptions));
+  }).catch(error => {
+    if (errCallback) {
+      errCallback(error);
+    }
+  });
 }
 
 /**
@@ -1049,3 +876,4 @@ function isTrackType(thing, type) {
 }
 
 export { mediaInfoFactory as default, isTrackType, mediaInfoFactory };
+//# sourceMappingURL=index.js.map

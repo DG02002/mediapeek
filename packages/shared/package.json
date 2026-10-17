@@ -61,11 +61,11 @@
   },
   "dependencies": {
     "evlog": "catalog:",
-    "zod": "^4.4.3"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@mediapeek/config-typescript": "workspace:*",
-    "@types/node": "^25.6.2",
+    "@types/node": "^26.6.5",
     "vitest": "catalog:"
   }
 }

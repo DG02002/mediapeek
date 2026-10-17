@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import React from "react"
 import { MemoryRouter } from "react-router"
+import { ThemeProvider } from "remix-themes"
 import { describe, expect, it } from "vitest"
 
 import HomeRoute from "./route"
@@ -9,7 +10,9 @@ describe("HomeRoute", () => {
   it("renders the GitHub repository section with official lockup assets", () => {
     const { container } = render(
       <MemoryRouter>
-        <HomeRoute />
+        <ThemeProvider specifiedTheme={null} themeAction="/action/set-theme">
+          <HomeRoute />
+        </ThemeProvider>
       </MemoryRouter>
     )
 
@@ -19,7 +22,7 @@ describe("HomeRoute", () => {
     ).toBeTruthy()
     expect(screen.getByText(/metadata engine/i)).toBeTruthy()
     expect(
-      screen.getByRole("link", { name: /mediainfo\.js v0\.3\.7/i })
+      screen.getByRole("link", { name: /mediainfo\.js v0\.3\.8/i })
     ).toBeTruthy()
     expect(
       screen.getByRole("link", { name: /mediainfolib v25\.10/i })

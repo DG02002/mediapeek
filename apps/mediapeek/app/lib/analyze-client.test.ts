@@ -71,11 +71,11 @@ describe("fetchAnalyzeFormat", () => {
     })
     expect(requestTurnstileToken).toHaveBeenCalledTimes(1)
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
-      headers: expect.objectContaining({
-        "CF-Turnstile-Response": "token-123",
-      }),
-    })
+    expect(
+      new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get(
+        "CF-Turnstile-Response"
+      )
+    ).toBe("token-123")
   })
 
   it("returns a cancellation error when re-challenge is cancelled", async () => {

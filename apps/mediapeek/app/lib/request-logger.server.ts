@@ -2,7 +2,7 @@ import { createEvlogLoggerConfig } from "@mediapeek/shared/evlog"
 import { Schema } from "effect"
 import { createRequestLogger, initLogger, type AuditableLogger } from "evlog"
 import { evlog, loggerContext } from "evlog/react-router"
-import type { RouterContext } from "react-router"
+import type { MiddlewareFunction, RouterContext } from "react-router"
 
 export interface RequestLoggerHandle {
   readonly logger: AuditableLogger
@@ -15,7 +15,7 @@ export interface RequestContextProvider {
 
 initLogger(createEvlogLoggerConfig("mediapeek"))
 
-export const requestLoggerMiddleware = evlog({
+export const requestLoggerMiddleware: MiddlewareFunction<Response> = evlog({
   include: ["/api/analyze"],
 })
 

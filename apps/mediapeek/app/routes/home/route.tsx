@@ -105,7 +105,7 @@ const trademarkBadges = [
 
 const METADATA_ENGINE = {
   mediainfoJs: {
-    version: "0.3.7",
+    version: "0.3.8",
     url: "https://mediainfo.js.org/",
   },
   mediaInfoLib: {

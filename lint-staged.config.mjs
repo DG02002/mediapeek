@@ -42,7 +42,7 @@ export default {
       const fileArguments = getFileArguments(sourceFilePaths)
       commands.push(
         `oxfmt --no-error-on-unmatched-pattern ${fileArguments}`,
-        `oxlint --no-error-on-unmatched-pattern ${fileArguments}`
+        `oxlint --config .oxlintrc.json --no-error-on-unmatched-pattern ${fileArguments}`
       )
     }
 
