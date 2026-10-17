@@ -1,23 +1,12 @@
 # Coding standards
 
-Use [AGENTS.md](../../AGENTS.md) for the repository's coding rules. This page
-records the boundaries that are easy to cross accidentally.
+Tautological tests considered harmful.
 
-## Shared contracts
+Keep comments short. Delete any claim from comments that is derivable from the
+code.
 
-Put contracts consumed by both Workers in `packages/shared`. Worker code must
-not import contracts from the web app. Keep UI components and browser-only
-state in the app.
+A general piece of advice for not just programming but most other problem solving: always favour subtraction over addition. You should always try to get the job done by taking something away first, and only if that isn’t working resort to adding something new.
 
-## Effect and validation
+If you can’t get away with removing something, the next step is to try just combining two things you already have. It’s easy to overlook these types of solutions if you don’t have a strong understanding of the entire system.
 
-Effect v4 is the standard for runtime services and schemas. Read
-`.repos/effect-smol/LLMS.md` before writing Effect code. Validate untrusted
-input at the boundary and keep domain behavior separate from transport
-parsing. Do not add Zod.
-
-## Changes and tests
-
-Prefer removing or combining existing behavior before adding another module or
-dependency. Test observable behavior through public module interfaces, with
-network and browser storage isolated behind small test doubles where needed.
+If you’ve exhausted your options and the only choice is to add something new, it’s important to analyse why. Often the need to add something brand new indicates that you’re diverging from established / implicit assumptions about design. This is worth scrutinising.
