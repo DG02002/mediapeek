@@ -38,7 +38,7 @@ export interface FetchDiagnostics {
 const FIRST_BYTE_READ_TIMEOUT_MS = 15_000
 const MAX_FIRST_BYTE_READ_RETRIES = 1
 const NO_RANGE_FALLBACK_TIMEOUT_MS = 25_000
-const SAFE_LIMIT = 10 * 1024 * 1024
+const MAX_INITIAL_READ_BYTES = 10 * 1024 * 1024
 const REMOTE_RANGE_CHUNK_SIZE = 2 * 1024 * 1024
 const REMOTE_RANGE_FETCH_LIMIT = 8 * 1024 * 1024
 const REMOTE_RANGE_CACHE_LIMIT = 32 * 1024 * 1024
@@ -176,6 +176,91 @@ const readStreamIntoBuffer = async (
   return tempBuffer.subarray(0, position.offset)
 }
 
+interface ResponseChunkReadOptions {
+  readonly reader: ReadableStreamDefaultReader<Uint8Array>
+  readonly maxBytes: number
+  readonly chunks: Uint8Array[]
+  readonly byteLength: number
+}
+
+const readResponseChunks = async (
+  options: ResponseChunkReadOptions
+): Promise<number | null> => {
+  const { reader, maxBytes, chunks, byteLength } = options
+  const { done, value } = await reader.read()
+
+  if (done) {
+    return byteLength
+  }
+
+  if (value.byteLength > maxBytes - byteLength) {
+    await reader.cancel()
+
+    return null
+  }
+
+  chunks.push(value)
+
+  return readResponseChunks({
+    ...options,
+    byteLength: byteLength + value.byteLength,
+  })
+}
+
+const joinResponseChunks = (
+  chunks: Uint8Array[],
+  byteLength: number
+): Uint8Array => {
+  const body = new Uint8Array(byteLength)
+  let offset = 0
+
+  for (const chunk of chunks) {
+    body.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+
+  return body
+}
+
+const readResponseBodyWithinLimit = async (
+  response: Response,
+  maxBytes: number
+): Promise<Uint8Array | null> => {
+  const reader = response.body?.getReader()
+
+  if (!reader) {
+    return new Uint8Array(0)
+  }
+
+  const chunks: Uint8Array[] = []
+
+  try {
+    const byteLength = await readResponseChunks({
+      reader,
+      maxBytes,
+      chunks,
+      byteLength: 0,
+    })
+
+    return byteLength === null ? null : joinResponseChunks(chunks, byteLength)
+  } finally {
+    reader.releaseLock()
+  }
+}
+
+const readRemoteSpanBody = async (response: Response): Promise<Uint8Array> => {
+  const body = await readResponseBodyWithinLimit(
+    response,
+    MAX_INITIAL_READ_BYTES
+  )
+
+  if (body === null) {
+    throw new Error("Remote media response exceeded the maximum read size.")
+  }
+
+  return body
+}
+
 const readReaderIntoBuffer = async (options: {
   reader: ReadableStreamDefaultReader<Uint8Array>
   buffer: Uint8Array
@@ -293,7 +378,7 @@ const extractArchivePrefix = async (
       return null
     }
 
-    return readCompressedPrefix(compressedPrefix, SAFE_LIMIT)
+    return readCompressedPrefix(compressedPrefix, MAX_INITIAL_READ_BYTES)
   }
 
   return null
@@ -322,7 +407,7 @@ const fetchZipTailBuffer = async (
     return null
   }
 
-  return new Uint8Array(await response.arrayBuffer())
+  return readResponseBodyWithinLimit(response, MAX_INITIAL_READ_BYTES)
 }
 
 type RemoteByteSourceOptions = {
@@ -478,7 +563,7 @@ const createRemoteByteSource = ({
 
     assertByteFetchStatus(response)
 
-    const body = new Uint8Array(await response.arrayBuffer())
+    const body = await readRemoteSpanBody(response)
     diagnostics.seekFetchCount = (diagnostics.seekFetchCount ?? 0) + 1
     diagnostics.seekBytesFetched =
       (diagnostics.seekBytesFetched ?? 0) + body.byteLength
@@ -989,7 +1074,7 @@ const readInitialBody = async (options: {
     return await readStreamIntoBuffer(
       options.reader,
       options.firstChunk,
-      SAFE_LIMIT
+      MAX_INITIAL_READ_BYTES
     )
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -1188,7 +1273,7 @@ const createMediaFetchResult = (options: {
 
 export async function fetchMediaChunk({
   initialUrl,
-  chunkSize = SAFE_LIMIT,
+  chunkSize = MAX_INITIAL_READ_BYTES,
   reportProgress,
   signal,
 }: FetchMediaChunkOptions): Promise<MediaFetchResult> {

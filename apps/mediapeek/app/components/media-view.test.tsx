@@ -3,6 +3,7 @@ import React from "react"
 import { describe, expect, it, vi } from "vitest"
 
 import type { AnalyzeClientResult } from "~/lib/analyze-client"
+import { clientLog } from "~/lib/client-logger"
 
 import { MediaView } from "./media-view"
 
@@ -13,6 +14,30 @@ type FetchAnalyzeFormat = (options: {
 }) => Promise<AnalyzeClientResult>
 
 describe("MediaView", () => {
+  it("logs and displays JSON parse failures", async () => {
+    const logError = vi.spyOn(clientLog, "error")
+
+    render(
+      <MediaView data={{ json: "{" }} url="https://example.com/file.mp4" />
+    )
+
+    const alert = await screen.findByRole("alert")
+
+    expect(alert.textContent).toContain(
+      "Unable to read this Media Report. Try analyzing the URL again."
+    )
+    await waitFor(() => {
+      expect(logError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "media_report_json_parse_failed",
+          error: expect.any(String),
+        })
+      )
+    })
+
+    logError.mockRestore()
+  })
+
   it("loads text output once when toggled into text view", async () => {
     const fetchFormat = vi.fn<FetchAnalyzeFormat>().mockResolvedValue({
       ok: true,

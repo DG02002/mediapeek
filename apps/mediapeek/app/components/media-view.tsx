@@ -18,6 +18,7 @@ import { Icon } from "~/components/ui/icon"
 import { Skeleton } from "~/components/ui/skeleton"
 import { fetchAnalyzeFormat } from "~/lib/analyze-client"
 import { SmoothTransition } from "~/lib/animation"
+import { clientLog } from "~/lib/client-logger"
 import { MediaInfoJSONSchema } from "~/lib/media-info-schema"
 import { removeEmptyStrings } from "~/lib/media-utils"
 import { cn } from "~/lib/utils"
@@ -41,6 +42,56 @@ interface MediaViewProps {
   url: string
   requestTurnstileToken?: () => Promise<string | null>
   fetchFormat?: typeof fetchAnalyzeFormat
+}
+
+const parseMediaViewData = (jsonString?: string) => {
+  try {
+    if (!jsonString) {
+      return { track: null, creatingLibrary: undefined, parseError: null }
+    }
+
+    const json = Schema.decodeUnknownSync(MediaInfoJSONSchema)(
+      JSON.parse(jsonString)
+    )
+
+    if (!json.media?.track) {
+      return { track: null, creatingLibrary: undefined, parseError: null }
+    }
+
+    const normalizedJson = Schema.decodeUnknownSync(MediaInfoJSONSchema)(
+      removeEmptyStrings(json)
+    )
+
+    return {
+      track: normalizedJson.media?.track ?? null,
+      creatingLibrary: normalizedJson.creatingLibrary,
+      parseError: null,
+    }
+  } catch (cause) {
+    const failureMessage =
+      cause instanceof Error ? cause.message : String(cause)
+
+    return {
+      track: null,
+      creatingLibrary: undefined,
+      parseError: failureMessage,
+    }
+  }
+}
+
+const useParsedMediaViewData = (data: MediaViewData) => {
+  const parsedData = useMemo(() => parseMediaViewData(data.json), [data.json])
+
+  useEffect(() => {
+    if (parsedData.parseError) {
+      clientLog.error({
+        event: "media_report_json_parse_failed",
+        error: parsedData.parseError,
+      })
+    }
+  }, [parsedData.parseError])
+
+  return parsedData
 }
 
 export const MediaView = memo(function MediaView({
@@ -174,36 +225,11 @@ export const MediaView = memo(function MediaView({
     }
   }, [isTextView])
 
-  const { track: parsedData, creatingLibrary } = useMemo(() => {
-    try {
-      const jsonStr = data.json
-
-      if (!jsonStr) {
-        return { track: null, creatingLibrary: undefined }
-      }
-
-      const json = Schema.decodeUnknownSync(MediaInfoJSONSchema)(
-        JSON.parse(jsonStr)
-      )
-
-      if (!json.media?.track) {
-        return { track: null, creatingLibrary: undefined }
-      }
-
-      const normalizedJson = Schema.decodeUnknownSync(MediaInfoJSONSchema)(
-        removeEmptyStrings(json)
-      )
-
-      return {
-        track: normalizedJson.media?.track ?? null,
-        creatingLibrary: normalizedJson.creatingLibrary,
-      }
-    } catch {
-      console.error("Failed to parse JSON")
-
-      return { track: null, creatingLibrary: undefined }
-    }
-  }, [data])
+  const {
+    track: parsedData,
+    creatingLibrary,
+    parseError,
+  } = useParsedMediaViewData(data)
 
   // Merge lazy-loaded text into data
   const fullData = useMemo(() => {
@@ -247,9 +273,16 @@ export const MediaView = memo(function MediaView({
 
   if (!parsedData) {
     return (
-      <div className="text-destructive rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-900/20">
+      <div
+        role="alert"
+        className="text-destructive rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-900/20"
+      >
         <p className="font-medium">Analysis Error</p>
-        <p className="text-sm">Unable to parse analysis data.</p>
+        <p className="text-sm">
+          {parseError
+            ? "Unable to read this Media Report. Try analyzing the URL again."
+            : "Unable to parse analysis data."}
+        </p>
         <pre className="mt-2 overflow-x-auto text-xs whitespace-pre-wrap opacity-70">
           {(data["@ref"] ?? "").endsWith(".json") && "No JSON data"}
         </pre>

@@ -62,7 +62,9 @@ export const requestLogging = (
 
     try {
       request.headers.set("x-request-id", requestId)
-    } catch {}
+    } catch {
+      // HACK: Incoming Worker request headers can be immutable; the response still carries the request ID.
+    }
 
     context.header("x-request-id", requestId)
 

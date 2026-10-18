@@ -16,7 +16,9 @@ import { Effect, Match, Result, Schema } from "effect"
 
 import {
   DEFAULT_ANALYZER_REQUEST_TIMEOUT_MS,
+  MAX_TURNSTILE_RESPONSE_BYTES,
   MAX_ANALYZER_REQUEST_TIMEOUT_MS,
+  TURNSTILE_VERIFY_TIMEOUT_MS,
 } from "~/constants"
 import { cloudflareContext } from "~/lib/cloudflare-context.server"
 import { type LogContext, requestStorage } from "~/lib/logger.server"
@@ -67,6 +69,89 @@ const archiveMediaSchema = Schema.Struct({
     })
   ),
 })
+
+interface BoundedResponseRead {
+  readonly reader: ReadableStreamDefaultReader<Uint8Array>
+  readonly maxBytes: number
+  readonly chunks: Uint8Array[]
+  readonly byteLength: number
+}
+
+const readResponseChunks = async (
+  options: BoundedResponseRead
+): Promise<number | null> => {
+  const { reader, maxBytes, chunks, byteLength } = options
+  const { done, value } = await reader.read()
+
+  if (done) {
+    return byteLength
+  }
+
+  if (value.byteLength > maxBytes - byteLength) {
+    await reader.cancel()
+
+    return null
+  }
+
+  chunks.push(value)
+
+  return readResponseChunks({
+    ...options,
+    byteLength: byteLength + value.byteLength,
+  })
+}
+
+const joinResponseChunks = (
+  chunks: ReadonlyArray<Uint8Array>,
+  byteLength: number
+): Uint8Array => {
+  const bytes = new Uint8Array(byteLength)
+  let offset = 0
+
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+
+  return bytes
+}
+
+const decodeResponseJson = (bytes: Uint8Array): Schema.Json =>
+  Schema.decodeUnknownSync(Schema.Json)(
+    JSON.parse(new TextDecoder().decode(bytes))
+  )
+
+const readBoundedJson = async (
+  response: Response,
+  maxBytes: number
+): Promise<Schema.Json> => {
+  const reader = response.body?.getReader()
+
+  if (!reader) {
+    throw new Error("Turnstile verification returned an empty response.")
+  }
+
+  const chunks: Uint8Array[] = []
+
+  try {
+    const byteLength = await readResponseChunks({
+      reader,
+      maxBytes,
+      chunks,
+      byteLength: 0,
+    })
+
+    if (byteLength === null) {
+      throw new Error(
+        "Turnstile verification response exceeded its size limit."
+      )
+    }
+
+    return decodeResponseJson(joinResponseChunks(chunks, byteLength))
+  } finally {
+    reader.releaseLock()
+  }
+}
 
 type AnalyzerSuccessResponse = Extract<AnalyzerRpcResponse, { success: true }>
 
@@ -463,6 +548,33 @@ const rejectTurnstile = (
   return { authorized: false, response: failRequest(state, failure) }
 }
 
+const fetchTurnstileOutcome = async (
+  state: AnalyzeRequestState,
+  formData: FormData
+): Promise<TurnstileResponse> => {
+  const result = await fetch(
+    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+    {
+      method: "POST",
+      body: formData,
+      signal: AbortSignal.any([
+        state.request.signal,
+        AbortSignal.timeout(TURNSTILE_VERIFY_TIMEOUT_MS),
+      ]),
+    }
+  )
+
+  if (!result.ok) {
+    throw new Error(
+      `Turnstile verification returned HTTP ${String(result.status)}.`
+    )
+  }
+
+  const rawOutcome = await readBoundedJson(result, MAX_TURNSTILE_RESPONSE_BYTES)
+
+  return Schema.decodeUnknownSync(TurnstileResponseSchema)(rawOutcome)
+}
+
 const verifyTurnstileToken = async (
   state: AnalyzeRequestState,
   input: {
@@ -482,12 +594,14 @@ const verifyTurnstileToken = async (
   )
   formData.append("idempotency_key", state.requestId)
 
-  const result = await fetch(
-    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-    { method: "POST", body: formData }
-  )
+  let outcome: TurnstileResponse
 
-  if (!result.ok) {
+  try {
+    outcome = await fetchTurnstileOutcome(state, formData)
+  } catch (cause) {
+    state.requestError =
+      cause instanceof Error ? cause : new Error(String(cause))
+
     const response = failRequest(state, {
       status: 503,
       code: "INTERNAL_ERROR",
@@ -500,9 +614,6 @@ const verifyTurnstileToken = async (
 
     return { authorized: false, response }
   }
-
-  const rawOutcome: unknown = await result.json()
-  const outcome = Schema.decodeUnknownSync(TurnstileResponseSchema)(rawOutcome)
 
   if (!outcome.success) {
     return rejectTurnstile(state, {

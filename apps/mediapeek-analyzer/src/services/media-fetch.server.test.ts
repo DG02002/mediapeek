@@ -7,6 +7,19 @@ const makeResponse = (
   init: { status: number; headers?: Record<string, string> }
 ) => new Response(body ? new Uint8Array(body).buffer : null, init)
 
+const createOversizedResponseBody = () => {
+  const cancel = vi.fn()
+
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array(10 * 1024 * 1024 + 1))
+    },
+    cancel,
+  })
+
+  return { body, cancel }
+}
+
 const createZipDirectoryHeader = () => {
   const name = new TextEncoder().encode("Folder/")
   const header = new Uint8Array(30 + name.length)
@@ -24,16 +37,17 @@ const createZipDirectoryHeader = () => {
   return header
 }
 
-const createZipFileHeader = () => {
+const createZipFileHeader = (dataDescriptor = false) => {
   const name = new TextEncoder().encode("Folder/inner-video.mkv")
   const header = new Uint8Array(30 + name.length + 4)
   const view = new DataView(header.buffer)
 
   view.setUint32(0, 0x04034b50, true)
   view.setUint16(4, 20, true)
+  view.setUint16(6, dataDescriptor ? 0x08 : 0, true)
   view.setUint16(8, 0, true)
-  view.setUint32(18, 4, true)
-  view.setUint32(22, 4, true)
+  view.setUint32(18, dataDescriptor ? 0 : 4, true)
+  view.setUint32(22, dataDescriptor ? 0 : 4, true)
   view.setUint16(26, name.length, true)
   view.setUint16(28, 0, true)
   header.set(name, 30)
@@ -248,5 +262,74 @@ describe("fetchMediaChunk", () => {
 
     expect(result.byteSource).toBeUndefined()
     expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it("cancels an oversized zip tail response and keeps the estimated size", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    const oversized = createOversizedResponseBody()
+    const zipHeader = createZipFileHeader(true)
+
+    fetchSpy
+      .mockResolvedValueOnce(
+        makeResponse(null, {
+          status: 200,
+          headers: {
+            "content-length": "999",
+            "accept-ranges": "bytes",
+            "content-disposition": 'attachment; filename="outer.zip"',
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        makeResponse(zipHeader, {
+          status: 206,
+          headers: {
+            "content-range": `bytes 0-${String(zipHeader.byteLength - 1)}/999`,
+          },
+        })
+      )
+      .mockResolvedValueOnce(new Response(oversized.body, { status: 206 }))
+
+    const result = await fetchMediaChunk({
+      initialUrl: "https://example.com/archive.zip",
+    })
+
+    expect(fetchSpy).toHaveBeenCalledTimes(3)
+    expect(oversized.cancel).toHaveBeenCalledOnce()
+    expect(result.archiveEntry).toMatchObject({ sizeStatus: "estimated" })
+  })
+
+  it("cancels an oversized remote range response", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    const oversized = createOversizedResponseBody()
+
+    fetchSpy
+      .mockResolvedValueOnce(
+        makeResponse(null, {
+          status: 200,
+          headers: {
+            "content-length": "30",
+            "accept-ranges": "bytes",
+            "content-disposition": 'attachment; filename="sample.mkv"',
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        makeResponse(new Uint8Array(10), {
+          status: 206,
+          headers: { "content-range": "bytes 0-9/30" },
+        })
+      )
+      .mockResolvedValueOnce(new Response(oversized.body, { status: 206 }))
+
+    const result = await fetchMediaChunk({
+      initialUrl: "https://example.com/media",
+    })
+
+    await expect(result.byteSource?.readChunk(4, 20)).rejects.toThrow(
+      "Remote media response exceeded the maximum read size."
+    )
+    expect(oversized.cancel).toHaveBeenCalledOnce()
+    expect(fetchSpy).toHaveBeenCalledTimes(3)
   })
 })

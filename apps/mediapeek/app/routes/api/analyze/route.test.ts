@@ -2,6 +2,10 @@ import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import { RouterContextProvider } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import {
+  MAX_TURNSTILE_RESPONSE_BYTES,
+  TURNSTILE_VERIFY_TIMEOUT_MS,
+} from "~/constants"
 import { cloudflareContext } from "~/lib/cloudflare-context.server"
 import {
   createTurnstileGrantToken,
@@ -178,6 +182,73 @@ describe("analyze route Turnstile flag", () => {
     expect(secondResponse.status).toBe(200)
     expect(siteverifyFetch).toHaveBeenCalledOnce()
     expect(analyzerFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it("times out the siteverify request and reports it as unavailable", async () => {
+    const timeoutSignal = AbortSignal.abort(
+      new DOMException("The request timed out.", "TimeoutError")
+    )
+
+    const timeout = vi
+      .spyOn(AbortSignal, "timeout")
+      .mockReturnValue(timeoutSignal)
+
+    const siteverifyFetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementationOnce(async (_input, init) => {
+        if (!init?.signal?.aborted) {
+          throw new Error("The siteverify request did not receive a timeout.")
+        }
+
+        throw init.signal.reason
+      })
+
+    const { context, analyzerFetch } = createContext({
+      TURNSTILE_ENABLED: "true",
+      TURNSTILE_SECRET_KEY: "test-turnstile-secret",
+      TURNSTILE_GRANT_SECRET: grantSecret,
+    })
+
+    const response = await invokeAction(
+      post({ "CF-Turnstile-Response": "test-response-token" }),
+      context
+    )
+
+    expect(timeout).toHaveBeenCalledWith(TURNSTILE_VERIFY_TIMEOUT_MS)
+    expect(siteverifyFetch).toHaveBeenCalledOnce()
+    expect(response.status).toBe(503)
+    expect(analyzerFetch).not.toHaveBeenCalled()
+  })
+
+  it("cancels oversized siteverify responses", async () => {
+    const cancel = vi.fn()
+
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(MAX_TURNSTILE_RESPONSE_BYTES + 1))
+      },
+      cancel,
+    })
+
+    const siteverifyFetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(body, { status: 200 }))
+
+    const { context, analyzerFetch } = createContext({
+      TURNSTILE_ENABLED: "true",
+      TURNSTILE_SECRET_KEY: "test-turnstile-secret",
+      TURNSTILE_GRANT_SECRET: grantSecret,
+    })
+
+    const response = await invokeAction(
+      post({ "CF-Turnstile-Response": "test-response-token" }),
+      context
+    )
+
+    expect(siteverifyFetch).toHaveBeenCalledOnce()
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(response.status).toBe(503)
+    expect(analyzerFetch).not.toHaveBeenCalled()
   })
 
   it("accepts an existing valid grant without requiring a new token", async () => {
