@@ -1,7 +1,7 @@
 "use client"
 
 import { Archive04Icon, Cancel01Icon } from "@hugeicons/core-free-icons"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useSearchParams } from "react-router"
 
 import {
@@ -19,10 +19,9 @@ import { Icon } from "~/components/ui/icon"
 import { ReportCompare } from "~/features/compare/report-compare"
 import { ReportRow } from "~/features/reports/report-row"
 import {
-  deleteReport,
+  reportStorageStore,
   type StoredReport,
 } from "~/features/reports/report-storage"
-import { subscribeToReportsChanged } from "~/features/reports/reports-changed"
 import { StoredReportView } from "~/features/reports/stored-report-view"
 import { useHydrated } from "~/hooks/use-hydrated"
 
@@ -94,8 +93,7 @@ const useReportModes = () => {
 export function ReportsSection() {
   const isHydrated = useHydrated()
 
-  const { store: reportsStore, snapshot: reportsSnapshot } =
-    useStoredReports(isHydrated)
+  const reportsSnapshot = useStoredReports(isHydrated)
 
   const { searchParams, showReport, showCompare, closeModes } = useReportModes()
 
@@ -121,14 +119,6 @@ export function ReportsSection() {
 
   const [message, setMessage] = useState<string | null>(null)
 
-  useEffect(
-    () =>
-      subscribeToReportsChanged(() => {
-        void reportsStore.refresh()
-      }),
-    [reportsStore]
-  )
-
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) {
       return
@@ -138,8 +128,7 @@ export function ReportsSection() {
     setDeleteTarget(null)
 
     try {
-      await deleteReport(report.id)
-      await reportsStore.refresh()
+      await reportStorageStore.delete(report.id)
       setMessage(`Deleted ${report.filename}.`)
     } catch (error) {
       setMessage(

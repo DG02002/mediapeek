@@ -4,8 +4,7 @@ import { useState } from "react"
 import { Button } from "~/components/ui/button"
 import type { AnalysisResult } from "~/features/analyze/analysis-session"
 import { parseMediaReport } from "~/features/reports/media-report"
-import { saveReport } from "~/features/reports/report-storage"
-import { notifyReportsChanged } from "~/features/reports/reports-changed"
+import { reportStorageStore } from "~/features/reports/report-storage"
 import { fetchAnalyzeFormat } from "~/lib/analyze-client"
 
 interface SaveReportButtonProps {
@@ -48,14 +47,13 @@ export function SaveReportButton({
         ? parsed.report.file.displayName
         : extractFilenameFromUrl(analysis.url)
 
-      await saveReport({
+      await reportStorageStore.save({
         sourceUrl: analysis.url,
         filename,
         analyzedAt: new Date().toISOString(),
         outputs,
       })
 
-      notifyReportsChanged()
       setMessage(
         textUnavailable
           ? "Saved to your reports. The text output could not be added."

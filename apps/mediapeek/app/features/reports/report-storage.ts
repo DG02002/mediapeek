@@ -21,7 +21,22 @@ const StoredReportSchema = Schema.Struct({
 
 export type StoredReport = typeof StoredReportSchema.Type
 
-export type NewStoredReport = Omit<StoredReport, "id">
+type NewStoredReport = Omit<StoredReport, "id">
+
+export interface StoredReportsSnapshot {
+  readonly reports: ReadonlyArray<StoredReport>
+  readonly isLoading: boolean
+  readonly error: string | null
+}
+
+export interface StoredReportsStore {
+  getServerSnapshot: () => StoredReportsSnapshot
+  getSnapshot: () => StoredReportsSnapshot
+  subscribe: (listener: () => void) => () => void
+  list: () => Promise<void>
+  save: (report: NewStoredReport) => Promise<StoredReport>
+  delete: (id: string) => Promise<void>
+}
 
 const openReportDatabase = () =>
   new Promise<IDBDatabase>((resolve, reject) => {
@@ -118,7 +133,7 @@ const decodeStoredReports = (values: ReadonlyArray<Schema.Json>) =>
     return Result.isSuccess(decoded) ? [decoded.success] : []
   })
 
-export const listReports = async (): Promise<ReadonlyArray<StoredReport>> =>
+const readReports = async (): Promise<ReadonlyArray<StoredReport>> =>
   withReportStore("readonly", async (store) => {
     const values = await waitForRequest<Schema.Json[]>(store.getAll())
 
@@ -127,7 +142,7 @@ export const listReports = async (): Promise<ReadonlyArray<StoredReport>> =>
     )
   })
 
-export const saveReport = async (
+const saveReportToDatabase = async (
   report: NewStoredReport
 ): Promise<StoredReport> => {
   const stored: StoredReport = {
@@ -142,7 +157,75 @@ export const saveReport = async (
   })
 }
 
-export const deleteReport = async (id: string): Promise<void> =>
+const deleteReportFromDatabase = async (id: string): Promise<void> =>
   withReportStore("readwrite", async (store) => {
     await waitForRequest(store.delete(id))
   })
+
+const SERVER_SNAPSHOT: StoredReportsSnapshot = {
+  reports: [],
+  isLoading: true,
+  error: null,
+}
+
+const toStorageErrorMessage = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "Unable to read saved reports."
+
+let snapshot = SERVER_SNAPSHOT
+let latestListRequest = 0
+const listeners = new Set<() => void>()
+
+const publish = (nextSnapshot: StoredReportsSnapshot) => {
+  snapshot = nextSnapshot
+
+  for (const listener of listeners) {
+    listener()
+  }
+}
+
+const list = async () => {
+  const requestId = ++latestListRequest
+  publish({ ...snapshot, isLoading: true, error: null })
+
+  try {
+    const reports = await readReports()
+
+    if (requestId === latestListRequest) {
+      publish({ reports, isLoading: false, error: null })
+    }
+  } catch (cause) {
+    if (requestId === latestListRequest) {
+      publish({
+        ...snapshot,
+        isLoading: false,
+        error: toStorageErrorMessage(cause),
+      })
+    }
+  }
+}
+
+const save = async (report: NewStoredReport) => {
+  const stored = await saveReportToDatabase(report)
+
+  await list()
+
+  return stored
+}
+
+const remove = async (id: string) => {
+  await deleteReportFromDatabase(id)
+  await list()
+}
+
+export const reportStorageStore: StoredReportsStore = {
+  getServerSnapshot: () => SERVER_SNAPSHOT,
+  getSnapshot: () => snapshot,
+  subscribe: (listener) => {
+    listeners.add(listener)
+
+    return () => listeners.delete(listener)
+  },
+  list,
+  save,
+  delete: remove,
+}
