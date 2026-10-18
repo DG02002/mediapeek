@@ -107,7 +107,7 @@ jobs:
         run: pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
       - name: Dry-run web Worker deployment
         working-directory: apps/mediapeek
-        run: pnpm exec wrangler deploy --dry-run
+        run: pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
 
   deploy-production:
     name: Deploy production
@@ -186,6 +186,7 @@ jobs:
           SERVICE_VERSION: ${{ github.ref_name }}
         run: >-
           pnpm exec wrangler deploy
+          --config wrangler.jsonc
           --var "COMMIT_HASH:${COMMIT_HASH}"
           --var "SERVICE_VERSION:${SERVICE_VERSION}"
       - name: Check deployed release identity

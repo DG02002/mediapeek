@@ -1,6 +1,6 @@
+import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
 import { Result, Schema } from "effect"
 
-const ANALYZE_PROGRESS_STREAM_CONTENT_TYPE = "application/x-ndjson"
 const encoder = new TextEncoder()
 
 const AnalyzeTestRequestSchema = Schema.Struct({

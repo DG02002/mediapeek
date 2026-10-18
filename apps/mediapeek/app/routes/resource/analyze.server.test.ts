@@ -12,7 +12,7 @@ import {
   serializeTurnstileGrantCookie,
 } from "~/lib/turnstile-grant.server"
 
-import { handleGet, handlePost, type AnalyzeRouteArgs } from "./analyze"
+import { handleAnalyzeRequest, type AnalyzeRouteArgs } from "./analyze"
 
 const analyzeUrl = "https://example.com/video.mp4"
 const grantSecret = "test-grant-secret"
@@ -51,7 +51,7 @@ const get = () =>
   )
 
 const invokePost = (request: Request, context: AnalyzeRouteArgs["context"]) =>
-  handlePost({ request, context })
+  handleAnalyzeRequest({ request, context })
 
 describe("analyze route Turnstile flag", () => {
   beforeEach(() => {
@@ -70,7 +70,7 @@ describe("analyze route Turnstile flag", () => {
   })
 
   it("keeps the deprecated GET response contract", async () => {
-    const response = await handleGet({
+    const response = await handleAnalyzeRequest({
       request: get(),
       context: createContext(),
     })

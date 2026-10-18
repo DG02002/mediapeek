@@ -3,7 +3,10 @@ import { Schema } from "effect"
 
 import { MediaSkeleton } from "~/components/media-skeleton"
 import { buttonVariants } from "~/components/ui/button"
-import { ReportCompare } from "~/features/compare/report-compare"
+import {
+  ReportCompare,
+  type CompareSearch,
+} from "~/features/compare/report-compare"
 import { useStoredReports } from "~/features/reports/use-stored-reports"
 import { useHydrated } from "~/hooks/use-hydrated"
 
@@ -13,11 +16,6 @@ const compareSearchSchema = Schema.Struct({
   ),
   format: Schema.optionalKey(Schema.String),
 })
-
-export interface CompareSearch {
-  item: Array<string>
-  format?: string
-}
 
 function AppComparePage() {
   const { item: itemIds } = Route.useSearch()

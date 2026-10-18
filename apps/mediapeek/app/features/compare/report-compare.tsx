@@ -20,6 +20,11 @@ import { cn } from "~/lib/utils"
 
 export type CompareOutputFormat = "json" | "text"
 
+export interface CompareSearch {
+  item: string[]
+  format?: string
+}
+
 const COMPARE_FORMATS: ReadonlyArray<{
   readonly id: CompareOutputFormat
   readonly label: string

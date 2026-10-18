@@ -16,7 +16,7 @@ import {
 } from "~/constants"
 import { type LogContext, requestStorage } from "~/lib/logger.server"
 import {
-  finishFallbackRequestLogger,
+  finishRequestLogger,
   getRequestIdFromLogger,
   getRequestLogger,
 } from "~/lib/request-logger.server"
@@ -43,9 +43,9 @@ const LEGACY_GET_WARNING =
 
 type AnalyzerSuccessResponse = Extract<AnalyzerRpcResponse, { success: true }>
 
-export type AnalyzeRouteArgs = {
-  request: Request
-  context: { env: Env; runtimeConfig: RuntimeConfig }
+export interface AnalyzeRouteArgs {
+  readonly request: Request
+  readonly context: { readonly env: Env; readonly runtimeConfig: RuntimeConfig }
 }
 
 interface AnalyzeRequestState {
@@ -676,15 +676,7 @@ const finalizeAnalyzeRequest = (execution: AnalyzeExecution) => {
     durationMs: performance.now() - startTime,
   })
 
-  if (state.requestError && requestLoggerHandle.managed) {
-    requestLoggerHandle.logger.error(state.requestError)
-  }
-
-  finishFallbackRequestLogger(
-    requestLoggerHandle,
-    state.status,
-    state.requestError
-  )
+  finishRequestLogger(requestLoggerHandle, state.status, state.requestError)
 }
 
 const executeAnalyzeRequest = async (
@@ -733,7 +725,7 @@ const executeAnalyzeRequest = async (
   })
 }
 
-async function handleAnalyzeRequest(args: AnalyzeRouteArgs) {
+export const handleAnalyzeRequest = async (args: AnalyzeRouteArgs) => {
   const execution = createExecution(args)
 
   return requestStorage.run(execution.logContext, async () => {
@@ -752,14 +744,11 @@ async function handleAnalyzeRequest(args: AnalyzeRouteArgs) {
   })
 }
 
-export const handleGet = (args: AnalyzeRouteArgs) => handleAnalyzeRequest(args)
-export const handlePost = (args: AnalyzeRouteArgs) => handleAnalyzeRequest(args)
-
 export const Route = createFileRoute("/resource/analyze")({
   server: {
     handlers: {
-      GET: handleGet,
-      POST: handlePost,
+      GET: handleAnalyzeRequest,
+      POST: handleAnalyzeRequest,
     },
   },
 })

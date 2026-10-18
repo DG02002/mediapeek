@@ -19,9 +19,7 @@
         "*.{ts,tsx,mjs}"
       ],
       "ignoreIssues": {
-        "app/components/ui/**/*.tsx": ["exports"],
-        "app/lib/logger.server.ts": ["exports", "types"],
-        "app/routes/app/compare/route.tsx": ["types"]
+        "app/components/ui/**/*.tsx": ["exports"]
       }
     },
     "apps/mediapeek-analyzer": {

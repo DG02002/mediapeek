@@ -12,14 +12,14 @@ import {
 export type Theme = "dark" | "light" | "system"
 
 interface ThemeProviderProps {
-  children: ReactNode
-  defaultTheme?: Theme
-  storageKey?: string
+  readonly children: ReactNode
+  readonly defaultTheme?: Theme
+  readonly storageKey?: string
 }
 
 interface ThemeProviderState {
-  theme: Theme
-  setTheme: (theme: Theme) => void
+  readonly theme: Theme
+  readonly setTheme: (theme: Theme) => void
 }
 
 const THEME_CHANGE_EVENT = "mediapeek-theme-change"
@@ -28,10 +28,20 @@ const getThemeScript = (storageKey: string, defaultTheme: Theme) => {
   const key = JSON.stringify(storageKey)
   const fallback = JSON.stringify(defaultTheme)
 
-  return `(function(){try{var t=localStorage.getItem(${key});if(t!=='light'&&t!=='dark'&&t!=='system'){t=${fallback}}var r;if(t==='system'){r=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}else{r=t}var e=document.documentElement;e.classList.add(r);e.style.colorScheme=r}catch(e){}})();`
+  return `(function(){try{var t=localStorage.getItem(${key});if(t!=='light'&&t!=='dark'&&t!=='system'){t=${fallback}}var d=matchMedia('(prefers-color-scheme: dark)').matches;var r=t==='system'?(d?'dark':'light'):t;var e=document.documentElement;e.classList.add(r);e.style.colorScheme=r}catch(e){}})();`
 }
 
-const ThemeProviderContext = createContext<ThemeProviderState | null>(null)
+const ThemeProviderContext = createContext<ThemeProviderState | undefined>(
+  undefined
+)
+
+const readStoredTheme = (storageKey: string, defaultTheme: Theme) => {
+  const stored = localStorage.getItem(storageKey)
+
+  return stored === "light" || stored === "dark" || stored === "system"
+    ? stored
+    : defaultTheme
+}
 
 const applyTheme = (theme: Theme) => {
   const root = document.documentElement
@@ -54,32 +64,16 @@ export const ThemeProvider = ({
   defaultTheme = "system",
   storageKey = "theme",
 }: ThemeProviderProps) => {
-  const subscribe = useCallback(
-    (onStoreChange: () => void) => {
-      const onStorage = (event: StorageEvent) => {
-        if (event.key === storageKey) {
-          onStoreChange()
-        }
-      }
+  const subscribe = useCallback((onStoreChange: () => void) => {
+    window.addEventListener(THEME_CHANGE_EVENT, onStoreChange)
 
-      window.addEventListener("storage", onStorage)
-      window.addEventListener(THEME_CHANGE_EVENT, onStoreChange)
+    return () => window.removeEventListener(THEME_CHANGE_EVENT, onStoreChange)
+  }, [])
 
-      return () => {
-        window.removeEventListener("storage", onStorage)
-        window.removeEventListener(THEME_CHANGE_EVENT, onStoreChange)
-      }
-    },
-    [storageKey]
+  const getSnapshot = useCallback(
+    () => readStoredTheme(storageKey, defaultTheme),
+    [defaultTheme, storageKey]
   )
-
-  const getSnapshot = useCallback(() => {
-    const stored = localStorage.getItem(storageKey)
-
-    return stored === "light" || stored === "dark" || stored === "system"
-      ? stored
-      : defaultTheme
-  }, [defaultTheme, storageKey])
 
   const getServerSnapshot = useCallback(() => defaultTheme, [defaultTheme])
   const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
@@ -95,22 +89,18 @@ export const ThemeProvider = ({
   useEffect(() => {
     applyTheme(theme)
 
-    const media = window.matchMedia("(prefers-color-scheme: dark)")
-
-    const onChange = () => {
-      if (theme === "system") {
-        applyTheme(theme)
-      }
+    if (theme !== "system") {
+      return undefined
     }
 
+    const media = window.matchMedia("(prefers-color-scheme: dark)")
+    const onChange = () => applyTheme("system")
     media.addEventListener("change", onChange)
 
-    return () => {
-      media.removeEventListener("change", onChange)
-    }
+    return () => media.removeEventListener("change", onChange)
   }, [theme])
 
-  const value = useMemo(() => ({ theme, setTheme }), [theme, setTheme])
+  const value = useMemo(() => ({ theme, setTheme }), [setTheme, theme])
 
   return (
     <ThemeProviderContext value={value}>
@@ -123,7 +113,7 @@ export const ThemeProvider = ({
 export const useTheme = () => {
   const context = useContext(ThemeProviderContext)
 
-  if (context === null) {
+  if (context === undefined) {
     throw new Error("useTheme must be used within a ThemeProvider")
   }
 

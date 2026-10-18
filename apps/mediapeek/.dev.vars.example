@@ -1,4 +1,3 @@
-# Generate with: openssl rand -base64 32
 TURNSTILE_ENABLED=false
 TURNSTILE_SITE_KEY=
 TURNSTILE_SECRET_KEY=

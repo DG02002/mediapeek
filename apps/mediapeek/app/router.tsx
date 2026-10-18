@@ -2,7 +2,7 @@ import { createRouter } from "@tanstack/react-router"
 
 import { routeTree } from "./routeTree.gen"
 
-export function getRouter() {
+export const getRouter = () => {
   return createRouter({
     routeTree,
     defaultPreload: false,

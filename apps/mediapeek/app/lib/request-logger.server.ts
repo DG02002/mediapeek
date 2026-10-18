@@ -4,7 +4,6 @@ import { createRequestLogger, initLogger, type AuditableLogger } from "evlog"
 
 export interface RequestLoggerHandle {
   readonly logger: AuditableLogger
-  readonly managed: boolean
 }
 
 initLogger(createEvlogLoggerConfig("mediapeek"))
@@ -22,7 +21,6 @@ const createFallbackRequestLogger = (
     path: new URL(request.url).pathname,
     requestId: getFallbackRequestId(request),
   }),
-  managed: false,
 })
 
 export const getRequestIdFromLogger = (
@@ -41,15 +39,11 @@ export const getRequestIdFromLogger = (
 export const getRequestLogger = (request: Request): RequestLoggerHandle =>
   createFallbackRequestLogger(request)
 
-export const finishFallbackRequestLogger = (
+export const finishRequestLogger = (
   handle: RequestLoggerHandle,
   status: number,
   error?: Error
 ) => {
-  if (handle.managed) {
-    return
-  }
-
   if (error) {
     handle.logger.error(error)
   }

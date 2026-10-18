@@ -22,10 +22,14 @@ import type { MediaPeekRequestContext } from "~/lib/server-request-context"
 
 import appCss from "../app.css?url"
 
+const DEFAULT_PUBLIC_ENVIRONMENT = {
+  TURNSTILE_ENABLED: false,
+  APP_ENV: "production",
+}
+
 const rootLoader = async ({
   serverContext,
 }: {
-  context: object
   serverContext?: MediaPeekRequestContext
 }) => {
   if (serverContext === undefined) {
@@ -81,10 +85,8 @@ const NotFoundPage = () => (
 )
 
 const RootErrorBoundary = ({ error }: { error: unknown }) => {
-  const rootEnvironment = Route.useLoaderData()?.env ?? {
-    TURNSTILE_ENABLED: false,
-    APP_ENV: "production",
-  }
+  const rootEnvironment =
+    Route.useLoaderData()?.env ?? DEFAULT_PUBLIC_ENVIRONMENT
 
   const showStack = isDevelopmentEnvironment(
     resolveRuntimeConfig({ APP_ENV: rootEnvironment.APP_ENV }).appEnv
@@ -114,10 +116,7 @@ const RootErrorBoundary = ({ error }: { error: unknown }) => {
 }
 
 const RootDocumentContent = ({ children }: { children: ReactNode }) => {
-  const env = Route.useLoaderData()?.env ?? {
-    TURNSTILE_ENABLED: false,
-    APP_ENV: "production",
-  }
+  const env = Route.useLoaderData()?.env ?? DEFAULT_PUBLIC_ENVIRONMENT
 
   const { theme } = useTheme()
   const isMobile = useMediaQuery("(max-width: 640px)")
