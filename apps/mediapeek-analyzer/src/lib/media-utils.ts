@@ -1,4 +1,3 @@
-import { extractFirstFileFromArchive as inspectFirstArchiveFile } from "@mediapeek/shared/archive-inspection"
 import { Result, Schema } from "effect"
 import type { MediaInfoResult as LibraryMediaInfoResult } from "mediainfo.js"
 
@@ -86,14 +85,4 @@ export const normalizeMediaInfo = (
   }
 
   return normalizeJsonMediaInfo(decoded.success)
-}
-
-export const extractFirstFileFromArchive = (
-  buffer: Uint8Array
-): string | null => inspectFirstArchiveFile(buffer)
-
-export const isArchiveExtension = (filename: string): boolean => {
-  const extension = filename.split(".").pop()?.toLowerCase() ?? ""
-
-  return ["zip", "tar", "rar", "7z", "gz", "bz2", "xz"].includes(extension)
 }

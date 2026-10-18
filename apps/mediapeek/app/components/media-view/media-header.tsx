@@ -1,8 +1,9 @@
+import { isValidFilename } from "@mediapeek/shared/filename-resolution"
+import { getMediaBadges } from "@mediapeek/shared/media-utils"
 import { memo, useMemo } from "react"
 
 import { OptionsMenu } from "~/components/media-view/options-menu"
 import { Separator } from "~/components/ui/separator"
-import { getMediaBadges, isValidFilename } from "~/lib/media-utils"
 import type { MediaTrackJSON } from "~/types/media"
 
 import { ArchiveEstimateTooltip } from "./archive-estimate-tooltip"

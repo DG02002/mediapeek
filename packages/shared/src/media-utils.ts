@@ -11,7 +11,7 @@ import {
   LOSSLESS_MIN_BIT_DEPTH_BITS,
   STANDARD_DEFINITION_WIDTH_PX,
 } from "./constants"
-import { MEDIA_CONSTANTS, type MediaTrackJSON } from "./media"
+import { MEDIA_CONSTANTS, type MediaTrackMetadata } from "./media"
 
 export interface AccessibilityFeatures {
   readonly hasSDH: boolean
@@ -20,10 +20,10 @@ export interface AccessibilityFeatures {
 }
 
 export interface MediaBadgeInput {
-  readonly videoTracks: readonly MediaTrackJSON[]
-  readonly audioTracks: readonly MediaTrackJSON[]
-  readonly textTracks: readonly MediaTrackJSON[]
-  readonly generalTrack?: MediaTrackJSON
+  readonly videoTracks: readonly MediaTrackMetadata[]
+  readonly audioTracks: readonly MediaTrackMetadata[]
+  readonly textTracks: readonly MediaTrackMetadata[]
+  readonly generalTrack?: MediaTrackMetadata
 }
 
 const isNumber = Schema.is(Schema.Number)
@@ -53,9 +53,9 @@ export const isAppleTvFilename = (filename: string): boolean => {
 }
 
 export const getAccessibilityFeatures = (
-  audioTracks: readonly MediaTrackJSON[],
-  textTracks: readonly MediaTrackJSON[],
-  generalTrack?: MediaTrackJSON
+  audioTracks: readonly MediaTrackMetadata[],
+  textTracks: readonly MediaTrackMetadata[],
+  generalTrack?: MediaTrackMetadata
 ): AccessibilityFeatures => {
   const hasSDH = textTracks.some((track) => (track.Title ?? "").includes("SDH"))
 
@@ -106,7 +106,7 @@ export const getAccessibilityFeatures = (
   return { hasSDH, hasCC, hasAD }
 }
 
-const getResolutionBadge = (rawWidth?: string): string | undefined => {
+const getResolutionBadge = (rawWidth?: string | number): string | undefined => {
   const width = Number(rawWidth ?? "0")
 
   if (Number.isNaN(width)) {
@@ -129,8 +129,8 @@ const getResolutionBadge = (rawWidth?: string): string | undefined => {
 }
 
 const getVideoBadges = (
-  videoTracks: readonly MediaTrackJSON[],
-  generalTrack?: MediaTrackJSON
+  videoTracks: readonly MediaTrackMetadata[],
+  generalTrack?: MediaTrackMetadata
 ): string[] => {
   const badges: string[] = []
   const [firstVideoTrack] = videoTracks
@@ -172,7 +172,7 @@ const getVideoBadges = (
   return badges
 }
 
-const getVideoHdrBadges = (track: MediaTrackJSON): string[] => {
+const getVideoHdrBadges = (track: MediaTrackMetadata): string[] => {
   const badges: string[] = []
   const hdrFormat = track.HDR_Format ?? ""
   const hdrCompatibility = track.HDR_Format_Compatibility ?? ""
@@ -200,7 +200,9 @@ interface AudioCodecFlags {
   hasDolby: boolean
 }
 
-const getAudioTrackCodecFlags = (track: MediaTrackJSON): AudioCodecFlags => {
+const getAudioTrackCodecFlags = (
+  track: MediaTrackMetadata
+): AudioCodecFlags => {
   const format = track.Format ?? ""
   const commercial = track.Format_Commercial_IfAny ?? ""
   const title = track.Title ?? ""
@@ -223,7 +225,7 @@ const getAudioTrackCodecFlags = (track: MediaTrackJSON): AudioCodecFlags => {
 }
 
 const getAudioCodecFlags = (
-  audioTracks: readonly MediaTrackJSON[]
+  audioTracks: readonly MediaTrackMetadata[]
 ): AudioCodecFlags => {
   const flags: AudioCodecFlags = {
     hasAtmos: false,
@@ -245,7 +247,7 @@ const getAudioCodecFlags = (
 }
 
 const getAudioCodecBadges = (
-  audioTracks: readonly MediaTrackJSON[]
+  audioTracks: readonly MediaTrackMetadata[]
 ): string[] => {
   const { hasAtmos, hasDtsX, hasDts, hasDolby } =
     getAudioCodecFlags(audioTracks)
@@ -343,7 +345,7 @@ const getBitDepth = (
 }
 
 const getAudioQualityBadge = (
-  audioTracks: readonly MediaTrackJSON[]
+  audioTracks: readonly MediaTrackMetadata[]
 ): string | undefined => {
   let hasHiResLossless = false
   let hasLossless = false

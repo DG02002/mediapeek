@@ -5,6 +5,7 @@ import {
 import type { AnalyzeProgressStage } from "@mediapeek/shared/analyze-progress"
 import {
   ARCHIVE_SIZING_WARNING,
+  extractFirstFileFromArchive,
   type ArchiveEntryInspection,
 } from "@mediapeek/shared/archive-inspection"
 import {
@@ -16,12 +17,11 @@ import { Schema } from "effect"
 import { DiagnosticsError } from "../lib/error-utils"
 import {
   MediaInfoResultSchema,
-  extractFirstFileFromArchive,
-  isArchiveExtension,
   normalizeMediaInfo,
   type JsonMediaInfo,
   type MediaInfoTrack,
 } from "../lib/media-utils"
+import { isArchiveExtension } from "../lib/server-utils"
 import {
   createMediaInfo,
   type MediaInfoInstance,

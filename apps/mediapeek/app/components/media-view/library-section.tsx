@@ -1,6 +1,6 @@
+import { getMediaBadges } from "@mediapeek/shared/media-utils"
 import { memo } from "react"
 
-import { getMediaBadges } from "~/lib/media-utils"
 import type { MediaTrackJSON } from "~/types/media"
 
 import { TrademarkNotice } from "./trademark-notice"

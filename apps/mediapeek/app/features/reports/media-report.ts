@@ -1,4 +1,8 @@
 import { isValidFilename } from "@mediapeek/shared/filename-resolution"
+import {
+  getAccessibilityFeatures,
+  getMediaBadges,
+} from "@mediapeek/shared/media-utils"
 import { Result, Schema } from "effect"
 
 import { cleanAudioTrackTitle, cleanSubtitleTrackTitle } from "~/lib/formatters"
@@ -11,7 +15,6 @@ import {
   type MediaStructureObject,
   type MediaStructureValue,
 } from "~/lib/media-structure"
-import { getAccessibilityFeatures, getMediaBadges } from "~/lib/media-utils"
 import type { MediaTrackJSON } from "~/types/media"
 
 interface MediaReportParseError {

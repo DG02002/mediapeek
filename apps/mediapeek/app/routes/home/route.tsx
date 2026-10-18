@@ -4,6 +4,7 @@ import {
   KeyframesMultipleIcon,
   SecurityLockIcon,
 } from "@hugeicons/core-free-icons"
+import { MEDIA_CONSTANTS } from "@mediapeek/shared/media"
 import { Link } from "react-router"
 
 import { Footer } from "~/components/footer"
@@ -18,7 +19,6 @@ import {
   CardTitle,
 } from "~/components/ui/card"
 import { Icon } from "~/components/ui/icon"
-import { MEDIA_CONSTANTS } from "~/lib/media/constants"
 import { cn } from "~/lib/utils"
 
 import type { Route } from "./+types/route"

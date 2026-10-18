@@ -1,10 +1,10 @@
+import { getMediaBadges } from "@mediapeek/shared/media-utils"
 import { forwardRef, memo } from "react"
 
 import {
   MEDIA_EXPORT_POSITION_OFFSET_PX,
   MEDIA_EXPORT_WIDTH_PX,
 } from "~/constants"
-import { getMediaBadges } from "~/lib/media-utils"
 import type { MediaInfoJSON, MediaTrackJSON } from "~/types/media"
 
 import { AccessibilitySection } from "./accessibility-section"

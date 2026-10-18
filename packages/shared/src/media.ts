@@ -77,6 +77,24 @@ export interface MediaTrackJSON {
   [key: string]: MediaTrackValue | undefined
 }
 
+export interface MediaTrackMetadata {
+  Title?: string
+  Format?: string
+  Format_Commercial_IfAny?: string
+  Format_AdditionalFeatures?: string
+  CodecID?: string
+  Width?: string | number
+  DisplayAspectRatio?: string | number
+  HDR_Format?: string
+  HDR_Format_Compatibility?: string
+  File_Name?: string
+  CompleteName?: string
+  ServiceKind?: string
+  SamplingRate?: string | number
+  BitDepth?: string | number
+  Compression_Mode?: string
+}
+
 export const MEDIA_CONSTANTS = {
   BADGES: {
     RESOLUTION_4K: "4k",

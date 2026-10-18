@@ -1,4 +1,4 @@
-import { MEDIA_CONSTANTS } from "~/lib/media/constants"
+import { MEDIA_CONSTANTS } from "@mediapeek/shared/media"
 
 interface TrademarkNoticeProps {
   badges: string[]

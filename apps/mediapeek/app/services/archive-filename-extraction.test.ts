@@ -1,6 +1,6 @@
+import { extractFirstFileFromArchive } from "@mediapeek/shared/archive-inspection"
+import { isValidFilename } from "@mediapeek/shared/filename-resolution"
 import { describe, expect, it } from "vitest"
-
-import { extractFirstFileFromArchive, isValidFilename } from "~/lib/media-utils"
 
 // --- Mock Generators ---
 
