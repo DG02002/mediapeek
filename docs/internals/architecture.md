@@ -45,7 +45,7 @@ the request is active.
 ## Reports
 
 A Media Report contains the requested output formats for one completed
-analysis. The browser library owns persistence, import, export, and deletion.
+analysis. The web app owns persistence and deletion.
 Reports render on the app page: the list of stored reports, an opened report,
 and the compare mode all live beside the analysis form.
 

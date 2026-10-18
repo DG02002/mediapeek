@@ -26,7 +26,7 @@ body:
         - Web Worker analysis route or rate limiting
         - Analyzer Worker or MediaInfo
         - Range-based media fetch
-        - Browser storage, report library, or diff
+        - Browser storage, saved reports, or comparison
         - Export or sharing
         - Deployment or operations
         - Unknown

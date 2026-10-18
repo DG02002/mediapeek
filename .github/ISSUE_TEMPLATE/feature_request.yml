@@ -49,7 +49,7 @@ body:
         - Web Worker route or rate limiting
         - Analyzer Worker or MediaInfo
         - Range-based media fetching
-        - Stored report library or structural diff
+        - Saved reports or report comparison
         - Export, sharing, or Turnstile
         - CI, release, or operations
         - Documentation

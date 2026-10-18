@@ -1,7 +1,7 @@
 # MediaPeek triage playbook
 
 Use this playbook to investigate analysis failures, stale progress, report
-storage problems, import or export failures, and deployment issues. Gather a
+storage problems, export failures, and deployment issues. Gather a
 useful diagnosis and a safe workaround when one exists, or file a focused
 engineering issue.
 
@@ -27,8 +27,8 @@ Classify the first failing boundary:
 - browser app, analysis form, or queue
 - web Worker route, input validation, or rate limiting
 - analyzer Worker, range fetch, or MediaInfo
-- IndexedDB, stored reports, import, or export
-- structural diff or report rendering
+- IndexedDB, stored reports, or export
+- report comparison or rendering
 - deployment, health check, or another operational boundary
 
 Check the request, Worker response, logs, and shared contract before assuming a
@@ -55,8 +55,8 @@ use production bindings for a local reproduction.
 
 Compare the result with the [architecture](../../docs/internals/architecture.md),
 [`CONTEXT.md`](../../CONTEXT.md), and the relevant source, configuration, or
-workflow. Check reverse states: retry, cancel, reopen, delete, import, and
-export should leave a recoverable and truthful UI state.
+workflow. Check reverse states: retry, cancel, reopen, delete, and export
+should leave a recoverable and truthful UI state.
 
 ## Choose an outcome
 

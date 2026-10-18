@@ -118,7 +118,7 @@ which entries applied. Fixing one path is not fixing the feature.
   package contracts.
 - **Storage.** Browser state and IndexedDB. Analysis reports do not gain a
   server persistence path.
-- **Reverse states.** Retry, cancel, reopen, delete, import, export, and
+- **Reverse states.** Retry, cancel, reopen, delete, export, and
   failed analysis.
 - **Outputs.** JSON, text, HTML, XML, and PNG where the feature uses them.
 - **Operations.** Local secrets, CI checks, release workflow, and health
