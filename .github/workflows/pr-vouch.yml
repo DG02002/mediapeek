@@ -23,7 +23,7 @@ permissions:
 jobs:
   sync-labels:
     name: Sync PR trust labels
-    uses: ./.github/workflows/sync-managed-labels.yml
+    uses: $/.github/workflows/sync-managed-labels.yml
     with:
       prefix: "vouch:"
     permissions:
@@ -173,7 +173,7 @@ jobs:
             core.setOutput("managed-labels", JSON.stringify([...vouchLabelNames]));
             core.setOutput("targets", JSON.stringify(labelTargets));
       - name: Apply PR trust labels
-        uses: ./.github/actions/sync-issue-labels
+        uses: $/.github/actions/sync-issue-labels
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           managed-labels: ${{ steps.vouch.outputs.managed-labels }}

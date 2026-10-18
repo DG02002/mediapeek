@@ -42,14 +42,20 @@ const validateLocalActionReferences = async (value, sourcePath) => {
 
   const { uses } = workflowNode
 
-  if (uses?.startsWith?.("$/.github/")) {
-    throw new Error(
-      `${sourcePath} has invalid local reference ${String(uses)}; use a ./ path.`
-    )
-  }
+  const localReference =
+    uses?.startsWith?.("$/") || uses?.startsWith?.("./")
+      ? uses.slice(2)
+      : undefined
 
-  if (uses?.startsWith?.("./")) {
-    await access(resolve(projectRoot, uses))
+  if (localReference) {
+    try {
+      await access(resolve(projectRoot, localReference))
+    } catch (cause) {
+      throw new Error(
+        `${sourcePath} references missing local target ${String(uses)}.`,
+        { cause }
+      )
+    }
   }
 
   await Promise.all(

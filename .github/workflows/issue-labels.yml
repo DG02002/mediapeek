@@ -18,7 +18,7 @@ permissions:
 jobs:
   sync:
     name: Sync managed labels
-    uses: ./.github/workflows/sync-managed-labels.yml
+    uses: $/.github/workflows/sync-managed-labels.yml
     permissions:
       contents: read
       issues: write
