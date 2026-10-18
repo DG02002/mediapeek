@@ -1,3 +1,5 @@
+import { AnalyzerError } from "./error-utils"
+
 export { extractFilenameFromUrl } from "@mediapeek/shared/filename-resolution"
 
 const BLOCKED_HOSTS = new Set(["localhost", "metadata.google.internal"])
@@ -27,17 +29,24 @@ export const validateUrl = (url: string) => {
   const parsedUrl = new URL(url)
 
   if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-    throw new Error("Invalid URL: Only HTTP and HTTPS sources are supported.")
+    throw new AnalyzerError(
+      "validation",
+      "Invalid URL: Only HTTP and HTTPS sources are supported."
+    )
   }
 
   if (parsedUrl.username || parsedUrl.password) {
-    throw new Error("Invalid URL: Embedded credentials are not allowed.")
+    throw new AnalyzerError(
+      "validation",
+      "Invalid URL: Embedded credentials are not allowed."
+    )
   }
 
   const host = parsedUrl.hostname.toLowerCase().replaceAll(/^\[|\]$/g, "")
 
   if (BLOCKED_HOSTS.has(host) || isBlockedIpLiteral(host)) {
-    throw new Error(
+    throw new AnalyzerError(
+      "validation",
       "Invalid URL: Access to local, private, or reserved resources is denied."
     )
   }

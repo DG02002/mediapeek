@@ -2,7 +2,7 @@ import {
   analysisOutputFormats,
   type AnalysisOutputId,
 } from "@mediapeek/shared/analysis-output-formats"
-import type { AnalyzeProgressStage } from "@mediapeek/shared/analyze-progress"
+import type { AnalyzeProgressReporter } from "@mediapeek/shared/analyze-progress"
 import {
   ARCHIVE_SIZING_WARNING,
   extractFirstFileFromArchive,
@@ -14,7 +14,7 @@ import {
 } from "@mediapeek/shared/filename-resolution"
 import { Schema } from "effect"
 
-import { DiagnosticsError } from "../lib/error-utils"
+import { AnalyzerError, DiagnosticsError } from "../lib/error-utils"
 import {
   MediaInfoResultSchema,
   normalizeMediaInfo,
@@ -27,9 +27,9 @@ import {
   type MediaInfoInstance,
 } from "./mediainfo-factory.server"
 
-export class CpuBudgetExceededError extends Error {
+export class CpuBudgetExceededError extends AnalyzerError {
   constructor(message = "CPU budget exceeded") {
-    super(message)
+    super("cpu-budget", message)
     this.name = "CpuBudgetExceededError"
   }
 }
@@ -65,12 +65,6 @@ export interface MediaInfoAnalysis {
 
 type MediaInfoFormat = "object" | "Text" | "XML" | "HTML"
 
-export type AnalysisProgressReporter = (
-  stage: AnalyzeProgressStage,
-  title: string,
-  message: string
-) => Promise<void> | void
-
 interface MediaInfoAnalysisDependencies {
   readonly createMediaInfo: () => Promise<MediaInfoInstance>
 }
@@ -90,7 +84,7 @@ export interface AnalyzeMediaBufferOptions {
   cpuBudgetMs?: number
   archiveEntry?: ArchiveEntryInspection
   remoteReadChunk?: ReadChunk
-  reportProgress?: AnalysisProgressReporter
+  reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
   dependencies?: MediaInfoAnalysisDependencies
 }
@@ -367,6 +361,10 @@ const generateFormat = async (options: {
   } catch (error) {
     options.signal?.throwIfAborted()
 
+    if (error instanceof AnalyzerError) {
+      throw error
+    }
+
     return {
       key: options.format.key,
       output: "Error generating " + options.format.type + " view.",
@@ -467,7 +465,7 @@ const runMediaInfo = async (
     filenameSource: FilenameSource
     archiveName?: string
     archiveEntry?: ArchiveEntryInspection
-    reportProgress?: AnalysisProgressReporter
+    reportProgress?: AnalyzeProgressReporter
     signal?: AbortSignal
     dependencies: MediaInfoAnalysisDependencies
   },
@@ -475,9 +473,10 @@ const runMediaInfo = async (
 ) => {
   const factoryStart = performance.now()
   const infoInstance = await options.dependencies.createMediaInfo()
-  state.diagnostics.factoryCreateTimeMs = Math.round(
-    performance.now() - factoryStart
-  )
+  state.diagnostics.wasmLoadTimeMs = infoInstance.wasmLoadTimeMs ?? 0
+  state.diagnostics.factoryCreateTimeMs =
+    infoInstance.factoryCreateTimeMs ??
+    Math.round(performance.now() - factoryStart)
 
   try {
     options.signal?.throwIfAborted()

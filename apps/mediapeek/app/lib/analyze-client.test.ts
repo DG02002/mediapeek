@@ -14,11 +14,13 @@ describe("fetchAnalyzeFormat", () => {
   })
 
   it("returns format content on first successful request", async () => {
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(
-        jsonResponse({ success: true, results: { text: "hello" } })
-      )
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      jsonResponse({
+        success: true,
+        requestId: "request-1",
+        results: { text: "hello" },
+      })
+    )
 
     const result = await fetchAnalyzeFormat({
       url: "https://example.com/video.mp4",
@@ -28,7 +30,7 @@ describe("fetchAnalyzeFormat", () => {
     expect(result).toEqual({
       ok: true,
       content: "hello",
-      requestId: undefined,
+      requestId: "request-1",
       retriedWithTurnstile: false,
     })
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -41,16 +43,22 @@ describe("fetchAnalyzeFormat", () => {
         jsonResponse(
           {
             success: false,
+            requestId: "request-1",
             error: {
               code: "AUTH_REQUIRED",
               message: "Security verification is required.",
+              retryable: false,
             },
           },
           403
         )
       )
       .mockResolvedValueOnce(
-        jsonResponse({ success: true, results: { xml: "<xml />" } })
+        jsonResponse({
+          success: true,
+          requestId: "request-2",
+          results: { xml: "<xml />" },
+        })
       )
 
     const requestTurnstileToken = vi
@@ -66,7 +74,7 @@ describe("fetchAnalyzeFormat", () => {
     expect(result).toEqual({
       ok: true,
       content: "<xml />",
-      requestId: undefined,
+      requestId: "request-2",
       retriedWithTurnstile: true,
     })
     expect(requestTurnstileToken).toHaveBeenCalledTimes(1)
@@ -83,9 +91,11 @@ describe("fetchAnalyzeFormat", () => {
       jsonResponse(
         {
           success: false,
+          requestId: "request-1",
           error: {
             code: "AUTH_REQUIRED",
             message: "Security verification is required.",
+            retryable: false,
           },
         },
         403
@@ -117,9 +127,11 @@ describe("fetchAnalyzeFormat", () => {
       jsonResponse(
         {
           success: false,
+          requestId: "request-1",
           error: {
             code: "INTERNAL_ERROR",
             message: "Analyzer unavailable",
+            retryable: false,
           },
         },
         503

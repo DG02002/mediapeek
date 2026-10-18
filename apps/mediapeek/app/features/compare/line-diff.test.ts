@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { collapseDiffLines, diffLines } from "./line-diff"
+import { collapseDiffLines, diffLines, toSideBySideDiffRows } from "./line-diff"
 
 const kindsOf = (rows: ReadonlyArray<{ kind: string }>) =>
   rows.map((row) => row.kind)
@@ -107,5 +107,93 @@ describe("collapseDiffLines", () => {
     const rows = diffLines("alpha\nbeta\n", "alpha\nbeta two\n")
 
     expect(collapseDiffLines(rows, { context: 3 })).toEqual(rows)
+  })
+})
+
+describe("toSideBySideDiffRows", () => {
+  it("pairs changed lines and keeps context aligned", () => {
+    const rows = collapseDiffLines(
+      diffLines("before one\nstays\nbefore two", "after one\nstays\nafter two")
+    )
+
+    expect(toSideBySideDiffRows(rows)).toEqual([
+      {
+        kind: "change",
+        before: {
+          kind: "removed",
+          beforeNumber: 1,
+          afterNumber: null,
+          text: "before one",
+        },
+        after: {
+          kind: "added",
+          beforeNumber: null,
+          afterNumber: 1,
+          text: "after one",
+        },
+      },
+      {
+        kind: "context",
+        before: {
+          kind: "context",
+          beforeNumber: 2,
+          afterNumber: 2,
+          text: "stays",
+        },
+        after: {
+          kind: "context",
+          beforeNumber: 2,
+          afterNumber: 2,
+          text: "stays",
+        },
+      },
+      {
+        kind: "change",
+        before: {
+          kind: "removed",
+          beforeNumber: 3,
+          afterNumber: null,
+          text: "before two",
+        },
+        after: {
+          kind: "added",
+          beforeNumber: null,
+          afterNumber: 3,
+          text: "after two",
+        },
+      },
+    ])
+  })
+
+  it("leaves unmatched changed lines empty on the other side", () => {
+    const rows = collapseDiffLines(diffLines("one\ntwo", "one"))
+
+    expect(toSideBySideDiffRows(rows)).toEqual([
+      {
+        kind: "context",
+        before: {
+          kind: "context",
+          beforeNumber: 1,
+          afterNumber: 1,
+          text: "one",
+        },
+        after: {
+          kind: "context",
+          beforeNumber: 1,
+          afterNumber: 1,
+          text: "one",
+        },
+      },
+      {
+        kind: "change",
+        before: {
+          kind: "removed",
+          beforeNumber: 2,
+          afterNumber: null,
+          text: "two",
+        },
+        after: null,
+      },
+    ])
   })
 })

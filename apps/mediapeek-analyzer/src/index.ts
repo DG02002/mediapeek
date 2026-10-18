@@ -6,7 +6,7 @@ import type {
 import {
   ANALYZE_PROGRESS_STREAM_CONTENT_TYPE,
   encodeAnalyzeStreamEvent,
-  type AnalyzeProgressStage,
+  type AnalyzeProgressReporter,
 } from "@mediapeek/shared/analyze-progress"
 import { createEvlogLoggerConfig } from "@mediapeek/shared/evlog"
 import { redactSensitiveUrl } from "@mediapeek/shared/log-redaction"
@@ -15,16 +15,14 @@ import { initWorkersLogger } from "evlog/workers"
 import { Hono, type Context } from "hono"
 
 import { unknownToError } from "./lib/error"
+import { AnalyzerError, DiagnosticsError } from "./lib/error-utils"
 import { analyzeSchema, type AnalyzeInput } from "./lib/schemas"
 import {
   executeAnalysis,
   type AnalysisExecutionInput,
   type AnalysisExecutionResult,
 } from "./services/analysis-execution.server"
-import {
-  CpuBudgetExceededError,
-  DEFAULT_ANALYSIS_CPU_BUDGET_MS,
-} from "./services/mediainfo.server"
+import { DEFAULT_ANALYSIS_CPU_BUDGET_MS } from "./services/mediainfo.server"
 import {
   requestLogging,
   type AnalyzerRequestLoggingEnvironment,
@@ -149,26 +147,6 @@ const resolveCpuBudgetMs = (rawValue?: string): number => {
     Math.max(MIN_ANALYSIS_CPU_BUDGET_MS, parsed)
   )
 }
-
-const isCpuLimitError = (cause: unknown): boolean => {
-  if (cause instanceof CpuBudgetExceededError) {
-    return true
-  }
-
-  if (!(cause instanceof Error)) {
-    return false
-  }
-
-  return /cpu budget exceeded/i.test(cause.message)
-}
-
-const isRateLimitedFetchError = (message: string): boolean =>
-  /rate-limited/i.test(message)
-
-const isValidationFetchError = (message: string): boolean =>
-  /webpage, not a media file|provide a direct link|media file not found|access denied/i.test(
-    message
-  )
 
 const wantsProgressStream = (request: Request): boolean =>
   request.headers
@@ -298,54 +276,92 @@ const createAuthFailureResponse = (
   )
 }
 
-const classifyMessageError = (
-  error: Error,
+const findAnalyzerError = (cause: unknown): AnalyzerError | undefined => {
+  let current = cause
+
+  while (current instanceof Error) {
+    if (current instanceof AnalyzerError) {
+      return current
+    }
+
+    current = current.cause
+  }
+
+  return undefined
+}
+
+const findDiagnosticsError = (
+  cause: unknown
+): DiagnosticsError<unknown> | undefined => {
+  let current = cause
+
+  while (current instanceof Error) {
+    if (current instanceof DiagnosticsError) {
+      return current
+    }
+
+    current = current.cause
+  }
+
+  return undefined
+}
+
+const classifyAnalyzerError = (
+  error: AnalyzerError,
   customContext: AnalyzeLogContext
 ): ClassifiedAnalyzeError => {
-  if (isRateLimitedFetchError(error.message)) {
-    customContext.errorClass = "ANALYZE_RATE_LIMITED"
+  switch (error.kind) {
+    case "cpu-budget":
+      customContext.errorClass = "CPU_LIMIT_EXCEEDED"
 
-    return {
-      status: 429,
-      code: "RATE_LIMITED",
-      message: error.message,
-      retryable: true,
-      severity: "WARNING",
-    }
-  }
+      return {
+        status: 503,
+        code: "CPU_BUDGET_EXCEEDED",
+        message:
+          "Analysis exceeded the configured CPU budget. Retry with a smaller or simpler source.",
+        retryable: true,
+        severity: "ERROR",
+      }
+    case "rate-limited":
+      customContext.errorClass = "ANALYZE_RATE_LIMITED"
 
-  if (isValidationFetchError(error.message)) {
-    customContext.errorClass = "ANALYZE_VALIDATION_FAILED"
+      return {
+        status: 429,
+        code: "RATE_LIMITED",
+        message: error.message,
+        retryable: true,
+        severity: "WARNING",
+      }
+    case "validation":
+      customContext.errorClass = "ANALYZE_VALIDATION_FAILED"
 
-    return {
-      status: 400,
-      code: "VALIDATION_FAILED",
-      message: error.message,
-      retryable: false,
-      severity: "WARNING",
-    }
-  }
+      return {
+        status: 400,
+        code: "VALIDATION_FAILED",
+        message: error.message,
+        retryable: false,
+        severity: "WARNING",
+      }
+    case "upstream-fetch":
+      customContext.errorClass = "UPSTREAM_FETCH_FAILED"
 
-  if (/fetch stream|unable to access file/i.test(error.message)) {
-    customContext.errorClass = "UPSTREAM_FETCH_FAILED"
+      return {
+        status: 502,
+        code: "UPSTREAM_FETCH_FAILED",
+        message: "Unable to retrieve the media source.",
+        retryable: true,
+        severity: "ERROR",
+      }
+    default:
+      customContext.errorClass = "ANALYZER_INTERNAL_ERROR"
 
-    return {
-      status: 502,
-      code: "UPSTREAM_FETCH_FAILED",
-      message: "Unable to retrieve the media source.",
-      retryable: true,
-      severity: "ERROR",
-    }
-  }
-
-  customContext.errorClass = "ANALYZER_INTERNAL_ERROR"
-
-  return {
-    status: 500,
-    code: "INTERNAL_ERROR",
-    message: "Internal Server Error",
-    retryable: false,
-    severity: "ERROR",
+      return {
+        status: 500,
+        code: "INTERNAL_ERROR",
+        message: "Internal Server Error",
+        retryable: false,
+        severity: "ERROR",
+      }
   }
 }
 
@@ -354,21 +370,12 @@ const classifyAnalyzeError = (
   customContext: AnalyzeLogContext
 ): ClassifiedAnalyzeError => {
   const normalizedError = unknownToError(cause)
-  const cpuBudgetExceeded = isCpuLimitError(normalizedError)
+  const analyzerError = findAnalyzerError(cause)
 
   let classification: ClassifiedAnalyzeError
 
-  if (cpuBudgetExceeded) {
-    classification = {
-      status: 503,
-      code: "CPU_BUDGET_EXCEEDED",
-      message:
-        "Analysis exceeded the configured CPU budget. Retry with a smaller or simpler source.",
-      retryable: true,
-      severity: "ERROR",
-    }
-  } else if (cause instanceof Error) {
-    classification = classifyMessageError(cause, customContext)
+  if (analyzerError) {
+    classification = classifyAnalyzerError(analyzerError, customContext)
   } else {
     classification = {
       status: 500,
@@ -379,8 +386,14 @@ const classifyAnalyzeError = (
     }
   }
 
-  if (cpuBudgetExceeded) {
-    customContext.errorClass = "CPU_LIMIT_EXCEEDED"
+  const diagnosticsError = findDiagnosticsError(cause)
+
+  if (diagnosticsError) {
+    setLogContextValue(
+      customContext,
+      "diagnostics",
+      diagnosticsError.diagnostics
+    )
   }
 
   setLogContextValue(customContext, "error", {
@@ -397,11 +410,7 @@ const runAnalyzeRequest = async (options: {
   formats: AnalysisExecutionInput["formats"]
   cpuBudgetMs: number
   customContext: AnalyzeLogContext
-  reportProgress?: (
-    stage: AnalyzeProgressStage,
-    title: string,
-    message: string
-  ) => Promise<void> | void
+  reportProgress?: AnalyzeProgressReporter
   signal: AbortSignal
   analysisExecutor: AnalyzerAnalysisExecutor
 }): Promise<AnalyzeRequestResult> => {
@@ -443,9 +452,7 @@ const runAnalyzeRequest = async (options: {
 }
 
 const createProgressReporter =
-  (
-    state: ProgressStreamState
-  ): ((stage: AnalyzeProgressStage, title: string, message: string) => void) =>
+  (state: ProgressStreamState): AnalyzeProgressReporter =>
   (stage, title, message) => {
     if (state.finished || state.signal.aborted) {
       return

@@ -21,6 +21,12 @@ export const AnalyzeProgressStageSchema = Schema.Literals([
 
 export type AnalyzeProgressStage = typeof AnalyzeProgressStageSchema.Type
 
+export type AnalyzeProgressReporter = (
+  stage: AnalyzeProgressStage,
+  title: string,
+  message: string
+) => Promise<void> | void
+
 export const AnalyzeStreamProgressEventSchema = Schema.Struct({
   type: Schema.Literal("progress"),
   requestId: Schema.String,

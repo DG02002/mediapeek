@@ -11,6 +11,7 @@ import { fetchMediaChunk } from "./media-fetch.server"
 import type { MediaInfoInstance } from "./mediainfo-factory.server"
 import {
   analyzeMediaBuffer,
+  CpuBudgetExceededError,
   type AnalyzeMediaBufferOptions,
 } from "./mediainfo.server"
 
@@ -301,6 +302,51 @@ describe("fetchMediaChunk filename fallback", () => {
       sizeSource: "zip-local-header",
     })
     expect(result.diagnostics.resolvedFilename).toBe("Folder/inner-video.mkv")
+  })
+})
+
+describe("MediaInfo diagnostics and CPU budget", () => {
+  it("preserves the WASM and factory creation durations", async () => {
+    const mediaInfo = await createMockMediaInfo()
+
+    const result = await analyzeMediaBuffer({
+      fileBuffer: new Uint8Array([1]),
+      filename: "video.mp4",
+      requestedFormats: ["json"],
+      dependencies: {
+        createMediaInfo: async () => ({
+          ...mediaInfo,
+          wasmLoadTimeMs: 7,
+          factoryCreateTimeMs: 3,
+        }),
+      },
+    })
+
+    expect(result.diagnostics).toMatchObject({
+      wasmLoadTimeMs: 7,
+      factoryCreateTimeMs: 3,
+    })
+  })
+
+  it("propagates CPU budget errors instead of returning a format error", async () => {
+    const mediaInfo = await createMockMediaInfo()
+    const cpuError = new CpuBudgetExceededError()
+    mediaInfo.analyzeData = async () => {
+      throw cpuError
+    }
+
+    await expect(
+      analyzeMediaBuffer({
+        fileBuffer: new Uint8Array([1]),
+        filename: "video.mp4",
+        requestedFormats: ["json"],
+        dependencies: { createMediaInfo: async () => mediaInfo },
+      })
+    ).rejects.toMatchObject({
+      name: "DiagnosticsError",
+      message: "CPU budget exceeded",
+      cause: cpuError,
+    })
   })
 })
 

@@ -6,6 +6,8 @@ import { mediaInfoFactory } from "../lib/mediainfo-bundle.js"
 type MediaInfoOptions = Awaited<ReturnType<typeof mediaInfoFactory>>["options"]
 
 export interface MediaInfoInstance {
+  wasmLoadTimeMs?: number
+  factoryCreateTimeMs?: number
   options: MediaInfoOptions
   reset: () => void
   analyzeData: (
@@ -17,14 +19,22 @@ export interface MediaInfoInstance {
 }
 
 export const createMediaInfo = async (): Promise<MediaInfoInstance> => {
+  const wasmLoadStart = performance.now()
   const { default: wasmModule } = await import("./MediaInfoModule.wasm")
+  const wasmLoadTimeMs = Math.round(performance.now() - wasmLoadStart)
+
+  const factoryCreateStart = performance.now()
 
   const mediaInfo = await mediaInfoFactory({
     format: "object",
     wasmModule,
   })
 
+  const factoryCreateTimeMs = Math.round(performance.now() - factoryCreateStart)
+
   return {
+    wasmLoadTimeMs,
+    factoryCreateTimeMs,
     options: mediaInfo.options,
     reset: () => mediaInfo.reset(),
     analyzeData: async (size, readChunk) =>

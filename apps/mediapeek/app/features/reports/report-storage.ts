@@ -130,6 +130,7 @@ const decodeStoredReports = (values: ReadonlyArray<Schema.Json>) =>
   values.flatMap((value) => {
     const decoded = decodeStoredReport(value)
 
+    // Corrupt rows cannot be shown as reports, so omit them from this list.
     return Result.isSuccess(decoded) ? [decoded.success] : []
   })
 

@@ -1,4 +1,4 @@
-import type { AnalyzeProgressStage } from "@mediapeek/shared/analyze-progress"
+import type { AnalyzeProgressReporter } from "@mediapeek/shared/analyze-progress"
 import {
   type ArchiveEntryInspection,
   inspectArchiveEntry,
@@ -8,7 +8,11 @@ import {
   parseContentDispositionFilename,
 } from "@mediapeek/shared/filename-resolution"
 
-import { DiagnosticsError } from "../lib/error-utils"
+import {
+  AnalyzerError,
+  AnalyzerReadTimeoutError,
+  DiagnosticsError,
+} from "../lib/error-utils"
 import {
   extractFilenameFromUrl,
   getEmulationHeaders,
@@ -38,6 +42,7 @@ export interface FetchDiagnostics {
 const FIRST_BYTE_READ_TIMEOUT_MS = 15_000
 const MAX_FIRST_BYTE_READ_RETRIES = 1
 const NO_RANGE_FALLBACK_TIMEOUT_MS = 25_000
+const EXTERNAL_READ_TIMEOUT_MS = 30_000
 const MAX_INITIAL_READ_BYTES = 10 * 1024 * 1024
 const REMOTE_RANGE_CHUNK_SIZE = 2 * 1024 * 1024
 const REMOTE_RANGE_FETCH_LIMIT = 8 * 1024 * 1024
@@ -61,17 +66,33 @@ export interface MediaFetchResult {
   archiveEntry?: ArchiveEntryInspection
 }
 
-type FetchProgressReporter = (
-  stage: AnalyzeProgressStage,
-  title: string,
-  message: string
-) => Promise<void> | void
-
 export interface FetchMediaChunkOptions {
   initialUrl: string
   chunkSize?: number
-  reportProgress?: FetchProgressReporter
+  reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
+}
+
+const createExternalReadSignal = (signal?: AbortSignal) => {
+  const timeoutSignal = AbortSignal.timeout(EXTERNAL_READ_TIMEOUT_MS)
+
+  return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
+}
+
+const getExternalReadError = (cause: unknown, signal?: AbortSignal) => {
+  if (!signal?.aborted) {
+    return cause
+  }
+
+  if (signal.reason instanceof Error && signal.reason.name === "TimeoutError") {
+    return new AnalyzerError(
+      "upstream-fetch",
+      "Media source read timed out.",
+      cause
+    )
+  }
+
+  return signal.reason ?? cause
 }
 
 const resolveResponseFileSize = (response: Response): number | undefined => {
@@ -111,16 +132,21 @@ const assertByteFetchStatus = (res: Response) => {
   }
 
   if (res.status === 404) {
-    throw new Error("Media file not found. Check the URL.")
+    throw new AnalyzerError(
+      "validation",
+      "Media file not found. Check the URL."
+    )
   }
 
   if (res.status === 403) {
-    throw new Error(
+    throw new AnalyzerError(
+      "validation",
       "Access denied while fetching media bytes. The link may have expired or may block server-side requests."
     )
   }
 
-  throw new Error(
+  throw new AnalyzerError(
+    "upstream-fetch",
     `Unable to retrieve media bytes (HTTP ${String(res.status)}).`
   )
 }
@@ -133,7 +159,7 @@ const readFirstChunkWithTimeout = async (
 
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
-      reject(new Error("Fetch stream read timed out"))
+      reject(new AnalyzerReadTimeoutError())
     }, timeoutMs)
   })
 
@@ -151,62 +177,6 @@ const readFirstChunkWithTimeout = async (
   }
 }
 
-const readStreamIntoBuffer = async (
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  firstChunk: Uint8Array | null,
-  limit: number
-): Promise<Uint8Array> => {
-  const tempBuffer = new Uint8Array(limit)
-  const position = { offset: 0 }
-
-  if (firstChunk) {
-    const initialSize = Math.min(firstChunk.byteLength, limit)
-    tempBuffer.set(firstChunk.subarray(0, initialSize), position.offset)
-    position.offset += initialSize
-
-    if (position.offset >= limit) {
-      await reader.cancel()
-
-      return tempBuffer.subarray(0, position.offset)
-    }
-  }
-
-  await readReaderIntoBuffer({ reader, buffer: tempBuffer, position, limit })
-
-  return tempBuffer.subarray(0, position.offset)
-}
-
-interface ResponseChunkReadOptions {
-  readonly reader: ReadableStreamDefaultReader<Uint8Array>
-  readonly maxBytes: number
-  readonly chunks: Uint8Array[]
-  readonly byteLength: number
-}
-
-const readResponseChunks = async (
-  options: ResponseChunkReadOptions
-): Promise<number | null> => {
-  const { reader, maxBytes, chunks, byteLength } = options
-  const { done, value } = await reader.read()
-
-  if (done) {
-    return byteLength
-  }
-
-  if (value.byteLength > maxBytes - byteLength) {
-    await reader.cancel()
-
-    return null
-  }
-
-  chunks.push(value)
-
-  return readResponseChunks({
-    ...options,
-    byteLength: byteLength + value.byteLength,
-  })
-}
-
 const joinResponseChunks = (
   chunks: Uint8Array[],
   byteLength: number
@@ -222,9 +192,124 @@ const joinResponseChunks = (
   return body
 }
 
+interface LimitedResponseReadState {
+  readonly reader: ReadableStreamDefaultReader<Uint8Array>
+  readonly maxBytes: number
+  readonly overflow: "truncate" | "reject"
+  readonly signal?: AbortSignal
+  readonly chunks: Uint8Array[]
+  byteLength: number
+}
+
+type ResponseChunkResult = "continue" | "complete" | "overflow"
+
+const appendResponseChunk = async (
+  state: LimitedResponseReadState,
+  chunk: Uint8Array
+): Promise<ResponseChunkResult> => {
+  const remaining = state.maxBytes - state.byteLength
+
+  if (chunk.byteLength > remaining && state.overflow === "reject") {
+    await state.reader.cancel()
+
+    return "overflow"
+  }
+
+  const acceptedChunk = chunk.subarray(0, Math.max(0, remaining))
+
+  if (acceptedChunk.byteLength > 0) {
+    state.chunks.push(acceptedChunk)
+    state.byteLength += acceptedChunk.byteLength
+  }
+
+  if (
+    chunk.byteLength > acceptedChunk.byteLength ||
+    (state.byteLength >= state.maxBytes && state.overflow === "truncate")
+  ) {
+    await state.reader.cancel()
+
+    return "complete"
+  }
+
+  return "continue"
+}
+
+const joinLimitedResponse = (state: LimitedResponseReadState) =>
+  joinResponseChunks(state.chunks, state.byteLength)
+
+const readNextResponseChunk = async (
+  state: LimitedResponseReadState
+): Promise<Uint8Array | null> => {
+  state.signal?.throwIfAborted()
+  const { done, value } = await state.reader.read()
+
+  if (done) {
+    return joinLimitedResponse(state)
+  }
+
+  const result = await appendResponseChunk(state, value)
+
+  if (result === "overflow") {
+    return null
+  }
+
+  if (result === "complete") {
+    return joinLimitedResponse(state)
+  }
+
+  return readNextResponseChunk(state)
+}
+
+const readResponseStreamWithinLimit = async (options: {
+  readonly reader: ReadableStreamDefaultReader<Uint8Array>
+  readonly maxBytes: number
+  readonly firstChunk?: Uint8Array | null
+  readonly overflow: "truncate" | "reject"
+  readonly signal?: AbortSignal
+}): Promise<Uint8Array | null> => {
+  const state: LimitedResponseReadState = {
+    ...options,
+    chunks: [],
+    byteLength: 0,
+  }
+
+  try {
+    if (options.firstChunk) {
+      const result = await appendResponseChunk(state, options.firstChunk)
+
+      if (result === "overflow") {
+        return null
+      }
+
+      if (result === "complete") {
+        return joinLimitedResponse(state)
+      }
+    }
+
+    return await readNextResponseChunk(state)
+  } catch (cause) {
+    throw getExternalReadError(cause, options.signal)
+  }
+}
+
+const readStreamIntoBuffer = (options: {
+  readonly reader: ReadableStreamDefaultReader<Uint8Array>
+  readonly firstChunk: Uint8Array | null
+  readonly limit: number
+  readonly signal: AbortSignal
+}) =>
+  readResponseStreamWithinLimit({
+    reader: options.reader,
+    maxBytes: options.limit,
+    firstChunk: options.firstChunk,
+    overflow: "truncate",
+    signal: options.signal,
+  }).then((body) => body ?? new Uint8Array(0))
+
 const readResponseBodyWithinLimit = async (
   response: Response,
-  maxBytes: number
+  maxBytes: number,
+  signal?: AbortSignal
 ): Promise<Uint8Array | null> => {
   const reader = response.body?.getReader()
 
@@ -232,30 +317,33 @@ const readResponseBodyWithinLimit = async (
     return new Uint8Array(0)
   }
 
-  const chunks: Uint8Array[] = []
-
   try {
-    const byteLength = await readResponseChunks({
+    return await readResponseStreamWithinLimit({
       reader,
       maxBytes,
-      chunks,
-      byteLength: 0,
+      overflow: "reject",
+      signal,
     })
-
-    return byteLength === null ? null : joinResponseChunks(chunks, byteLength)
   } finally {
     reader.releaseLock()
   }
 }
 
-const readRemoteSpanBody = async (response: Response): Promise<Uint8Array> => {
+const readRemoteSpanBody = async (
+  response: Response,
+  signal: AbortSignal
+): Promise<Uint8Array> => {
   const body = await readResponseBodyWithinLimit(
     response,
-    MAX_INITIAL_READ_BYTES
+    MAX_INITIAL_READ_BYTES,
+    signal
   )
 
   if (body === null) {
-    throw new Error("Remote media response exceeded the maximum read size.")
+    throw new AnalyzerError(
+      "upstream-fetch",
+      "Remote media response exceeded the maximum read size."
+    )
   }
 
   return body
@@ -394,20 +482,25 @@ const fetchZipTailBuffer = async (
   }
 
   const start = Math.max(0, totalSize - ZIP_TAIL_INSPECTION_BYTES)
+  const readSignal = createExternalReadSignal(signal)
 
   const response = await safeMediaFetch(url, {
     headers: getEmulationHeaders(
       `bytes=${String(start)}-${String(totalSize - 1)}`
     ),
     redirect: "follow",
-    signal,
+    signal: readSignal,
   })
 
   if (response.status !== 200 && response.status !== 206) {
     return null
   }
 
-  return readResponseBodyWithinLimit(response, MAX_INITIAL_READ_BYTES)
+  return readResponseBodyWithinLimit(
+    response,
+    MAX_INITIAL_READ_BYTES,
+    readSignal
+  )
 }
 
 type RemoteByteSourceOptions = {
@@ -415,7 +508,7 @@ type RemoteByteSourceOptions = {
   initialBuffer: Uint8Array
   fileSize?: number
   diagnostics: FetchDiagnostics
-  reportProgress?: FetchProgressReporter
+  reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
 }
 
@@ -553,17 +646,19 @@ const createRemoteByteSource = ({
       )
     }
 
+    const readSignal = createExternalReadSignal(signal)
+
     const response = await safeMediaFetch(url, {
       headers: getEmulationHeaders(
         "bytes=" + String(spanStart) + "-" + String(spanEnd - 1)
       ),
       redirect: "follow",
-      signal,
+      signal: readSignal,
     })
 
     assertByteFetchStatus(response)
 
-    const body = await readRemoteSpanBody(response)
+    const body = await readRemoteSpanBody(response, readSignal)
     diagnostics.seekFetchCount = (diagnostics.seekFetchCount ?? 0) + 1
     diagnostics.seekBytesFetched =
       (diagnostics.seekBytesFetched ?? 0) + body.byteLength
@@ -571,7 +666,10 @@ const createRemoteByteSource = ({
 
     if (response.status === 200 && spanStart > 0) {
       if (body.byteLength <= spanStart) {
-        throw new Error("Origin ignored byte-range seek request.")
+        throw new AnalyzerError(
+          "upstream-fetch",
+          "Origin ignored byte-range seek request."
+        )
       }
 
       responseStart = 0
@@ -706,6 +804,7 @@ type ProbeResult = {
   url: string
   isGoogleDrive: boolean
   htmlResponseMessage: string
+  htmlResponseKind: "rate-limited" | "validation"
   fileSize?: number
   filename: string
   filenameSource: FilenameSource
@@ -718,6 +817,7 @@ type InitialResponseRead = {
   reader: ReadableStreamDefaultReader<Uint8Array>
   firstChunk: Uint8Array | null
   strategy: "range" | "no_range_fallback"
+  signal: AbortSignal
 }
 
 type InitialReadResult = {
@@ -726,6 +826,7 @@ type InitialReadResult = {
   firstChunk: Uint8Array | null
   timeoutRetries: number
   strategy: InitialResponseRead["strategy"]
+  signal: AbortSignal
 }
 
 const createFetchDiagnostics = (): FetchDiagnostics => ({
@@ -741,21 +842,23 @@ const createFetchDiagnostics = (): FetchDiagnostics => ({
 
 const fetchHeaderProbe = async (url: string, signal?: AbortSignal) => {
   let method = "HEAD"
+  let readSignal = createExternalReadSignal(signal)
 
   let response = await safeMediaFetch(url, {
     method: "HEAD",
     headers: getEmulationHeaders(),
     redirect: "follow",
-    signal,
+    signal: readSignal,
   })
 
   if (response.status === 405) {
     method = "GET"
+    readSignal = createExternalReadSignal(signal)
     response = await safeMediaFetch(url, {
       method: "GET",
       headers: getEmulationHeaders("bytes=0-0"),
       redirect: "follow",
-      signal,
+      signal: readSignal,
     })
   }
 
@@ -768,29 +871,34 @@ const assertProbeStatus = (response: Response) => {
   }
 
   if (response.status === 404) {
-    throw new Error("Media file not found. Check the URL.")
+    throw new AnalyzerError(
+      "validation",
+      "Media file not found. Check the URL."
+    )
   }
 
   if (response.status === 403) {
-    throw new Error(
+    throw new AnalyzerError(
+      "validation",
       "Access denied. The link may have expired or requires authentication."
     )
   }
 
-  throw new Error(
+  throw new AnalyzerError(
+    "upstream-fetch",
     "Unable to access file (HTTP " + String(response.status) + ")."
   )
 }
 
 const probeRemoteSource = async (
   initialUrl: string,
-  reportProgress?: FetchProgressReporter,
+  reportProgress?: AnalyzeProgressReporter,
   signal?: AbortSignal
 ): Promise<ProbeResult> => {
   const source = resolveSource(initialUrl)
 
   if (source.status === "unsupported") {
-    throw new Error(source.message)
+    throw new AnalyzerError("validation", source.message)
   }
 
   const url = source.targetUrl
@@ -817,6 +925,7 @@ const probeRemoteSource = async (
     url,
     isGoogleDrive,
     htmlResponseMessage: source.htmlResponseMessage,
+    htmlResponseKind: isGoogleDrive ? "rate-limited" : "validation",
     fileSize: resolveResponseFileSize(response),
     filename: headerFilename ?? filename,
     filenameSource: headerFilename ? "content-disposition-head" : "url",
@@ -830,15 +939,17 @@ const createInitialResponseRead = async (options: {
   headers: Headers
   timeoutMs: number
   strategy: InitialResponseRead["strategy"]
-  reportProgress?: FetchProgressReporter
+  reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
   waitingMessage: string
   receivedMessage: string
 }): Promise<InitialResponseRead> => {
+  const readSignal = createExternalReadSignal(options.signal)
+
   const response = await safeMediaFetch(options.url, {
     headers: options.headers,
     redirect: "follow",
-    signal: options.signal,
+    signal: readSignal,
   })
 
   assertByteFetchStatus(response)
@@ -846,7 +957,10 @@ const createInitialResponseRead = async (options: {
   const reader = response.body?.getReader()
 
   if (!reader) {
-    throw new Error("Failed to retrieve response body stream")
+    throw new AnalyzerError(
+      "upstream-fetch",
+      "Failed to retrieve response body stream."
+    )
   }
 
   let firstChunk: Uint8Array | null
@@ -876,6 +990,7 @@ const createInitialResponseRead = async (options: {
     reader,
     firstChunk,
     strategy: options.strategy,
+    signal: readSignal,
   }
 }
 
@@ -888,7 +1003,7 @@ const fetchRangedInitialBytes = async (
   options: {
     url: string
     fetchEnd: number
-    reportProgress?: FetchProgressReporter
+    reportProgress?: AnalyzeProgressReporter
     signal?: AbortSignal
   },
   attempt = 0
@@ -915,8 +1030,7 @@ const fetchRangedInitialBytes = async (
 
     return { initialRead, timeoutRetries: attempt }
   } catch (error) {
-    const timedOut =
-      error instanceof Error && error.message === "Fetch stream read timed out"
+    const timedOut = error instanceof AnalyzerReadTimeoutError
 
     if (!timedOut) {
       throw error
@@ -934,7 +1048,7 @@ const fetchNoRangeFallback = async (options: {
   url: string
   timeoutRetries: number
   didRangeTimeout: boolean
-  reportProgress?: FetchProgressReporter
+  reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
 }): Promise<InitialResponseRead> => {
   await options.reportProgress?.(
@@ -956,8 +1070,7 @@ const fetchNoRangeFallback = async (options: {
       receivedMessage: "Initial media bytes arrived from the fallback request.",
     })
   } catch (error) {
-    const timedOut =
-      error instanceof Error && error.message === "Fetch stream read timed out"
+    const timedOut = error instanceof AnalyzerReadTimeoutError
 
     if (!timedOut) {
       throw error
@@ -969,7 +1082,7 @@ const fetchNoRangeFallback = async (options: {
         " range attempt(s) and no-range fallback"
       : "Fetch stream read timed out during no-range fallback"
 
-    throw new Error(message, { cause: error })
+    throw new AnalyzerError("upstream-fetch", message, error)
   }
 }
 
@@ -977,7 +1090,7 @@ const fetchInitialResponse = async (options: {
   url: string
   fetchEnd: number
   diagnostics: FetchDiagnostics
-  reportProgress?: FetchProgressReporter
+  reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
 }): Promise<InitialReadResult> => {
   const fetchStart = performance.now()
@@ -1022,18 +1135,19 @@ const fetchInitialResponse = async (options: {
   }
 }
 
-const assertMediaResponse = (
-  response: Response,
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  htmlResponseMessage: string
-) => {
-  if (!isHtmlResponse(response)) {
+const assertMediaResponse = (options: {
+  readonly response: Response
+  readonly reader: ReadableStreamDefaultReader<Uint8Array>
+  readonly htmlResponseMessage: string
+  readonly htmlResponseKind: "rate-limited" | "validation"
+}) => {
+  if (!isHtmlResponse(options.response)) {
     return
   }
 
-  void reader.cancel()
+  void options.reader.cancel()
 
-  throw new Error(htmlResponseMessage)
+  throw new AnalyzerError(options.htmlResponseKind, options.htmlResponseMessage)
 }
 
 const resolveInitialMetadata = (options: {
@@ -1069,13 +1183,15 @@ const readInitialBody = async (options: {
   firstChunk: Uint8Array | null
   diagnostics: FetchDiagnostics
   startedAt: number
+  signal: AbortSignal
 }): Promise<Uint8Array> => {
   try {
-    return await readStreamIntoBuffer(
-      options.reader,
-      options.firstChunk,
-      MAX_INITIAL_READ_BYTES
-    )
+    return await readStreamIntoBuffer({
+      reader: options.reader,
+      firstChunk: options.firstChunk,
+      limit: MAX_INITIAL_READ_BYTES,
+      signal: options.signal,
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     options.diagnostics.streamCloseError = message
@@ -1095,7 +1211,7 @@ const fetchInitialSegment = async (options: {
   chunkSize: number
   diagnostics: FetchDiagnostics
   startedAt: number
-  reportProgress?: FetchProgressReporter
+  reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
 }) => {
   const fetchEnd =
@@ -1111,11 +1227,12 @@ const fetchInitialSegment = async (options: {
     signal: options.signal,
   })
 
-  assertMediaResponse(
-    initialRead.response,
-    initialRead.reader,
-    options.probe.htmlResponseMessage
-  )
+  assertMediaResponse({
+    response: initialRead.response,
+    reader: initialRead.reader,
+    htmlResponseMessage: options.probe.htmlResponseMessage,
+    htmlResponseKind: options.probe.htmlResponseKind,
+  })
 
   const metadata = resolveInitialMetadata({
     response: initialRead.response,
@@ -1146,6 +1263,7 @@ const fetchInitialSegment = async (options: {
     firstChunk: initialRead.firstChunk,
     diagnostics: options.diagnostics,
     startedAt: options.startedAt,
+    signal: initialRead.signal,
   })
 
   return { ...metadata, rawBuffer, supportsRemoteSeekReads }
@@ -1238,7 +1356,7 @@ const createMediaFetchResult = (options: {
   probe: ProbeResult
   archiveEntry?: ArchiveEntryInspection
   diagnostics: FetchDiagnostics
-  reportProgress?: FetchProgressReporter
+  reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
 }): MediaFetchResult => {
   let byteSource: MediaByteSource | undefined

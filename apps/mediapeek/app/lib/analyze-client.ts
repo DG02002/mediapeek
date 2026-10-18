@@ -1,51 +1,10 @@
+import {
+  AnalyzeResponseSchema,
+  type AnalyzeResponse as SharedAnalyzeResponse,
+} from "@mediapeek/shared/analyze-contract"
 import { Result, Schema } from "effect"
 
-const AnalyzeResponseErrorSchema = Schema.Struct({
-  code: Schema.optionalKey(Schema.String),
-  message: Schema.optionalKey(Schema.String),
-  retryable: Schema.optionalKey(Schema.Boolean),
-})
-
-const AnalyzeResponseSchema = Schema.Struct({
-  success: Schema.optionalKey(Schema.Boolean),
-  requestId: Schema.optionalKey(Schema.String),
-  results: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
-  error: Schema.optionalKey(
-    Schema.Union([Schema.String, AnalyzeResponseErrorSchema])
-  ),
-})
-
-type AnalyzeResponseWire = typeof AnalyzeResponseSchema.Type
-
-export type AnalyzeResponse = Omit<AnalyzeResponseWire, "error"> & {
-  error?: { code?: string; message?: string; retryable?: boolean }
-}
-
-const normalizeAnalyzeResponse = (
-  response: AnalyzeResponseWire
-): AnalyzeResponse => {
-  const { error, ...fields } = response
-
-  if (error === undefined) {
-    return fields
-  }
-
-  const stringError = Schema.decodeUnknownResult(Schema.String)(error)
-
-  if (Result.isFailure(stringError)) {
-    const objectError = Schema.decodeUnknownResult(AnalyzeResponseErrorSchema)(
-      error
-    )
-
-    if (Result.isFailure(objectError)) {
-      return fields
-    }
-
-    return { ...fields, error: objectError.success }
-  }
-
-  return { ...fields, error: { message: stringError.success } }
-}
+export type AnalyzeResponse = SharedAnalyzeResponse
 
 export type AnalyzeClientResult =
   | {
@@ -69,10 +28,25 @@ type AnalyzeRequestArgs = {
 }
 
 const getErrorMessage = (response: AnalyzeResponse) =>
-  response.error?.message ??
-  "Unable to analyze URL. Verify the link is correct."
+  response.success
+    ? "Unable to analyze URL. Verify the link is correct."
+    : response.error.message
 
-const getErrorCode = (response: AnalyzeResponse) => response.error?.code
+const getErrorCode = (response: AnalyzeResponse) =>
+  response.success ? undefined : response.error.code
+
+const createFallbackErrorResponse = (
+  response: Response,
+  message: string
+): AnalyzeResponse => ({
+  success: false,
+  requestId: response.headers.get("x-request-id") ?? "unknown",
+  error: {
+    code: "INTERNAL_ERROR",
+    message,
+    retryable: false,
+  },
+})
 
 const shouldRetryWithTurnstile = (
   status: number,
@@ -118,14 +92,11 @@ const requestAnalyzeFormat = async ({
 
     return {
       status: response.status,
-      data: {
-        success: false,
-        error: {
-          message:
-            body?.trim() ||
-            `Analyzer service returned an unexpected response (${String(response.status)}).`,
-        },
-      } satisfies AnalyzeResponse,
+      data: createFallbackErrorResponse(
+        response,
+        body?.trim() ||
+          `Analyzer service returned an unexpected response (${String(response.status)}).`
+      ),
     }
   }
 
@@ -136,16 +107,16 @@ const requestAnalyzeFormat = async ({
   if (Result.isFailure(parsed)) {
     return {
       status: response.status,
-      data: {
-        success: false,
-        error: { message: "Analyzer service returned malformed data." },
-      } satisfies AnalyzeResponse,
+      data: createFallbackErrorResponse(
+        response,
+        "Analyzer service returned malformed data."
+      ),
     }
   }
 
   return {
     status: response.status,
-    data: normalizeAnalyzeResponse(parsed.success),
+    data: parsed.success,
   }
 }
 
@@ -157,8 +128,8 @@ export const fetchAnalyzeFormat = async ({
   try {
     const initial = await requestAnalyzeFormat({ url, format })
 
-    if (initial.status < 400 && initial.data.success !== false) {
-      const content = initial.data.results?.[format]
+    if (initial.status < 400 && initial.data.success) {
+      const content = initial.data.results[format]
 
       if (content) {
         return {
@@ -199,8 +170,8 @@ export const fetchAnalyzeFormat = async ({
         turnstileToken: token,
       })
 
-      if (retry.status < 400 && retry.data.success !== false) {
-        const content = retry.data.results?.[format]
+      if (retry.status < 400 && retry.data.success) {
+        const content = retry.data.results[format]
 
         if (content) {
           return {

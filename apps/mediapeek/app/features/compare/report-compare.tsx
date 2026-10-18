@@ -11,7 +11,9 @@ import {
   collapseDiffLines,
   diffLines,
   type CollapsedDiffRow,
+  type LineDiffRow,
   type LineDiffRowKind,
+  toSideBySideDiffRows,
 } from "~/features/compare/line-diff"
 import type { StoredReport } from "~/features/reports/report-storage"
 import { cn } from "~/lib/utils"
@@ -187,6 +189,13 @@ export function ReportCompare({
       }))
     : []
 
+  const sideBySideItems = diff
+    ? toSideBySideDiffRows(diff.rows).map((row, index) => ({
+        row,
+        key: `${String(index)}-${row.kind}-${row.before?.text ?? row.after?.text ?? String(row.hiddenCount ?? "")}`,
+      }))
+    : []
+
   return (
     <section aria-labelledby={compareLabelId} className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -310,7 +319,32 @@ export function ReportCompare({
               </span>
             </span>
           </div>
-          <ol className="overflow-x-auto py-2 font-mono text-xs leading-5">
+          <div className="hidden grid-cols-2 divide-x md:grid">
+            <span
+              className="text-muted-foreground min-w-0 truncate border-b px-3 py-2 text-xs font-medium"
+              title={diff.beforeLabel}
+            >
+              Before · {diff.beforeLabel}
+            </span>
+            <span
+              className="text-muted-foreground min-w-0 truncate border-b px-3 py-2 text-xs font-medium"
+              title={diff.afterLabel}
+            >
+              After · {diff.afterLabel}
+            </span>
+          </div>
+          <ol
+            aria-label="Side-by-side report diff"
+            className="hidden overflow-x-auto font-mono text-xs leading-5 md:block"
+          >
+            {sideBySideItems.map((item) => (
+              <SideBySideDiffRow key={item.key} row={item.row} />
+            ))}
+          </ol>
+          <ol
+            aria-label="Unified report diff"
+            className="overflow-x-auto py-2 font-mono text-xs leading-5 md:hidden"
+          >
             {diffItems.map((item) => (
               <DiffRow key={item.key} row={item.row} />
             ))}
@@ -373,5 +407,75 @@ function DiffRow({ row }: { row: CollapsedDiffRow }) {
         {row.text || " "}
       </span>
     </li>
+  )
+}
+
+function SideBySideDiffRow({
+  row,
+}: {
+  row: ReturnType<typeof toSideBySideDiffRows>[number]
+}) {
+  if (row.kind === "gap") {
+    return (
+      <li
+        className="text-muted-foreground/70 select-none border-b px-3 py-1 text-center"
+        aria-label={`${String(row.hiddenCount)} unchanged lines hidden`}
+      >
+        ⋯ {String(row.hiddenCount)} unchanged lines
+      </li>
+    )
+  }
+
+  return (
+    <li className="grid grid-cols-2 divide-x">
+      <SideBySideDiffCell row={row.before} side="before" />
+      <SideBySideDiffCell row={row.after} side="after" />
+    </li>
+  )
+}
+
+function SideBySideDiffCell({
+  row,
+  side,
+}: {
+  row: LineDiffRow | null
+  side: "before" | "after"
+}) {
+  if (!row) {
+    return <span className="min-h-5 min-w-0 px-2" aria-hidden />
+  }
+
+  const lineNumber = side === "before" ? row.beforeNumber : row.afterNumber
+
+  return (
+    <span
+      className={cn(
+        "grid min-w-0 grid-cols-[2.5rem_1rem_minmax(0,1fr)] gap-2 px-2",
+        rowStyles[row.kind]
+      )}
+    >
+      <span className="text-muted-foreground/50 select-none text-right tabular-nums">
+        {lineNumber === null ? "" : String(lineNumber)}
+      </span>
+      <span
+        className={cn(
+          "select-none",
+          row.kind === "added" && "text-emerald-600 dark:text-emerald-400",
+          row.kind === "removed" && "text-red-600 dark:text-red-400"
+        )}
+        aria-hidden
+      >
+        {rowSigns[row.kind]}
+      </span>
+      <span
+        className={cn(
+          "min-w-0 break-all whitespace-pre-wrap",
+          row.kind === "added" && "text-emerald-700 dark:text-emerald-300",
+          row.kind === "removed" && "text-red-700 dark:text-red-300"
+        )}
+      >
+        {row.text || " "}
+      </span>
+    </span>
   )
 }

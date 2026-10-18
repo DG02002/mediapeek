@@ -1,9 +1,9 @@
 import type { AnalysisOutputId } from "@mediapeek/shared/analysis-output-formats"
+import type { AnalyzeProgressReporter } from "@mediapeek/shared/analyze-progress"
 
 import { fetchMediaChunk, type FetchDiagnostics } from "./media-fetch.server"
 import {
   analyzeMediaBuffer,
-  type AnalysisProgressReporter,
   type MediaInfoDiagnostics,
 } from "./mediainfo.server"
 
@@ -12,7 +12,7 @@ export interface AnalysisExecutionInput {
   readonly formats: readonly AnalysisOutputId[]
   readonly cpuBudgetMs: number
   readonly signal: AbortSignal
-  readonly reportProgress?: AnalysisProgressReporter
+  readonly reportProgress?: AnalyzeProgressReporter
 }
 
 export interface AnalysisExecutionResult {

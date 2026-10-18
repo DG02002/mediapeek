@@ -1,5 +1,10 @@
 import { Schema } from "effect"
 
+import {
+  MAX_PRIVATEBIN_RESPONSE_BYTES,
+  PRIVATEBIN_UPLOAD_TIMEOUT_MS,
+} from "~/constants"
+
 import { PrivateBinResponseSchema } from "./schemas/privatebin"
 
 const privateBinHost = "https://privatebin.net"
@@ -18,9 +23,16 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 export async function uploadToPrivateBin(
-  content: string
+  content: string,
+  signal?: AbortSignal
 ): Promise<{ url: string; deleteUrl: string }> {
   const { keyBytes, payload } = await encryptPrivateBinContent(content)
+
+  const timeoutSignal = AbortSignal.timeout(PRIVATEBIN_UPLOAD_TIMEOUT_MS)
+
+  const requestSignal = signal
+    ? AbortSignal.any([signal, timeoutSignal])
+    : timeoutSignal
 
   const response = await fetch(`${privateBinHost}/`, {
     method: "POST",
@@ -29,9 +41,10 @@ export async function uploadToPrivateBin(
       "X-Requested-With": "JSONHttpRequest",
     },
     body: JSON.stringify(payload),
+    signal: requestSignal,
   })
 
-  const result = await parsePrivateBinResponse(response)
+  const result = await parsePrivateBinResponse(response, requestSignal)
   const keyBase58 = toBase58(keyBytes)
 
   return {
@@ -118,29 +131,94 @@ const encryptPrivateBinContent = async (content: string) => {
   }
 }
 
-const parsePrivateBinResponse = async (response: Response) => {
+const parsePrivateBinResponse = async (
+  response: Response,
+  signal: AbortSignal
+) => {
   if (!response.ok) {
-    const text = await response.text()
-    console.error("PrivateBin HTTP Error:", response.status, text)
     throw new Error(
       `PrivateBin upload failed: ${response.statusText} (${String(response.status)})`
     )
   }
 
-  const json = await response.json()
+  const responseBody = await readPrivateBinResponseBody(response, signal)
+  let json: unknown
+
+  try {
+    json = JSON.parse(responseBody)
+  } catch {
+    throw new Error("PrivateBin returned malformed data.")
+  }
+
   const result = Schema.decodeUnknownSync(PrivateBinResponseSchema)(json)
 
   if (result.status !== 0) {
-    console.error(
-      "PrivateBin API Error Status:",
-      result.status,
-      "Message:",
-      result.message
-    )
     throw new Error(`PrivateBin error: Status ${String(result.status)}`)
   }
 
   return result
+}
+
+interface PrivateBinBodyReadState {
+  readonly reader: ReadableStreamDefaultReader<Uint8Array>
+  readonly signal: AbortSignal
+  readonly chunks: Uint8Array[]
+  byteLength: number
+}
+
+const readNextPrivateBinResponseChunk = async (
+  state: PrivateBinBodyReadState
+): Promise<void> => {
+  state.signal.throwIfAborted()
+  const { done, value } = await state.reader.read()
+
+  if (done) {
+    return
+  }
+
+  if (value.byteLength > MAX_PRIVATEBIN_RESPONSE_BYTES - state.byteLength) {
+    await state.reader.cancel()
+    throw new Error("PrivateBin response exceeded the maximum size.")
+  }
+
+  state.chunks.push(value)
+  state.byteLength += value.byteLength
+
+  return readNextPrivateBinResponseChunk(state)
+}
+
+const readPrivateBinResponseBody = async (
+  response: Response,
+  signal: AbortSignal
+) => {
+  const reader = response.body?.getReader()
+
+  if (!reader) {
+    throw new Error("PrivateBin returned an empty response.")
+  }
+
+  const state: PrivateBinBodyReadState = {
+    reader,
+    signal,
+    chunks: [],
+    byteLength: 0,
+  }
+
+  try {
+    await readNextPrivateBinResponseChunk(state)
+  } finally {
+    reader.releaseLock()
+  }
+
+  const bytes = new Uint8Array(state.byteLength)
+  let offset = 0
+
+  for (const chunk of state.chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+
+  return new TextDecoder().decode(bytes)
 }
 
 // Simple Base58 encoder map

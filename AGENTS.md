@@ -141,7 +141,7 @@ which entries applied. Fixing one path is not fixing the feature.
    read-only porting source. Copy only the files the rebuild plan calls for;
    never merge, rebase, or cherry-pick the branch.
 5. **Editing vendored references.** `.repos/` contains read-only local
-   references. Read `.repos/effect-smol/LLMS.md` before writing Effect code.
+   references. Read `.repos/effect/LLMS.md` before writing Effect code.
 6. **Killing processes by pattern.** Never `pkill -f`, pipe `pgrep` to
    `kill`, or kill a PID found by matching a name, path, or worktree
    string; the pattern can match your own session or an unrelated dev
@@ -153,9 +153,9 @@ which entries applied. Fixing one path is not fixing the feature.
 - `pnpm dev` runs the web app through Vite with the Cloudflare runtime.
 - `pnpm --filter mediapeek-analyzer exec wrangler dev` runs the analyzer
   Worker alone.
-- The installed Wrangler runtime can lag the committed compatibility date;
-  the local development guide documents the temporary override workflow.
-  Tracked configs keep the real date.
+- The installed Wrangler runtime may not support the compatibility date
+  selected for release; the local development guide documents how to override
+  it locally. Keep compatibility-date overrides out of tracked configs.
 
 ## Linting and formatting
 
@@ -301,7 +301,7 @@ reports in IndexedDB on the device.
 - `.repos/` - vendored read-only references. Prefer their patterns over
   invented ones. Never edit or import from them. Sync with
   `pnpm run sync:repos` when bumping the matching dependency. Read
-  `.repos/effect-smol/LLMS.md` before writing Effect code.
+  `.repos/effect/LLMS.md` before writing Effect code.
 
 ## Code style
 

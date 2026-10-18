@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import type { AnalyzerError } from "../lib/error-utils"
 import { fetchMediaChunk } from "./media-fetch.server"
 
 const makeResponse = (
@@ -330,6 +331,61 @@ describe("fetchMediaChunk", () => {
       "Remote media response exceeded the maximum read size."
     )
     expect(oversized.cancel).toHaveBeenCalledOnce()
+    expect(fetchSpy).toHaveBeenCalledTimes(3)
+  })
+
+  it("fails an additional range read after its deadline expires", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    const originalTimeout = AbortSignal.timeout.bind(AbortSignal)
+
+    let timeoutCall = 0
+
+    const deadlineError = new DOMException(
+      "The operation timed out.",
+      "TimeoutError"
+    )
+
+    vi.spyOn(AbortSignal, "timeout").mockImplementation((milliseconds) => {
+      timeoutCall += 1
+
+      return timeoutCall === 3
+        ? AbortSignal.abort(deadlineError)
+        : originalTimeout(milliseconds)
+    })
+
+    fetchSpy
+      .mockResolvedValueOnce(
+        makeResponse(null, {
+          status: 200,
+          headers: {
+            "content-length": "30",
+            "accept-ranges": "bytes",
+            "content-disposition": 'attachment; filename="sample.mkv"',
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        makeResponse(new Uint8Array(10), {
+          status: 206,
+          headers: { "content-range": "bytes 0-9/30" },
+        })
+      )
+      .mockResolvedValueOnce(
+        makeResponse(new Uint8Array(10), {
+          status: 206,
+          headers: { "content-range": "bytes 10-19/30" },
+        })
+      )
+
+    const result = await fetchMediaChunk({
+      initialUrl: "https://example.com/media",
+    })
+
+    await expect(result.byteSource?.readChunk(4, 20)).rejects.toMatchObject({
+      kind: "upstream-fetch",
+    } satisfies Partial<AnalyzerError>)
+    expect(timeoutCall).toBe(3)
+
     expect(fetchSpy).toHaveBeenCalledTimes(3)
   })
 })

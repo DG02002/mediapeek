@@ -6,11 +6,11 @@ import {
   useState,
 } from "react"
 
-import { getTurnstileSiteKey } from "~/lib/constants"
+import { TURNSTILE_SCRIPT_LOAD_TIMEOUT_MS } from "~/constants"
 
 interface TurnstileWidgetProps {
   onVerify: (token: string) => void
-  onError?: () => void
+  onError: () => void
   onExpire?: () => void
 }
 
@@ -46,50 +46,76 @@ export const TurnstileWidget = forwardRef<
 
   useEffect(() => {
     if (containerRef.current) {
-      // Wait for turnstile to be available
-      const checkTurnstile = setInterval(() => {
-        // Type assertion as we check existence
+      const siteKey = window.ENV.TURNSTILE_SITE_KEY?.trim() ?? ""
+
+      if (!siteKey) {
+        callbacksRef.current.onError()
+
+        return undefined
+      }
+
+      let didFinish = false
+
+      const clearTimers = () => {
+        window.clearInterval(checkInterval)
+        window.clearTimeout(loadTimeout)
+      }
+
+      const fail = () => {
+        if (didFinish) {
+          return
+        }
+
+        didFinish = true
+        clearTimers()
+        callbacksRef.current.onError()
+      }
+
+      const checkTurnstile = () => {
         const { turnstile } = window
 
-        if (turnstile && containerRef.current) {
-          clearInterval(checkTurnstile)
-
-          // Check ref instead of state to avoid stale closure issues during initial mount/setup
-          if (!widgetIdRef.current) {
-            try {
-              const siteKey = getTurnstileSiteKey()
-
-              if (!siteKey) {
-                throw new Error("TURNSTILE_SITE_KEY is missing.")
-              }
-
-              const id = turnstile.render(containerRef.current, {
-                sitekey: siteKey,
-                callback: (token) => {
-                  callbacksRef.current.onVerify(token)
-                  setIsVerified(true)
-                },
-                "error-callback": () => {
-                  callbacksRef.current.onError?.()
-                },
-                "expired-callback": () => {
-                  callbacksRef.current.onExpire?.()
-                  setIsVerified(false)
-                },
-                theme: "auto",
-              })
-
-              setWidgetId(id)
-              widgetIdRef.current = id
-            } catch (e) {
-              console.error("Turnstile render error:", e)
-            }
-          }
+        if (!turnstile || !containerRef.current || didFinish) {
+          return
         }
-      }, 100)
+
+        try {
+          const id = turnstile.render(containerRef.current, {
+            sitekey: siteKey,
+            callback: (token) => {
+              callbacksRef.current.onVerify(token)
+              setIsVerified(true)
+            },
+            "error-callback": () => {
+              callbacksRef.current.onError()
+            },
+            "expired-callback": () => {
+              callbacksRef.current.onExpire?.()
+              setIsVerified(false)
+            },
+            theme: "auto",
+          })
+
+          didFinish = true
+          clearTimers()
+          setWidgetId(id)
+          widgetIdRef.current = id
+        } catch {
+          fail()
+        }
+      }
+
+      const checkInterval = window.setInterval(checkTurnstile, 100)
+
+      const loadTimeout = window.setTimeout(
+        fail,
+        TURNSTILE_SCRIPT_LOAD_TIMEOUT_MS
+      )
+
+      checkTurnstile()
 
       return () => {
-        clearInterval(checkTurnstile)
+        didFinish = true
+        clearTimers()
 
         if (widgetIdRef.current && window.turnstile) {
           window.turnstile.remove(widgetIdRef.current)

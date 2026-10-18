@@ -1,3 +1,5 @@
+import { AnalyzerError } from "./error-utils"
+
 type SourceProvider = "direct" | "google-drive" | "onedrive"
 
 export type SourceResolution =
@@ -80,7 +82,14 @@ const resolveGoogleDriveSource = (url: URL): SourceResolution => {
 }
 
 export const resolveSource = (sourceUrl: string): SourceResolution => {
-  const url = new URL(sourceUrl)
+  let url: URL
+
+  try {
+    url = new URL(sourceUrl)
+  } catch (cause) {
+    throw new AnalyzerError("validation", "Invalid media URL.", cause)
+  }
+
   const hostname = url.hostname.toLowerCase()
 
   if (hostname === GOOGLE_DRIVE_DOWNLOAD_HOST) {

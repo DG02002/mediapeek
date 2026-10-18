@@ -221,9 +221,6 @@ const buildSuccessResponse = (
     { headers }
   )
 
-const isCpuLimitError = (error: Error) =>
-  /(exceeded cpu|cpu budget exceeded)/i.test(error.message)
-
 const getAnalyzerTimeoutMs = (env: Env) => {
   const configured = Number.parseInt(env.ANALYZER_REQUEST_TIMEOUT_MS ?? "", 10)
 
@@ -622,8 +619,7 @@ const callAnalyzer = async (
 }
 
 const isAnalyzerTimeout = (error: Error) =>
-  error.name === "AbortError" ||
-  /timed out|timeout|aborted/i.test(error.message)
+  error.name === "AbortError" || error.name === "TimeoutError"
 
 const handleUnexpectedError = (
   state: AnalyzeRequestState,
@@ -641,17 +637,7 @@ const handleUnexpectedError = (
     errorClass: "ANALYZE_INTERNAL_ERROR",
   }
 
-  if (isCpuLimitError(caughtError)) {
-    failure = {
-      status: 503,
-      code: "CPU_BUDGET_EXCEEDED",
-      message:
-        "CPU budget exceeded while analyzing this source. Retry with a smaller or simpler media file.",
-      retryable: true,
-      severity: "ERROR",
-      errorClass: "CPU_LIMIT_EXCEEDED",
-    }
-  } else if (isAnalyzerTimeout(caughtError)) {
+  if (isAnalyzerTimeout(caughtError)) {
     failure = {
       status: 504,
       code: "UPSTREAM_FETCH_FAILED",

@@ -1,11 +1,17 @@
 import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
+import { createEvlogLoggerConfig } from "@mediapeek/shared/evlog"
 import type { AnalyzeInput } from "@mediapeek/shared/schemas"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import type { WideEvent } from "evlog"
+import { initWorkersLogger } from "evlog/workers"
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { createAnalyzerApp, type AnalyzerAnalysisExecutor } from "./index"
+import { AnalyzerError, DiagnosticsError } from "./lib/error-utils"
+import { CpuBudgetExceededError } from "./services/mediainfo.server"
 
 const executeAnalysisMock = vi.fn<AnalyzerAnalysisExecutor>()
 const app = createAnalyzerApp({ executeAnalysis: executeAnalysisMock })
+const loggedEvents: WideEvent[] = []
 
 const input: AnalyzeInput = {
   url: "https://example.com/video.mp4",
@@ -30,6 +36,16 @@ function invoke(req: Request, env: Record<string, string> = {}) {
 
 describe("analyzer Worker boundary", () => {
   beforeEach(() => {
+    loggedEvents.length = 0
+    initWorkersLogger({
+      env: { service: "mediapeek-analyzer-test" },
+      sampling: { rates: { info: 100, warn: 100, error: 100 } },
+      silent: true,
+      redact: false,
+      drain: ({ event }) => {
+        loggedEvents.push(event)
+      },
+    })
     vi.clearAllMocks()
     executeAnalysisMock.mockImplementation(async ({ reportProgress }) => {
       await reportProgress?.(
@@ -65,6 +81,10 @@ describe("analyzer Worker boundary", () => {
         cpuBudgetRemainingMs: 24_999,
       }
     })
+  })
+
+  afterAll(() => {
+    initWorkersLogger(createEvlogLoggerConfig("mediapeek-analyzer"))
   })
 
   it("rejects invalid input before fetching media", async () => {
@@ -123,7 +143,7 @@ describe("analyzer Worker boundary", () => {
 
   it("classifies media fetch failures", async () => {
     executeAnalysisMock.mockRejectedValue(
-      new Error("Unable to access file stream")
+      new AnalyzerError("upstream-fetch", "Unable to access file stream")
     )
     const response = await invoke(request())
     expect(response.status).toBe(502)
@@ -149,6 +169,28 @@ describe("analyzer Worker boundary", () => {
     expect(body).not.toContain("distinctive internal library detail")
   })
 
+  it("classifies a CPU budget error preserved inside analysis diagnostics", async () => {
+    executeAnalysisMock.mockRejectedValue(
+      new DiagnosticsError(
+        "CPU budget exceeded",
+        { wasmLoadTimeMs: 1 },
+        new CpuBudgetExceededError()
+      )
+    )
+
+    const response = await invoke(request())
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({
+      success: false,
+      error: { code: "CPU_BUDGET_EXCEEDED", retryable: true },
+    })
+    expect(loggedEvents).toHaveLength(1)
+    expect(loggedEvents[0]).toMatchObject({
+      diagnostics: { wasmLoadTimeMs: 1 },
+    })
+  })
+
   it("streams progress and a terminal success event", async () => {
     const response = await invoke(
       request(input, { accept: ANALYZE_PROGRESS_STREAM_CONTENT_TYPE })
@@ -166,7 +208,9 @@ describe("analyzer Worker boundary", () => {
   })
 
   it("streams a classified terminal error event", async () => {
-    executeAnalysisMock.mockRejectedValue(new Error("media file not found"))
+    executeAnalysisMock.mockRejectedValue(
+      new AnalyzerError("validation", "media file not found")
+    )
 
     const response = await invoke(
       request(input, { accept: ANALYZE_PROGRESS_STREAM_CONTENT_TYPE })

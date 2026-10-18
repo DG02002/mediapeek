@@ -14,6 +14,13 @@ interface CollapsedDiffGap {
 
 export type CollapsedDiffRow = LineDiffRow | CollapsedDiffGap
 
+export interface SideBySideDiffRow {
+  readonly kind: "context" | "change" | "gap"
+  readonly before: LineDiffRow | null
+  readonly after: LineDiffRow | null
+  readonly hiddenCount?: number
+}
+
 export interface LineDiffOptions {
   readonly maxLines?: number
 }
@@ -272,4 +279,83 @@ export const collapseDiffLines = (
   flushHiddenRun()
 
   return collapsed
+}
+
+interface SideBySideChangeGroup {
+  readonly beforeRows: ReadonlyArray<LineDiffRow>
+  readonly afterRows: ReadonlyArray<LineDiffRow>
+  readonly nextIndex: number
+}
+
+const collectSideBySideChangeGroup = (
+  rows: ReadonlyArray<CollapsedDiffRow>,
+  startIndex: number
+): SideBySideChangeGroup => {
+  const beforeRows: LineDiffRow[] = []
+  const afterRows: LineDiffRow[] = []
+  let nextIndex = startIndex
+
+  while (
+    nextIndex < rows.length &&
+    rows[nextIndex].kind !== "context" &&
+    rows[nextIndex].kind !== "gap"
+  ) {
+    const row = rows[nextIndex]
+
+    if (row.kind === "removed") {
+      beforeRows.push(row)
+    } else if (row.kind === "added") {
+      afterRows.push(row)
+    }
+
+    nextIndex += 1
+  }
+
+  return { beforeRows, afterRows, nextIndex }
+}
+
+const pairSideBySideChangeGroup = (
+  group: SideBySideChangeGroup
+): ReadonlyArray<SideBySideDiffRow> =>
+  Array.from(
+    { length: Math.max(group.beforeRows.length, group.afterRows.length) },
+    (_, index) => ({
+      kind: "change",
+      before: group.beforeRows[index] ?? null,
+      after: group.afterRows[index] ?? null,
+    })
+  )
+
+export const toSideBySideDiffRows = (
+  rows: ReadonlyArray<CollapsedDiffRow>
+): ReadonlyArray<SideBySideDiffRow> => {
+  const sideBySideRows: SideBySideDiffRow[] = []
+  let index = 0
+
+  while (index < rows.length) {
+    const row = rows[index]
+
+    if (row.kind === "gap") {
+      sideBySideRows.push({
+        kind: "gap",
+        before: null,
+        after: null,
+        hiddenCount: row.hiddenCount,
+      })
+      index += 1
+    } else if (row.kind === "context") {
+      sideBySideRows.push({
+        kind: "context",
+        before: row,
+        after: row,
+      })
+      index += 1
+    } else {
+      const group = collectSideBySideChangeGroup(rows, index)
+      sideBySideRows.push(...pairSideBySideChangeGroup(group))
+      index = group.nextIndex
+    }
+  }
+
+  return sideBySideRows
 }
