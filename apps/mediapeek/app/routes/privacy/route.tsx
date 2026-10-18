@@ -1,18 +1,8 @@
-import { Link } from "react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
 
 import { PolicyLayout, PolicySection } from "~/components/policy-layout"
 
-import type { Route } from "./+types/route"
-
-export const meta: Route.MetaFunction = () => [
-  { title: "Privacy Policy - MediaPeek" },
-  {
-    name: "description",
-    content: "How the MediaPeek web app handles URLs, reports, and sharing.",
-  },
-]
-
-export default function PrivacyPolicy() {
+function PrivacyPolicy() {
   return (
     <PolicyLayout
       title="Privacy Policy"
@@ -192,3 +182,17 @@ export default function PrivacyPolicy() {
     </PolicyLayout>
   )
 }
+
+export const Route = createFileRoute("/privacy")({
+  head: () => ({
+    meta: [
+      { title: "Privacy Policy - MediaPeek" },
+      {
+        name: "description",
+        content:
+          "How the MediaPeek web app handles URLs, reports, and sharing.",
+      },
+    ],
+  }),
+  component: PrivacyPolicy,
+})

@@ -107,7 +107,7 @@ jobs:
         run: pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
       - name: Dry-run web Worker deployment
         working-directory: apps/mediapeek
-        run: pnpm exec wrangler deploy --dry-run --config build/server/wrangler.json
+        run: pnpm exec wrangler deploy --dry-run --config dist/server/wrangler.json
 
   deploy-production:
     name: Deploy production
@@ -168,14 +168,14 @@ jobs:
           COMMIT_HASH: ${{ github.sha }}
           SERVICE_VERSION: ${{ github.ref_name }}
         run: >-
-          pnpm exec wrangler deploy --config wrangler.jsonc
+          pnpm exec wrangler deploy
           --var "COMMIT_HASH:${COMMIT_HASH}"
           --var "SERVICE_VERSION:${SERVICE_VERSION}"
       - name: Capture current web version for rollback
         id: previous-web
         working-directory: apps/mediapeek
         run: |
-          deployments="$(pnpm exec wrangler deployments list --config build/server/wrangler.json --json)"
+          deployments="$(pnpm exec wrangler deployments list --config dist/server/wrangler.json --json)"
           version_id="$(jq -r '.deployments[0].versions[]? | select(.percentage == 100) | .version_id' <<< "$deployments" | head -n 1)"
           printf 'version_id=%s\n' "$version_id" >> "$GITHUB_OUTPUT"
       - name: Deploy web Worker
@@ -185,7 +185,8 @@ jobs:
           COMMIT_HASH: ${{ github.sha }}
           SERVICE_VERSION: ${{ github.ref_name }}
         run: >-
-          pnpm exec wrangler deploy --config build/server/wrangler.json
+          pnpm exec wrangler deploy
+          --config dist/server/wrangler.json
           --var "COMMIT_HASH:${COMMIT_HASH}"
           --var "SERVICE_VERSION:${SERVICE_VERSION}"
       - name: Check deployed release identity
@@ -214,7 +215,7 @@ jobs:
           PREVIOUS_VERSION_ID: ${{ steps.previous-web.outputs.version_id }}
         run: >-
           pnpm exec wrangler rollback "$PREVIOUS_VERSION_ID"
-          --config build/server/wrangler.json
+          --config dist/server/wrangler.json
           --message "Rollback after release health check failure"
           --yes
       - name: Roll back analyzer Worker after failure

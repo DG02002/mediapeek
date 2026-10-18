@@ -1,8 +1,8 @@
 "use client"
 
 import { ArrowLeftRightIcon, Cancel01Icon } from "@hugeicons/core-free-icons"
+import { useNavigate, useSearch } from "@tanstack/react-router"
 import { useId, useState } from "react"
-import { useSearchParams } from "react-router"
 
 import { Button } from "~/components/ui/button"
 import { Icon } from "~/components/ui/icon"
@@ -19,6 +19,11 @@ import type { StoredReport } from "~/features/reports/report-storage"
 import { cn } from "~/lib/utils"
 
 export type CompareOutputFormat = "json" | "text"
+
+export interface CompareSearch {
+  item: string[]
+  format?: string
+}
 
 const COMPARE_FORMATS: ReadonlyArray<{
   readonly id: CompareOutputFormat
@@ -124,13 +129,14 @@ export function ReportCompare({
   onClose,
 }: ReportCompareProps) {
   const compareLabelId = useId()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const search = useSearch({ from: "/app/compare" })
+  const navigate = useNavigate({ from: "/app/compare" })
   const [isSwapped, setIsSwapped] = useState(false)
   const otherReports = reports.filter((report) => report.id !== baseReport.id)
 
-  const itemIds = searchParams.getAll("item")
+  const itemIds = search.item
   const targetId = itemIds[1] ?? ""
-  const formatParam = toCompareFormat(searchParams.get("format") ?? "")
+  const formatParam = toCompareFormat(search.format ?? "")
   const targetReport = otherReports.find((report) => report.id === targetId)
   const beforeReport = isSwapped ? targetReport : baseReport
   const afterReport = isSwapped ? baseReport : targetReport
@@ -139,31 +145,20 @@ export function ReportCompare({
     formatParam ?? pickCompareFormat(baseReport, targetReport)
 
   const changeTarget = (id: string) => {
-    const next = new URLSearchParams()
-
-    next.append("item", baseReport.id)
-
-    if (id) {
-      next.append("item", id)
-    }
-
-    if (formatParam) {
-      next.set("format", formatParam)
-    }
-
-    setSearchParams(next, { preventScrollReset: true })
+    void navigate({
+      search: (current) => ({
+        ...current,
+        item: id ? [baseReport.id, id] : [baseReport.id],
+      }),
+      resetScroll: false,
+    })
   }
 
   const changeFormat = (format: CompareOutputFormat | null) => {
-    const next = new URLSearchParams(searchParams)
-
-    if (format) {
-      next.set("format", format)
-    } else {
-      next.delete("format")
-    }
-
-    setSearchParams(next, { preventScrollReset: true })
+    void navigate({
+      search: (current) => ({ ...current, format: format ?? undefined }),
+      resetScroll: false,
+    })
   }
 
   const sideLabels = isSwapped

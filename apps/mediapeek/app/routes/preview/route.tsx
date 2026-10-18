@@ -1,19 +1,11 @@
+import { createFileRoute } from "@tanstack/react-router"
 import { Schema } from "effect"
 
 import { MediaView } from "~/components/media-view"
 import { homeDemoFixture } from "~/lib/home-demo-fixture"
 import { MediaInfoJSONSchema } from "~/lib/media-info-schema"
+import type { MediaPeekRequestContext } from "~/lib/server-request-context"
 import type { MediaInfoJSON, MediaTrackJSON } from "~/types/media"
-
-import type { Route } from "./+types/route"
-
-export const meta: Route.MetaFunction = () => [
-  { title: "Preview - MediaPeek" },
-  {
-    name: "robots",
-    content: "noindex, nofollow",
-  },
-]
 
 const getOrCreateTrack = (tracks: MediaTrackJSON[], type: string) => {
   const existingTrack = tracks.find((track) => track["@type"] === type)
@@ -69,8 +61,15 @@ const addTextPreviewBadges = (tracks: MediaTrackJSON[]) => {
   textTrack.Format = "UTF-8"
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const demoUrl = new URL("/demo.json", request.url)
+const loadPreview = async ({
+  serverContext,
+}: {
+  context: object
+  serverContext?: MediaPeekRequestContext & { request?: Request }
+}) => {
+  const demoUrl = serverContext?.request
+    ? new URL("/demo.json", serverContext.request.url)
+    : "/demo.json"
 
   try {
     const response = await fetch(demoUrl)
@@ -105,7 +104,9 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 }
 
-export default function PreviewRoute({ loaderData }: Route.ComponentProps) {
+function PreviewPage() {
+  const loaderData = Route.useLoaderData()
+
   const previewResults = {
     object: JSON.stringify(loaderData.object, null, 2),
     json: loaderData.json,
@@ -118,3 +119,14 @@ export default function PreviewRoute({ loaderData }: Route.ComponentProps) {
     </main>
   )
 }
+
+export const Route = createFileRoute("/preview")({
+  head: () => ({
+    meta: [
+      { title: "Preview - MediaPeek" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+  loader: loadPreview,
+  component: PreviewPage,
+})

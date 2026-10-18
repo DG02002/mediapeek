@@ -1,17 +1,8 @@
+import { createFileRoute } from "@tanstack/react-router"
+
 import { PolicyLayout, PolicySection } from "~/components/policy-layout"
 
-import type { Route } from "./+types/route"
-
-export const meta: Route.MetaFunction = () => [
-  { title: "Open-source Licenses - MediaPeek" },
-  {
-    name: "description",
-    content:
-      "The MediaPeek project license and selected third-party attributions.",
-  },
-]
-
-export default function OpenSourceLicenses() {
+function OpenSourceLicenses() {
   return (
     <PolicyLayout
       title="Open-source licenses"
@@ -74,3 +65,17 @@ export default function OpenSourceLicenses() {
     </PolicyLayout>
   )
 }
+
+export const Route = createFileRoute("/licenses")({
+  head: () => ({
+    meta: [
+      { title: "Open-source Licenses - MediaPeek" },
+      {
+        name: "description",
+        content:
+          "The MediaPeek project license and selected third-party attributions.",
+      },
+    ],
+  }),
+  component: OpenSourceLicenses,
+})

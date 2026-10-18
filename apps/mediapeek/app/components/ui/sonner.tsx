@@ -1,4 +1,4 @@
-import { useTheme } from "remix-themes"
+import { useTheme } from "~/components/theme-provider"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import {
   Alert02Icon,
@@ -26,11 +26,11 @@ const toasterStyle: SonnerStyle = {
 }
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const [theme] = useTheme()
+  const { theme } = useTheme()
 
   return (
     <Sonner
-      theme={theme ?? "system"}
+      theme={theme}
       className="toaster group"
       icons={{
         success: (

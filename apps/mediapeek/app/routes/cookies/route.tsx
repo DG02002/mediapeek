@@ -1,18 +1,8 @@
-import { Link } from "react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
 
 import { PolicyLayout, PolicySection } from "~/components/policy-layout"
 
-import type { Route } from "./+types/route"
-
-export const meta: Route.MetaFunction = () => [
-  { title: "Cookie Policy - MediaPeek" },
-  {
-    name: "description",
-    content: "Cookies and browser storage used by the MediaPeek web app.",
-  },
-]
-
-export default function CookiePolicy() {
+function CookiePolicy() {
   return (
     <PolicyLayout
       title="Cookie Policy"
@@ -185,3 +175,16 @@ export default function CookiePolicy() {
     </PolicyLayout>
   )
 }
+
+export const Route = createFileRoute("/cookies")({
+  head: () => ({
+    meta: [
+      { title: "Cookie Policy - MediaPeek" },
+      {
+        name: "description",
+        content: "Cookies and browser storage used by the MediaPeek web app.",
+      },
+    ],
+  }),
+  component: CookiePolicy,
+})

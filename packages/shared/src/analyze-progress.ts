@@ -2,7 +2,7 @@ import { Schema } from "effect"
 
 import { AnalyzeErrorSchema } from "./analyze-contract"
 
-export const ANALYZE_PROGRESS_STREAM_CONTENT_TYPE = "application/x-ndjson"
+export { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "./constants"
 
 export const AnalyzeProgressStageSchema = Schema.Literals([
   "request_received",

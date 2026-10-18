@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "TanStack Start App",
+  "extends": "./base.json",
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "module": "ESNext",
+    "target": "ES2022",
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "noEmit": true
+  }
+}

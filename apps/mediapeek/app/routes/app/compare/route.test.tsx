@@ -1,14 +1,12 @@
 import "fake-indexeddb/auto"
-import { fireEvent, render, screen } from "@testing-library/react"
-import { createMemoryRouter, RouterProvider } from "react-router"
+import { fireEvent, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it } from "vitest"
 
 import {
   reportStorageStore,
   type StoredReport,
 } from "~/features/reports/report-storage"
-
-import AppCompareRoute from "./route"
+import { renderRoute } from "~/test/render-route"
 
 const createdReportIds: string[] = []
 
@@ -21,14 +19,7 @@ const seedReport = async (report: Omit<StoredReport, "id">) => {
 }
 
 const renderCompare = (initialUrl: string) => {
-  const router = createMemoryRouter(
-    [{ path: "/app/compare", element: <AppCompareRoute /> }],
-    { initialEntries: [initialUrl] }
-  )
-
-  render(<RouterProvider router={router} />)
-
-  return router
+  return renderRoute(initialUrl).then(({ router }) => router)
 }
 
 describe("AppCompareRoute", () => {
@@ -41,7 +32,7 @@ describe("AppCompareRoute", () => {
   })
 
   it("prompts to pick a report when no item is given", async () => {
-    renderCompare("/app/compare")
+    await renderCompare("/app/compare")
 
     expect(
       await screen.findByText("Choose a report to compare")
@@ -70,7 +61,7 @@ describe("AppCompareRoute", () => {
       outputs: { json: '{"size":300}', text: "General" },
     })
 
-    const router = renderCompare(
+    const router = await renderCompare(
       `/app/compare?item=${base.id}&item=${target.id}&format=text`
     )
 
@@ -80,8 +71,9 @@ describe("AppCompareRoute", () => {
       target: { value: other.id },
     })
 
-    expect(router.state.location.search).toBe(
-      `?item=${base.id}&item=${other.id}&format=text`
-    )
+    expect(router.state.location.search).toEqual({
+      item: [base.id, other.id],
+      format: "text",
+    })
   })
 })

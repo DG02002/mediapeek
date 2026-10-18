@@ -1,15 +1,15 @@
 import { flushSync } from "react-dom"
-import { Theme, useTheme } from "remix-themes"
 
+import { useTheme, type Theme } from "~/components/theme-provider"
 import { useHydrated } from "~/hooks/use-hydrated"
 import { cn } from "~/lib/utils"
 
 export function ModeToggle() {
-  const [themeState, setTheme] = useTheme()
+  const { theme, setTheme } = useTheme()
   const isHydrated = useHydrated()
-  const visibleTheme = isHydrated ? themeState : undefined
+  const visibleTheme = isHydrated ? theme : undefined
 
-  const switchTheme = (newTheme: Theme | null) => {
+  const switchTheme = (newTheme: Theme) => {
     if (!("startViewTransition" in document)) {
       setTheme(newTheme)
 
@@ -27,13 +27,13 @@ export function ModeToggle() {
     <div className="border-input flex h-6 items-center rounded-lg border p-0.5 sm:h-7">
       <button
         type="button"
-        aria-pressed={visibleTheme === Theme.LIGHT}
+        aria-pressed={visibleTheme === "light"}
         onClick={() => {
-          switchTheme(Theme.LIGHT)
+          switchTheme("light")
         }}
         className={cn(
           "min-w-[2.8rem] rounded-md px-1 py-0.5 text-[10px] font-medium transition-all sm:min-w-12 sm:px-2 sm:text-xs",
-          visibleTheme === Theme.LIGHT
+          visibleTheme === "light"
             ? "bg-primary text-primary-foreground shadow-sm"
             : "text-muted-foreground hover:text-foreground"
         )}
@@ -42,13 +42,13 @@ export function ModeToggle() {
       </button>
       <button
         type="button"
-        aria-pressed={visibleTheme === Theme.DARK}
+        aria-pressed={visibleTheme === "dark"}
         onClick={() => {
-          switchTheme(Theme.DARK)
+          switchTheme("dark")
         }}
         className={cn(
           "min-w-[2.8rem] rounded-md px-1 py-0.5 text-[10px] font-medium transition-all sm:min-w-12 sm:px-2 sm:text-xs",
-          visibleTheme === Theme.DARK
+          visibleTheme === "dark"
             ? "bg-primary text-primary-foreground shadow-sm"
             : "text-muted-foreground hover:text-foreground"
         )}
@@ -57,13 +57,13 @@ export function ModeToggle() {
       </button>
       <button
         type="button"
-        aria-pressed={visibleTheme === null}
+        aria-pressed={visibleTheme === "system"}
         onClick={() => {
-          switchTheme(null)
+          switchTheme("system")
         }}
         className={cn(
           "min-w-[2.8rem] rounded-md px-1 py-0.5 text-[10px] font-medium transition-all sm:min-w-12 sm:px-2 sm:text-xs",
-          visibleTheme === null
+          visibleTheme === "system"
             ? "bg-primary text-primary-foreground shadow-sm"
             : "text-muted-foreground hover:text-foreground"
         )}

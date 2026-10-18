@@ -1,6 +1,7 @@
 "use client"
 
 import { AlertCircleIcon, ArrowRight02Icon } from "@hugeicons/core-free-icons"
+import { useNavigate } from "@tanstack/react-router"
 import { Schema } from "effect"
 import {
   type ClipboardEvent,
@@ -8,7 +9,6 @@ import {
   useRef,
   useState,
 } from "react"
-import { useNavigate } from "react-router"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Icon } from "~/components/ui/icon"
@@ -62,14 +62,20 @@ export function MediaForm() {
     if (outcome?.kind === "queued") {
       setInputValue("")
       setFormError(null)
-      void navigate(`/app/item/${outcome.itemId}`)
+      void navigate({
+        to: "/app/item/$itemId",
+        params: { itemId: outcome.itemId },
+      })
 
       return
     }
 
     if (outcome?.kind === "duplicate") {
       setInputValue("")
-      void navigate(`/app/item/${outcome.itemId}`)
+      void navigate({
+        to: "/app/item/$itemId",
+        params: { itemId: outcome.itemId },
+      })
 
       return
     }

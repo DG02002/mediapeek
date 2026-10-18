@@ -313,6 +313,90 @@
       "skillPath": "skills/state-machine/SKILL.md",
       "computedHash": "9e714ed2746c3973188853f0fd44d214787b0f6fa0baa9db5f594e13474693ad"
     },
+    "tanstack-ai": {
+      "source": "tanstack-skills/tanstack-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tanstack-ai/skills/tanstack-ai/SKILL.md",
+      "computedHash": "d95cd0d1700d882cc2d38e6bd4f59d219954eabf579a8771f6cbccedce4892de"
+    },
+    "tanstack-cli": {
+      "source": "tanstack-skills/tanstack-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tanstack-cli/skills/tanstack-cli/SKILL.md",
+      "computedHash": "2f075c675dd814a87f8dfd7b94a03bd83d0aac98cac326d8b237ef967a18e2e8"
+    },
+    "tanstack-config": {
+      "source": "tanstack-skills/tanstack-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tanstack-config/skills/tanstack-config/SKILL.md",
+      "computedHash": "f1d53bd18002a098bf55153fbbf78ab504b89ec0cf03d2fbb79d3e31b3fbe91c"
+    },
+    "tanstack-db": {
+      "source": "tanstack-skills/tanstack-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tanstack-db/skills/tanstack-db/SKILL.md",
+      "computedHash": "9d21b2c472a9e642273ff70b52b1107839e414860462cad6ce6df3ae15debbda"
+    },
+    "tanstack-devtools": {
+      "source": "tanstack-skills/tanstack-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tanstack-devtools/skills/tanstack-devtools/SKILL.md",
+      "computedHash": "ecb51f9902ae6de9f512b299e6c16bd4befc3ff2c62f8cd1ece07e31b1c73dfe"
+    },
+    "tanstack-form": {
+      "source": "tanstack-skills/tanstack-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tanstack-form/skills/tanstack-form/SKILL.md",
+      "computedHash": "1eb9f9fc43ab2777f586f916b2234c5340ed98f296a98b22c75cbbafcbd29b86"
+    },
+    "tanstack-pacer": {
+      "source": "tanstack-skills/tanstack-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tanstack-pacer/skills/tanstack-pacer/SKILL.md",
+      "computedHash": "abc0e5bcf7b80a48b39d3e3aa1d6e67220c34a8a3240c1d6a28eba3fc2b5cfd0"
+    },
+    "tanstack-query": {
+      "source": "tanstack-skills/tanstack-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tanstack-query/skills/tanstack-query/SKILL.md",
+      "computedHash": "b8a0477cd4d7bf8fa54d27f8e64d82388402f0d502591db50a357df5b9995c75"
+    },
+    "tanstack-ranger": {
+      "source": "tanstack-skills/tanstack-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tanstack-ranger/skills/tanstack-ranger/SKILL.md",
+      "computedHash": "0d0a101ae1bcfbaa060ab5673d46ed9a369db02b3b719e9718405031d3655033"
+    },
+    "tanstack-router": {
+      "source": "tanstack-skills/tanstack-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tanstack-router/skills/tanstack-router/SKILL.md",
+      "computedHash": "24beccc4016f91bab65547209cfd849ea5e66f3d5d92820683a9dd84669ced56"
+    },
+    "tanstack-start": {
+      "source": "tanstack-skills/tanstack-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tanstack-start/skills/tanstack-start/SKILL.md",
+      "computedHash": "e9d8355fe3e47b118e739081f1123c52aa0ecde57da840722177e1ad5caf9908"
+    },
+    "tanstack-store": {
+      "source": "tanstack-skills/tanstack-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tanstack-store/skills/tanstack-store/SKILL.md",
+      "computedHash": "acfc5f1217685253fa9484f8f89dc92aae96a9ae30e42001b07b2ca672c758b2"
+    },
+    "tanstack-table": {
+      "source": "tanstack-skills/tanstack-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tanstack-table/skills/tanstack-table/SKILL.md",
+      "computedHash": "d5ac71bd795696cd3310165c3ea0e435c310a0ac3c4e9dd45b39ed91b8dbcbb1"
+    },
+    "tanstack-virtual": {
+      "source": "tanstack-skills/tanstack-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tanstack-virtual/skills/tanstack-virtual/SKILL.md",
+      "computedHash": "987d0fcffeac700cea1303a13a9cecd8a4583985dd675f97ebbca27bfa592b47"
+    },
     "tdd": {
       "source": "mattpocock/skills",
       "sourceType": "github",

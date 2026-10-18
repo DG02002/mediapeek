@@ -1,19 +1,8 @@
-import { Link } from "react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
 
 import { PolicyLayout, PolicySection } from "~/components/policy-layout"
 
-import type { Route } from "./+types/route"
-
-export const meta: Route.MetaFunction = () => [
-  { title: "Terms of Use - MediaPeek" },
-  {
-    name: "description",
-    content:
-      "Draft terms describing the MediaPeek web app and analysis service.",
-  },
-]
-
-export default function TermsOfUse() {
+function TermsOfUse() {
   return (
     <PolicyLayout
       title="Terms of Use"
@@ -133,3 +122,17 @@ export default function TermsOfUse() {
     </PolicyLayout>
   )
 }
+
+export const Route = createFileRoute("/terms")({
+  head: () => ({
+    meta: [
+      { title: "Terms of Use - MediaPeek" },
+      {
+        name: "description",
+        content:
+          "Draft terms describing the MediaPeek web app and analysis service.",
+      },
+    ],
+  }),
+  component: TermsOfUse,
+})

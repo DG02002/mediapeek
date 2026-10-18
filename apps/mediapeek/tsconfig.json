@@ -1,18 +1,12 @@
 {
-  "extends": "@mediapeek/config-typescript/react-router",
+  "extends": "@mediapeek/config-typescript/tanstack-start",
   "compilerOptions": {
     "types": ["node", "vite/client"],
     "paths": {
       "~/*": ["./app/*"],
       "@mediapeek/shared/*": ["../../packages/shared/src/*"]
     },
-    "rootDirs": [".", "./.react-router/types"]
+    "rootDirs": ["."]
   },
-  "include": [
-    "app/**/*",
-    "worker-configuration.d.ts",
-    "env.d.ts",
-    ".react-router/types/**/*.d.ts",
-    "workers/**/*"
-  ]
+  "include": ["app/**/*", "worker-configuration.d.ts", "env.d.ts"]
 }
