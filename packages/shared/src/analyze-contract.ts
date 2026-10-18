@@ -71,6 +71,7 @@ export const AnalyzerAnalysisDiagnosticsSchema = Schema.Struct({
   formatErrors: Schema.Record(Schema.String, Schema.String),
   resolvedFilename: Schema.optionalKey(Schema.String),
   resolvedFilenameSource: Schema.optionalKey(Schema.String),
+  archiveFilename: Schema.optionalKey(Schema.String),
 })
 
 export const AnalyzerRpcSuccessResponseSchema = Schema.Struct({

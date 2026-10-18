@@ -53,6 +53,7 @@ export interface MediaInfoDiagnostics {
   wasmLoadError?: string
   objectProcessError?: string
   formatErrors: Record<string, string>
+  archiveFilename?: string
 }
 
 export interface MediaInfoAnalysis {
@@ -526,15 +527,21 @@ export async function analyzeMediaBuffer({
 
   const archiveName = archiveInnerName ? filename : undefined
 
+  const diagnostics: MediaInfoDiagnostics = {
+    wasmLoadTimeMs: 0,
+    factoryCreateTimeMs: 0,
+    formatGenerationTimes: {},
+    totalAnalysisTimeMs: 0,
+    formatErrors: {},
+  }
+
+  if (archiveName) {
+    diagnostics.archiveFilename = archiveName
+  }
+
   const state: FormatState = {
     results: {},
-    diagnostics: {
-      wasmLoadTimeMs: 0,
-      factoryCreateTimeMs: 0,
-      formatGenerationTimes: {},
-      totalAnalysisTimeMs: 0,
-      formatErrors: {},
-    },
+    diagnostics,
     displayFilename: archiveInnerName ?? filename,
     resolvedFilenameSource: archiveInnerName ? "archive-inner" : filenameSource,
   }

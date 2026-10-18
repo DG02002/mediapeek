@@ -77,6 +77,24 @@ describe("analyze contracts", () => {
     expect(publicResult).not.toHaveProperty("fileSize")
   })
 
+  it("accepts an archive filename as an optional analyzer diagnostic", () => {
+    const internal = {
+      success: true,
+      requestId: "request-1",
+      results: { json: "{}" },
+      diagnostics: {
+        ...diagnostics,
+        analysis: { ...diagnostics.analysis, archiveFilename: "outer.zip" },
+      },
+    }
+
+    expect(
+      Result.isSuccess(
+        Schema.decodeUnknownResult(AnalyzerRpcResponseSchema)(internal)
+      )
+    ).toBe(true)
+  })
+
   it.each([
     { success: true, requestId: "request-1", results: { json: "{}" } },
     {

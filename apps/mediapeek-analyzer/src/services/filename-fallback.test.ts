@@ -421,6 +421,7 @@ describe("analyzeMediaBuffer filename fallback", () => {
 
     expect(result.resolvedFilename).toBe("inner-video.mkv")
     expect(result.resolvedFilenameSource).toBe("archive-inner")
+    expect(result.diagnostics.archiveFilename).toBe("outer.zip")
     expect(generalTrack?.CompleteName).toBe("inner-video.mkv")
     expect(generalTrack?.Archive_Name).toBe("outer.zip")
   })

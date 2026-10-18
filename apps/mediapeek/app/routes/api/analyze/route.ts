@@ -54,22 +54,6 @@ import type { Route } from "./+types/route"
 const LEGACY_GET_WARNING =
   '299 - "GET /resource/analyze is deprecated. Use POST /resource/analyze with JSON body."'
 
-const archiveMediaSchema = Schema.Struct({
-  media: Schema.optionalKey(
-    Schema.Struct({
-      track: Schema.Array(
-        Schema.StructWithRest(
-          Schema.Struct({
-            "@type": Schema.String,
-            Archive_Name: Schema.optionalKey(Schema.String),
-          }),
-          [Schema.Record(Schema.String, Schema.Json)]
-        )
-      ),
-    })
-  ),
-})
-
 interface BoundedResponseRead {
   readonly reader: ReadableStreamDefaultReader<Uint8Array>
   readonly maxBytes: number
@@ -818,34 +802,6 @@ const handleAnalyzerError = (
   })
 }
 
-const recordArchiveFilename = (
-  state: AnalyzeRequestState,
-  jsonResult: string,
-  resolvedFilename: string
-) => {
-  try {
-    const raw: unknown = JSON.parse(jsonResult || "{}")
-    const parsed = Schema.decodeUnknownResult(archiveMediaSchema)(raw)
-
-    if (Result.isFailure(parsed)) {
-      return
-    }
-
-    const general = parsed.success.media?.track.find(
-      (track) => track["@type"] === "General"
-    )
-
-    if (!general?.Archive_Name) {
-      return
-    }
-
-    state.customContext.archiveName = general.Archive_Name
-    state.customContext.innerFilename = resolvedFilename
-  } catch {
-    return
-  }
-}
-
 const completeAnalyzeResponse = (
   state: AnalyzeRequestState,
   data: AnalyzerSuccessResponse,
@@ -867,7 +823,10 @@ const completeAnalyzeResponse = (
     diagnostics.analysis.resolvedFilenameSource ??
     diagnostics.fetch.resolvedFilenameSource
 
-  recordArchiveFilename(state, results.json ?? "{}", resolvedFilename)
+  if (diagnostics.analysis.archiveFilename) {
+    state.customContext.archiveName = diagnostics.analysis.archiveFilename
+    state.customContext.innerFilename = resolvedFilename
+  }
 
   return buildSuccessResponse(
     state.requestId,
