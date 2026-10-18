@@ -1,7 +1,7 @@
 import { Footer } from "~/components/footer"
 import { Header } from "~/components/header"
 import { MediaForm } from "~/features/analyze/media-form"
-import { ReportsSection } from "~/features/library/reports-section"
+import { ReportsSection } from "~/features/reports/reports-section"
 import { useHydrated } from "~/hooks/use-hydrated"
 
 import type { Route } from "./+types/route"

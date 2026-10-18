@@ -6,7 +6,7 @@ import type {
   fetchAnalyzeFormat,
 } from "~/lib/analyze-client"
 
-import type { StoredReport } from "./report-library"
+import type { StoredReport } from "./report-storage"
 
 const toMediaViewData = (report: StoredReport): MediaViewData => {
   const data: MediaViewData = {}

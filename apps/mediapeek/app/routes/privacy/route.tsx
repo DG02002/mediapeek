@@ -40,7 +40,7 @@ export default function PrivacyPolicy() {
           share them. When you save a Media Report, MediaPeek stores its
           requested output formats in IndexedDB on your device. The report
           remains there until you delete it or clear this site&apos;s browser
-          data. MediaPeek does not keep a server-side report library.
+          data. MediaPeek does not keep server-side copies of your reports.
         </p>
         <p>Exporting downloads the selected report to your device.</p>
       </PolicySection>

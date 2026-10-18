@@ -12,8 +12,8 @@ import {
   diffLines,
   type CollapsedDiffRow,
   type LineDiffRowKind,
-} from "~/features/diff/line-diff"
-import type { StoredReport } from "~/features/library/report-library"
+} from "~/features/compare/line-diff"
+import type { StoredReport } from "~/features/reports/report-storage"
 import { cn } from "~/lib/utils"
 
 export type CompareOutputFormat = "json" | "text"

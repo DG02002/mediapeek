@@ -18,11 +18,11 @@ _Avoid_: media file, report card, analysis job
 
 **Public Analysis**:
 A Public Analysis is an Analysis available without an account. Its result is
-available to the current browser and can be stored locally in the report
-library or exported and shared by the visitor.
+available to the current browser and can be stored locally in browser
+storage or exported and shared by the visitor.
 _Avoid_: anonymous report, guest account
 
 **Stored Media Report**:
 A Stored Media Report is a Media Report persisted in the visitor's browser
-storage through the report library.
+storage.
 _Avoid_: cached report, saved card

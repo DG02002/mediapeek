@@ -19,7 +19,7 @@ import { Icon } from "~/components/ui/icon"
 import { cn } from "~/lib/utils"
 
 import { parseMediaReport } from "./media-report"
-import type { StoredReport } from "./report-library"
+import type { StoredReport } from "./report-storage"
 
 interface ReportRowProps {
   report: StoredReport

@@ -16,17 +16,17 @@ import {
 } from "~/components/ui/alert-dialog"
 import { Button } from "~/components/ui/button"
 import { Icon } from "~/components/ui/icon"
-import { ReportCompare } from "~/features/diff/report-compare"
+import { ReportCompare } from "~/features/compare/report-compare"
+import { ReportRow } from "~/features/reports/report-row"
 import {
   deleteReport,
   type StoredReport,
-} from "~/features/library/report-library"
-import { ReportRow } from "~/features/library/report-row"
-import { subscribeToReportsChanged } from "~/features/library/reports-changed"
-import { StoredReportView } from "~/features/library/stored-report-view"
+} from "~/features/reports/report-storage"
+import { subscribeToReportsChanged } from "~/features/reports/reports-changed"
+import { StoredReportView } from "~/features/reports/stored-report-view"
 import { useHydrated } from "~/hooks/use-hydrated"
 
-import { useReportLibrary } from "./use-report-library"
+import { useStoredReports } from "./use-stored-reports"
 
 const ReportsEmptyState = () => (
   <section
@@ -94,12 +94,12 @@ const useReportModes = () => {
 export function ReportsSection() {
   const isHydrated = useHydrated()
 
-  const { store: libraryStore, snapshot: librarySnapshot } =
-    useReportLibrary(isHydrated)
+  const { store: reportsStore, snapshot: reportsSnapshot } =
+    useStoredReports(isHydrated)
 
   const { searchParams, showReport, showCompare, closeModes } = useReportModes()
 
-  const { reports } = librarySnapshot
+  const { reports } = reportsSnapshot
   const openReportId = searchParams.get("report")
   const compareBaseId = searchParams.get("compare")
 
@@ -112,10 +112,10 @@ export function ReportsSection() {
     : null
 
   const openReportMissing =
-    Boolean(openReportId) && !librarySnapshot.isLoading && !openReport
+    Boolean(openReportId) && !reportsSnapshot.isLoading && !openReport
 
   const compareBaseMissing =
-    Boolean(compareBaseId) && !librarySnapshot.isLoading && !compareBase
+    Boolean(compareBaseId) && !reportsSnapshot.isLoading && !compareBase
 
   const [deleteTarget, setDeleteTarget] = useState<StoredReport | null>(null)
 
@@ -124,9 +124,9 @@ export function ReportsSection() {
   useEffect(
     () =>
       subscribeToReportsChanged(() => {
-        void libraryStore.refresh()
+        void reportsStore.refresh()
       }),
-    [libraryStore]
+    [reportsStore]
   )
 
   const handleDeleteConfirm = async () => {
@@ -139,7 +139,7 @@ export function ReportsSection() {
 
     try {
       await deleteReport(report.id)
-      await libraryStore.refresh()
+      await reportsStore.refresh()
       setMessage(`Deleted ${report.filename}.`)
     } catch (error) {
       setMessage(
@@ -154,7 +154,7 @@ export function ReportsSection() {
       aria-label={reports.length === 0 ? "Recent reports" : undefined}
       className="space-y-4"
     >
-      {(reports.length > 0 || librarySnapshot.isLoading) && (
+      {(reports.length > 0 || reportsSnapshot.isLoading) && (
         <div>
           <h2 id="recent-title" className="font-heading text-2xl font-bold">
             Recent{" "}
@@ -167,9 +167,9 @@ export function ReportsSection() {
         </div>
       )}
 
-      {(message ?? librarySnapshot.error) && (
+      {(message ?? reportsSnapshot.error) && (
         <p role="status" className="text-muted-foreground text-sm">
-          {message ?? librarySnapshot.error}
+          {message ?? reportsSnapshot.error}
         </p>
       )}
 
@@ -179,11 +179,11 @@ export function ReportsSection() {
         </p>
       )}
 
-      {librarySnapshot.isLoading && reports.length === 0 && (
+      {reportsSnapshot.isLoading && reports.length === 0 && (
         <p className="text-muted-foreground text-sm">Loading your reports…</p>
       )}
 
-      {!librarySnapshot.isLoading && reports.length === 0 && (
+      {!reportsSnapshot.isLoading && reports.length === 0 && (
         <ReportsEmptyState />
       )}
 

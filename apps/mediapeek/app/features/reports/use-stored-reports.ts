@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react"
 
-import { listReports, type StoredReport } from "./report-library"
+import { listReports, type StoredReport } from "./report-storage"
 
-interface ReportLibrarySnapshot {
+interface StoredReportsSnapshot {
   readonly reports: ReadonlyArray<StoredReport>
   readonly isLoading: boolean
   readonly error: string | null
 }
 
-export interface ReportLibraryStore {
-  getSnapshot: () => ReportLibrarySnapshot
+export interface StoredReportsStore {
+  getSnapshot: () => StoredReportsSnapshot
   subscribe: (listener: () => void) => () => void
   refresh: () => Promise<void>
 }
 
-const SERVER_SNAPSHOT: ReportLibrarySnapshot = {
+const SERVER_SNAPSHOT: StoredReportsSnapshot = {
   reports: [],
   isLoading: true,
   error: null,
@@ -22,11 +22,11 @@ const SERVER_SNAPSHOT: ReportLibrarySnapshot = {
 
 const toMessage = (error: Error) => error.message
 
-const createReportLibraryStore = (): ReportLibraryStore => {
+const createStoredReportsStore = (): StoredReportsStore => {
   let snapshot = SERVER_SNAPSHOT
   const listeners = new Set<() => void>()
 
-  const publish = (nextSnapshot: ReportLibrarySnapshot) => {
+  const publish = (nextSnapshot: StoredReportsSnapshot) => {
     snapshot = nextSnapshot
 
     for (const listener of listeners) {
@@ -44,7 +44,7 @@ const createReportLibraryStore = (): ReportLibraryStore => {
       const failure =
         cause instanceof Error
           ? cause
-          : new Error("Unable to read the report library.")
+          : new Error("Unable to read saved reports.")
 
       publish({ ...snapshot, isLoading: false, error: toMessage(failure) })
     }
@@ -61,8 +61,8 @@ const createReportLibraryStore = (): ReportLibraryStore => {
   }
 }
 
-export const useReportLibrary = (isHydrated: boolean) => {
-  const store = useMemo(() => createReportLibraryStore(), [])
+export const useStoredReports = (isHydrated: boolean) => {
+  const store = useMemo(() => createStoredReportsStore(), [])
 
   useEffect(() => {
     if (isHydrated) {

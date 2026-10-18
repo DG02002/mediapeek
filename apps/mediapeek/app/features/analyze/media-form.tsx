@@ -44,7 +44,7 @@ import {
 } from "~/features/analyze/queue/use-analysis-queue"
 import { useClipboardUrl } from "~/features/analyze/use-clipboard-url"
 import { useTurnstileVerification } from "~/features/analyze/use-turnstile-verification"
-import { SaveAnalysisButton } from "~/features/library/save-analysis-button"
+import { SaveReportButton } from "~/features/reports/save-report-button"
 
 const usePendingStatusVisibility = (isPending: boolean) => {
   const [isVisible, setIsVisible] = useState(false)
@@ -510,7 +510,7 @@ export function MediaForm() {
       {selectedAnalysis?.outputs.json && (
         <div className="mt-6 w-full">
           <div className="animate-in fade-in slide-in-from-bottom-4 ease-smooth duration-300">
-            <SaveAnalysisButton
+            <SaveReportButton
               analysis={selectedAnalysis}
               requestTurnstileToken={requestTurnstileToken}
             />

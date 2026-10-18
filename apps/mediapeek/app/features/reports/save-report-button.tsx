@@ -3,20 +3,20 @@ import { useState } from "react"
 
 import { Button } from "~/components/ui/button"
 import type { AnalysisResult } from "~/features/analyze/analysis-session"
-import { parseMediaReport } from "~/features/library/media-report"
-import { saveReport } from "~/features/library/report-library"
-import { notifyReportsChanged } from "~/features/library/reports-changed"
+import { parseMediaReport } from "~/features/reports/media-report"
+import { saveReport } from "~/features/reports/report-storage"
+import { notifyReportsChanged } from "~/features/reports/reports-changed"
 import { fetchAnalyzeFormat } from "~/lib/analyze-client"
 
-interface SaveAnalysisButtonProps {
+interface SaveReportButtonProps {
   analysis: AnalysisResult
   requestTurnstileToken?: () => Promise<string | null>
 }
 
-export function SaveAnalysisButton({
+export function SaveReportButton({
   analysis,
   requestTurnstileToken,
-}: SaveAnalysisButtonProps) {
+}: SaveReportButtonProps) {
   const [message, setMessage] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 

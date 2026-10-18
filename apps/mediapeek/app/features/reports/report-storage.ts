@@ -41,10 +41,7 @@ const openReportDatabase = () =>
 
     request.addEventListener(
       "error",
-      () =>
-        reject(
-          request.error ?? new Error("Unable to open the report library.")
-        ),
+      () => reject(request.error ?? new Error("Unable to open saved reports.")),
       { once: true }
     )
 
@@ -62,7 +59,7 @@ const waitForRequest = <Value>(request: IDBRequest<Value>) =>
       "error",
       () =>
         reject(
-          request.error ?? new Error("The report library request failed.")
+          request.error ?? new Error("The report storage request failed.")
         ),
       { once: true }
     )
@@ -75,18 +72,14 @@ const waitForTransaction = (transaction: IDBTransaction) =>
       "abort",
       () =>
         reject(
-          transaction.error ??
-            new Error("The report library write was aborted.")
+          transaction.error ?? new Error("Saving the report was aborted.")
         ),
       { once: true }
     )
     transaction.addEventListener(
       "error",
       () =>
-        reject(
-          transaction.error ??
-            new Error("The report library transaction failed.")
-        ),
+        reject(transaction.error ?? new Error("Unable to save the report.")),
       { once: true }
     )
   })
