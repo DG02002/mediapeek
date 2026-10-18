@@ -21,7 +21,7 @@ catalog:
   markdownlint-cli2: ^0.23.3
   oxfmt: ^0.72.0
   oxlint: 1.87.0
-  oxlint-tsgolint: 7.0.2003
+  oxlint-tsgolint: 7.0.2004
   tsx: ^4.23.15
   typescript: 7.0.2
   vite: 8.3.4
