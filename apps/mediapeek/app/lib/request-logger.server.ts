@@ -36,10 +36,9 @@ export const getRequestIdFromLogger = (
   return getFallbackRequestId(request)
 }
 
-export const getRequestLogger = (request: Request): RequestLoggerHandle =>
-  createFallbackRequestLogger(request)
+export const getRequestLogger = createFallbackRequestLogger
 
-export const finishRequestLogger = (
+export const finishFallbackRequestLogger = (
   handle: RequestLoggerHandle,
   status: number,
   error?: Error

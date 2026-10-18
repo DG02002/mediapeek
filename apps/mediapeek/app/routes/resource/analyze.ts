@@ -16,7 +16,7 @@ import {
 } from "~/constants"
 import { type LogContext, requestStorage } from "~/lib/logger.server"
 import {
-  finishRequestLogger,
+  finishFallbackRequestLogger,
   getRequestIdFromLogger,
   getRequestLogger,
 } from "~/lib/request-logger.server"
@@ -676,7 +676,11 @@ const finalizeAnalyzeRequest = (execution: AnalyzeExecution) => {
     durationMs: performance.now() - startTime,
   })
 
-  finishRequestLogger(requestLoggerHandle, state.status, state.requestError)
+  finishFallbackRequestLogger(
+    requestLoggerHandle,
+    state.status,
+    state.requestError
+  )
 }
 
 const executeAnalyzeRequest = async (

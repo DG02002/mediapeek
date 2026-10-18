@@ -5,7 +5,6 @@
   "routeFileIgnorePattern": "\\.(test|spec)\\.(ts|tsx)$",
   "routeTreeFileFooter": [
     "import type { createStart } from \"@tanstack/react-start\"",
-    "import type { getRouter } from \"./router.tsx\"",
-    "declare module \"@tanstack/react-start\" {\n  interface Register {\n    ssr: true\n    router: Awaited<ReturnType<typeof getRouter>>\n  }\n}"
+    "import type { getRouter } from \"./router.tsx\"\ndeclare module \"@tanstack/react-start\" {\n  interface Register {\n    ssr: true\n    router: Awaited<ReturnType<typeof getRouter>>\n  }\n}"
   ]
 }

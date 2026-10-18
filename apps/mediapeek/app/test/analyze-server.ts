@@ -1,4 +1,4 @@
-import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
+import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/constants"
 import { Result, Schema } from "effect"
 
 const encoder = new TextEncoder()
