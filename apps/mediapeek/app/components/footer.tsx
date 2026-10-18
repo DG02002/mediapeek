@@ -5,7 +5,7 @@ const CURRENT_YEAR = new Date().getFullYear()
 export function Footer() {
   return (
     <footer className="bg-muted/50 border-t backdrop-blur-md">
-      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-12">
+      <div className="w-full px-6 py-6 md:px-8 lg:px-10 xl:px-14">
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
           <p className="text-muted-foreground text-center text-sm font-medium">
             Copyright &copy; {CURRENT_YEAR} MediaPeek. All rights reserved.

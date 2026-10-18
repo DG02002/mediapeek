@@ -217,7 +217,7 @@ export function MediaForm() {
   }
 
   return (
-    <div className="flex min-h-[50vh] w-full flex-col justify-center py-8">
+    <div className="flex w-full flex-col pt-4 md:pt-6">
       <div className="relative w-full sm:py-2">
         <div className="relative z-10 space-y-8">
           <form onSubmit={onSubmit} className="relative space-y-5" noValidate>
@@ -246,7 +246,7 @@ export function MediaForm() {
               </div>
             </div>
 
-            <InputGroup className="h-13.5 rounded-full border-2 bg-muted/30 has-[[data-slot=input-group-control]:focus-visible]:border-primary has-[[data-slot=input-group-control]:focus-visible]:ring-0">
+            <InputGroup className="h-13.5 w-full rounded-full border-2 border-border bg-muted/30 sm:flex-1 has-[[data-slot=input-group-control]:focus-visible]:border-2 has-[[data-slot=input-group-control]:focus-visible]:border-blue-500 has-[[data-slot=input-group-control]:focus-visible]:ring-0">
               <InputGroupInput
                 name="url"
                 placeholder="https://example.com/video"

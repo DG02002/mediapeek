@@ -7,7 +7,7 @@ import {
   MoreVerticalIcon,
 } from "@hugeicons/core-free-icons"
 
-import { Button, buttonVariants } from "~/components/ui/button"
+import { buttonVariants } from "~/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -77,26 +77,45 @@ export function ReportRow({
   return (
     <li
       className={cn(
-        "bg-card flex items-center gap-3 rounded-xl border p-4 transition-colors",
-        selected && "border-primary/60"
+        "flex w-full items-stretch border-b transition-colors hover:bg-muted",
+        selected && "bg-sky-500/15 hover:bg-sky-500/20"
       )}
     >
       <button
         type="button"
         onClick={onOpen}
         aria-pressed={selected}
-        className="min-w-0 flex-1 text-left"
+        className={cn(
+          "flex min-h-24 min-w-0 flex-1 items-center gap-3 px-4 py-6 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+          selected ? "active:bg-sky-500/30" : "active:bg-muted/70"
+        )}
       >
-        <span className="block truncate font-medium">{report.filename}</span>
-        <span className="text-muted-foreground mt-1 block truncate text-sm">
-          {report.sourceUrl}
+        <span className="flex size-10 shrink-0 items-center justify-center text-foreground md:size-14">
+          <Icon icon={File01Icon} size={24} />
         </span>
-        <span className="text-muted-foreground mt-2 block text-sm">
-          {summary}
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="block truncate text-sm font-medium md:text-lg">
+            {report.filename}
+          </span>
+          <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="min-w-0 truncate">{report.sourceUrl}</span>
+            <span aria-hidden="true" className="shrink-0">
+              ·
+            </span>
+            <span className="min-w-0 truncate">{summary}</span>
+          </span>
+          <time
+            dateTime={report.analyzedAt}
+            className="text-muted-foreground/80 text-xs sm:hidden"
+          >
+            {Number.isNaN(analyzedAt.getTime())
+              ? report.analyzedAt
+              : analyzedAtFormatter.format(analyzedAt)}
+          </time>
         </span>
         <time
           dateTime={report.analyzedAt}
-          className="text-muted-foreground/80 mt-2 block text-xs"
+          className="text-muted-foreground/80 hidden shrink-0 text-xs sm:block"
         >
           {Number.isNaN(analyzedAt.getTime())
             ? report.analyzedAt
@@ -105,7 +124,10 @@ export function ReportRow({
       </button>
       <DropdownMenu>
         <DropdownMenuTrigger
-          className={cn(buttonVariants({ variant: "ghost", size: "icon" }))}
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "icon" }),
+            "my-auto me-2 shrink-0"
+          )}
         >
           <Icon icon={MoreVerticalIcon} size={18} />
           <span className="sr-only">Actions for {report.filename}</span>
@@ -129,9 +151,6 @@ export function ReportRow({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <Button type="button" size="sm" variant="outline" onClick={onOpen}>
-        Open
-      </Button>
     </li>
   )
 }

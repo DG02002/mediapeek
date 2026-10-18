@@ -23,7 +23,7 @@ export default function AppRoute() {
   return (
     <div className="flex min-h-screen flex-col font-sans">
       <Header sticky={false} />
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-12 sm:px-12">
+      <main className="flex w-full flex-1 flex-col px-6 py-8 md:px-8 md:py-12 lg:px-10 xl:px-14">
         {isHydrated ? (
           <>
             <MediaForm />

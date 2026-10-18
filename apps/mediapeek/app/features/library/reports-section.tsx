@@ -174,10 +174,13 @@ export function ReportsSection() {
   }
 
   return (
-    <section aria-labelledby="reports-title" className="mt-16 space-y-4">
+    <section
+      aria-labelledby="recent-title"
+      className="mt-12 space-y-4 md:mt-16"
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="reports-title" className="text-lg font-semibold">
-          Reports{" "}
+        <h2 id="recent-title" className="text-2xl font-bold">
+          Recent{" "}
           {reports.length > 0 && (
             <span className="text-muted-foreground">
               ({String(reports.length)})
@@ -237,7 +240,7 @@ export function ReportsSection() {
       )}
 
       {!librarySnapshot.isLoading && reports.length === 0 && (
-        <p className="bg-card text-muted-foreground rounded-2xl border p-5 text-sm">
+        <p className="border-border text-muted-foreground border-y px-4 py-6 text-sm">
           Reports you analyze stay on this device. Choose “Save report” after an
           analysis to keep one here.
         </p>
@@ -251,7 +254,7 @@ export function ReportsSection() {
         />
       ) : (
         reports.length > 0 && (
-          <ol className="space-y-3">
+          <ol className="border-border border-t">
             {reports.map((report) => (
               <ReportRow
                 key={report.id}

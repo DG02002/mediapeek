@@ -139,7 +139,7 @@ export default function HomeRoute() {
       <Header />
       <main className="flex-1">
         <section className="from-muted/35 to-background bg-linear-to-b">
-          <div className="mx-auto flex w-full max-w-5xl flex-col items-center px-4 py-16 text-center sm:px-12 sm:py-24">
+          <div className="flex w-full flex-col items-center px-6 py-16 text-center md:px-8 md:py-24 lg:px-10 xl:px-14">
             <div className="relative h-28 w-28 sm:h-32 sm:w-32">
               <img
                 src="/badges/icon-light.webp"
@@ -152,7 +152,7 @@ export default function HomeRoute() {
                 className="h-full w-full object-contain dark:hidden"
               />
             </div>
-            <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-6xl">
+            <h1 className="mt-6 text-5xl font-normal tracking-tight text-balance md:text-7xl lg:text-[5.5rem] lg:leading-[0.95]">
               MediaPeek
             </h1>
             <p className="text-muted-foreground mt-5 max-w-3xl text-lg leading-relaxed sm:text-xl">
@@ -170,7 +170,7 @@ export default function HomeRoute() {
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-5xl px-4 pt-0 pb-16 sm:px-12 sm:pb-20">
+        <section className="w-full px-6 pt-0 pb-16 md:px-8 md:pb-20 lg:px-10 xl:px-14">
           <div className="from-muted/30 to-background isolate overflow-hidden rounded-3xl border bg-linear-to-b p-2 shadow-sm sm:p-3">
             <div className="bg-background overflow-hidden rounded-2xl border">
               {previewEmbed}
@@ -178,7 +178,7 @@ export default function HomeRoute() {
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-12 sm:pb-24">
+        <section className="w-full px-6 pb-16 md:px-8 md:pb-24 lg:px-10 xl:px-14">
           <div className="mb-14">
             <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
               What it does
@@ -228,7 +228,7 @@ export default function HomeRoute() {
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-12 sm:pb-20">
+        <section className="w-full px-6 pb-16 md:px-8 md:pb-20 lg:px-10 xl:px-14">
           <Card className="border-border/70 from-muted/25 to-background bg-linear-to-b">
             <CardHeader>
               <CardTitle className="text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -269,7 +269,7 @@ export default function HomeRoute() {
           </Card>
         </section>
 
-        <section className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-12 sm:pb-20">
+        <section className="w-full px-6 pb-16 md:px-8 md:pb-20 lg:px-10 xl:px-14">
           <div className="from-muted/35 via-background to-muted/10 border-border/70 overflow-hidden rounded-[2rem] border bg-linear-to-br">
             <div className="space-y-6 px-6 py-8 sm:px-10 sm:py-10">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
@@ -324,7 +324,7 @@ export default function HomeRoute() {
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-12 sm:pb-20">
+        <section className="w-full px-6 pb-16 md:px-8 md:pb-20 lg:px-10 xl:px-14">
           <div className="from-muted/35 via-background to-muted/15 border-border/70 overflow-hidden rounded-[2rem] border bg-linear-to-br">
             <div className="px-6 py-8 sm:px-10 sm:py-10">
               <div className="space-y-6">
@@ -371,7 +371,7 @@ export default function HomeRoute() {
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-12 sm:pb-20">
+        <section className="w-full px-6 pb-16 md:px-8 md:pb-20 lg:px-10 xl:px-14">
           <div className="from-muted/35 via-background to-muted/10 border-border/70 overflow-hidden rounded-[2rem] border bg-linear-to-br">
             <div className="space-y-6 px-6 py-8 sm:px-10 sm:py-10">
               <div className="space-y-3">

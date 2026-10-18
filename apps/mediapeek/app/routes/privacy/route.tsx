@@ -1,5 +1,6 @@
-import { Footer } from "~/components/footer"
-import { Header } from "~/components/header"
+import { Link } from "react-router"
+
+import { PolicyLayout, PolicySection } from "~/components/policy-layout"
 
 import type { Route } from "./+types/route"
 
@@ -7,223 +8,156 @@ export const meta: Route.MetaFunction = () => [
   { title: "Privacy Policy - MediaPeek" },
   {
     name: "description",
-    content: "Privacy Policy for MediaPeek - Learn how we handle your data.",
+    content: "How the MediaPeek web app handles URLs, reports, and sharing.",
   },
 ]
 
 export default function PrivacyPolicy() {
   return (
-    <div className="flex min-h-screen flex-col font-sans">
-      <Header />
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-12 sm:px-12">
-        <div className="mx-auto w-full space-y-10">
-          <div className="-mx-4 flex flex-col gap-4 px-4 pt-4 pb-0 sm:-mx-12 sm:px-12">
-            <h1 className="scroll-m-20 text-3xl font-extrabold tracking-tight lg:text-4xl">
-              Privacy Policy
-            </h1>
-            <div className="bg-border h-px w-full" />
-          </div>
+    <PolicyLayout
+      title="Privacy Policy"
+      description="This draft describes the information processed when you analyze a media URL, keep a report in your browser, export it, or choose to share it."
+    >
+      <PolicySection title="How MediaPeek works">
+        <p>
+          MediaPeek has no accounts or sign-in. When you submit a URL, your
+          browser sends it to MediaPeek&apos;s analyze endpoint. The web Worker
+          validates the request and passes it to the analyzer Worker, which
+          requests media bytes from the source URL and returns the analysis.
+        </p>
+        <p>
+          The analyzer uses byte-range requests where the source supports them.
+          The source host receives those requests from MediaPeek&apos;s
+          infrastructure and may process them under its own privacy terms. A URL
+          can contain private or identifying information, so submit only URLs
+          you intend to send to the service and their source host.
+        </p>
+      </PolicySection>
 
-          <div className="mt-6! flex items-center gap-2">
-            <span className="bg-muted text-muted-foreground rounded-md px-2 py-1 text-sm font-medium">
-              Last Updated: October 17, 2026
-            </span>
-          </div>
+      <PolicySection title="Reports stay in your browser">
+        <p>
+          Analysis results remain in the browser unless you choose to export or
+          share them. When you save a Media Report, MediaPeek stores its
+          requested output formats in IndexedDB on your device. The report
+          remains there until you delete it or clear this site&apos;s browser
+          data. MediaPeek does not keep a server-side report library.
+        </p>
+        <p>
+          Exporting downloads a file to your device. Importing a report library
+          reads the file you choose and adds its reports to this browser&apos;s
+          library.
+        </p>
+      </PolicySection>
 
-          <section className="space-y-4">
-            <h2 className="scroll-m-20 text-3xl font-semibold tracking-tight first:mt-0">
-              What Is Personal Data at MediaPeek?
-            </h2>
-            <p className="leading-7 not-first:mt-6">
-              We consider &quot;personal data&quot; to be any data that relates
-              to an identified or identifiable individual. Due to the nature of
-              our Service, we primarily process technical data (URLs) which may
-              or may not contain personal identifiers depending on how you
-              structure them.
-            </p>
-          </section>
+      <PolicySection title="Clipboard and browser storage">
+        <p>
+          When your browser allows clipboard access, MediaPeek can check for a
+          URL when you focus the media URL field. The clipboard value stays in
+          your browser unless you submit it for analysis. You can also paste a
+          URL directly into the field.
+        </p>
+        <p>
+          MediaPeek uses a session cookie named <code>theme</code> to remember
+          the display theme. Turnstile verification is disabled by default. If
+          enabled, MediaPeek sets an <code>mp_turnstile_grant</code> cookie for
+          the analyze route and URL being analyzed; it expires within 10
+          minutes. The browser loads Cloudflare Turnstile and MediaPeek sends
+          the response token to Cloudflare for server-side verification. See
+          Cloudflare&apos;s{" "}
+          <a
+            href="https://www.cloudflare.com/en-au/turnstile-privacy-policy/"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-4"
+          >
+            Turnstile Privacy Addendum
+          </a>
+          .
+        </p>
+      </PolicySection>
 
-          <section className="space-y-4">
-            <h2 className="scroll-m-20 text-3xl font-semibold tracking-tight">
-              Your Privacy Rights at MediaPeek
-            </h2>
-            <p className="leading-7 not-first:mt-6">
-              At MediaPeek, we respect your ability to know, access, correct,
-              transfer, restrict the processing of, and delete your personal
-              data. Because we do not maintain user accounts or persistent
-              storage of your analyses, we generally do not hold personal data
-              that can be retrieved or deleted upon request.
-            </p>
-          </section>
+      <PolicySection title="Sharing a report">
+        <p>
+          Sharing is optional. When you choose Share, MediaPeek encrypts the
+          selected report output in your browser and uploads the encrypted
+          payload to PrivateBin. The generated link contains the decryption key
+          in its URL fragment. Anyone with the full link can open the report, so
+          share it only with people you trust. The upload is configured to
+          expire after one week; PrivateBin controls the hosted paste and its
+          availability.
+        </p>
+        <p>
+          Read the{" "}
+          <a
+            href="https://privatebin.info/"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-4"
+          >
+            PrivateBin project information
+          </a>{" "}
+          for how that service handles requests and encrypted pastes.
+        </p>
+      </PolicySection>
 
-          <section className="space-y-4">
-            <h2 className="scroll-m-20 text-3xl font-semibold tracking-tight">
-              Personal Data MediaPeek Collects from You
-            </h2>
-            <p className="leading-7 not-first:mt-6">
-              When you use MediaPeek, we may collect the following limited data:
-            </p>
-            <ul className="my-6 ml-6 list-disc [&>li]:mt-2">
-              <li>
-                <strong>Usage Data:</strong> Information about how you use the
-                Service, such as the URLs submitted for analysis and the
-                technical metadata generated.
-              </li>
-              <li>
-                <strong>Clipboard Access:</strong> MediaPeek may read your
-                clipboard to auto-detect media URLs when you focus the input
-                field. This data is processed locally in your browser and is not
-                transmitted to our servers unless you submit the URL for
-                analysis.
-              </li>
-              <li>
-                <strong>Request Metadata:</strong> IP addresses, browser type,
-                and timestamps, which are processed by our infrastructure
-                provider (Cloudflare) for security and analytics purposes.
-              </li>
-              <li>
-                <strong>Optional Turnstile verification:</strong> Turnstile is
-                disabled by default. When enabled, your browser loads Cloudflare
-                Turnstile and MediaPeek sends its response token to Cloudflare
-                for server-side verification before analyzing a URL. When
-                disabled, MediaPeek does not load the widget or require a
-                Turnstile token. Read Cloudflare’s{" "}
-                <a
-                  href="https://www.cloudflare.com/en-au/turnstile-privacy-policy/"
-                  className="underline underline-offset-4"
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  Turnstile Privacy Addendum
-                </a>{" "}
-                for information about its processing.
-              </li>
-            </ul>
-          </section>
+      <PolicySection title="Service diagnostics">
+        <p>
+          MediaPeek&apos;s analyze endpoint can record request IDs, request
+          paths, response status, timing, IP address, and browser user-agent for
+          service operations. Analysis diagnostics can include the submitted
+          source URL with selected sensitive query values redacted. The logger
+          can sample routine entries; warnings, errors, and slow requests bypass
+          that sampling. The repository does not specify how long infrastructure
+          or diagnostic logs are retained.
+        </p>
+        <p>
+          MediaPeek runs on Cloudflare Workers. Cloudflare processes traffic to
+          deliver the service and may handle information under its own terms.
+          See the{" "}
+          <a
+            href="https://www.cloudflare.com/privacypolicy/"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-4"
+          >
+            Cloudflare Privacy Policy
+          </a>
+          . The repository does not establish a retention period for
+          infrastructure or diagnostic logs.
+        </p>
+      </PolicySection>
 
-          <section className="space-y-4">
-            <h2 className="scroll-m-20 text-3xl font-semibold tracking-tight">
-              MediaPeek’s Use of Personal Data
-            </h2>
-            <p className="leading-7 not-first:mt-6">
-              We use the data we collect for the following purposes:
-            </p>
-            <ul className="my-6 ml-6 list-disc [&>li]:mt-2">
-              <li>
-                <strong>Providing the Service:</strong> To fetch the media file
-                from the URL you provide and extract its metadata.
-              </li>
-              <li>
-                <strong>Security and Fraud Prevention:</strong> To detect and
-                prevent abuse of our Service (e.g., bot attacks).
-              </li>
-              <li>
-                <strong>Infrastructure Maintenance:</strong> To monitor the
-                performance and stability of our serverless workers.
-              </li>
-            </ul>
-          </section>
+      <PolicySection title="Your choices and questions">
+        <p>
+          You can delete saved reports in MediaPeek or clear this site&apos;s
+          browser data, including its cookies. You control whether to export a
+          report or create a PrivateBin share link.
+        </p>
+        <p>
+          For questions or corrections, use the{" "}
+          <a
+            href="https://github.com/DG02002/mediapeek/issues"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-4"
+          >
+            MediaPeek GitHub issues page
+          </a>
+          . Issues are public; do not include personal, private, or confidential
+          information.
+        </p>
+      </PolicySection>
 
-          <section className="space-y-4">
-            <h2 className="scroll-m-20 text-3xl font-semibold tracking-tight">
-              MediaPeek’s Sharing of Personal Data
-            </h2>
-            <p className="leading-7 not-first:mt-6">
-              We do not sell your personal data. We share data only with our
-              trusted infrastructure provider:
-            </p>
-            <ul className="my-6 ml-6 list-disc [&>li]:mt-2">
-              <li>
-                <strong>Cloudflare:</strong> We use Cloudflare for hosting, edge
-                computing (Workers), and security (Turnstile). Data processed by
-                MediaPeek flows through Cloudflare&apos;s network.
-              </li>
-            </ul>
-          </section>
-
-          <section className="space-y-4">
-            <h2 className="scroll-m-20 text-3xl font-semibold tracking-tight">
-              Protection of Personal Data at MediaPeek
-            </h2>
-            <p className="leading-7 not-first:mt-6">
-              We implement robust security measures to protect your data.
-              importantly:
-            </p>
-            <ul className="my-6 ml-6 list-disc [&>li]:mt-2">
-              <li>
-                <strong>Ephemeral Processing:</strong> We{" "}
-                <strong>do not</strong> store the media files you analyze. They
-                are fetched temporarily by our servers solely for the purpose of
-                extracting metadata and are discarded immediately after
-                processing.
-              </li>
-              <li>
-                <strong>No Long-term Logs:</strong> We do not build long-term
-                profiles of user activity.
-              </li>
-            </ul>
-          </section>
-
-          <section className="space-y-4">
-            <h2 className="scroll-m-20 text-3xl font-semibold tracking-tight">
-              Cookies and Other Technologies
-            </h2>
-            <p className="leading-7 not-first:mt-6">
-              We use essential technologies for the operation of the Service:
-            </p>
-            <ul className="my-6 ml-6 list-disc [&>li]:mt-2">
-              <li>
-                <strong>Local Storage:</strong> We may use local storage on your
-                device to save your preferences (such as theme headers).
-              </li>
-              <li>
-                <strong>Security Cookies:</strong> Our providers (like
-                Cloudflare) may place cookies to detect malicious traffic.
-              </li>
-            </ul>
-          </section>
-
-          <section className="space-y-4">
-            <h2 className="scroll-m-20 text-3xl font-semibold tracking-tight">
-              Transfer of Personal Data Between Countries
-            </h2>
-            <p className="leading-7 not-first:mt-6">
-              MediaPeek’s services connect you to the world. To make that
-              possible, your personal data may be transferred to or accessed by
-              entities around the world, including Cloudflare’s distributed data
-              centers. MediaPeek complies with laws on the transfer of personal
-              data between countries to help ensure your data is protected,
-              wherever it may be.
-            </p>
-          </section>
-
-          <section className="space-y-4">
-            <h2 className="scroll-m-20 text-3xl font-semibold tracking-tight">
-              Our Commitment to Your Privacy
-            </h2>
-            <p className="leading-7 not-first:mt-6">
-              To ensure your personal data is secure, MediaPeek is built with
-              privacy-first principles. As an open-source project, our code is
-              publicly auditable, and privacy safeguards are baked into the
-              architecture from the ground up.
-            </p>
-          </section>
-
-          <div className="bg-border h-px w-full" />
-
-          <section className="space-y-4">
-            <h3 className="scroll-m-20 text-2xl font-semibold tracking-tight">
-              Privacy Questions
-            </h3>
-            <p className="leading-7 not-first:mt-6">
-              If you have any questions about this Privacy Policy or our
-              practices, please contact us via our GitHub repository issues
-              page.
-            </p>
-          </section>
-        </div>
-      </main>
-      <Footer />
-    </div>
+      <PolicySection title="Related terms">
+        <p>
+          The service terms are on the{" "}
+          <Link to="/terms" className="underline underline-offset-4">
+            Terms of Use
+          </Link>{" "}
+          page. Both policy drafts need product and legal review before
+          publication.
+        </p>
+      </PolicySection>
+    </PolicyLayout>
   )
 }
