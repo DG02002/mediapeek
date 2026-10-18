@@ -1,7 +1,8 @@
 /// <reference types="vitest" />
 import { cloudflare } from "@cloudflare/vite-plugin"
-import { reactRouter } from "@react-router/dev/vite"
 import tailwindcss from "@tailwindcss/vite"
+import { tanstackStart } from "@tanstack/react-start/plugin/vite"
+import viteReact from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
 export default defineConfig({
@@ -25,13 +26,12 @@ export default defineConfig({
       viteEnvironment: { name: "ssr" },
     }),
     tailwindcss(),
-    reactRouter(),
+    tanstackStart({
+      srcDirectory: "./app",
+    }),
+    viteReact(),
   ],
   define: {
     __BUILD_NUMBER__: JSON.stringify(new Date().toISOString().split("T")[0]),
-  },
-  test: {
-    globals: true,
-    environment: "jsdom",
   },
 })

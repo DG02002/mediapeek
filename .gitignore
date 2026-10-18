@@ -17,9 +17,6 @@ build/
 dist/
 *.tsbuildinfo
 
-# React Router
-.react-router/
-
 # Cloudflare
 .mf
 .wrangler

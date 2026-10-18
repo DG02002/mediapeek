@@ -1,5 +1,5 @@
+import { useLocation } from "@tanstack/react-router"
 import { useEffect, useState } from "react"
-import { useLocation } from "react-router"
 
 /**
  * Announces page changes to screen readers.
@@ -16,14 +16,16 @@ export function RouteAnnouncer() {
       if (document.title) {
         setAnnouncement(`Navigated to ${document.title}`)
       } else {
-        setAnnouncement(`Navigated to ${location.pathname}${location.search}`)
+        setAnnouncement(
+          `Navigated to ${location.pathname}${location.searchStr}`
+        )
       }
     }, 100)
 
     return () => {
       clearTimeout(timer)
     }
-  }, [location.pathname, location.search])
+  }, [location.pathname, location.searchStr])
 
   return (
     <div

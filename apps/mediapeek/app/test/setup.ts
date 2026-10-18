@@ -20,4 +20,9 @@ Object.defineProperty(window, "matchMedia", {
   value: (media: string) => createMatchMediaList(media),
 })
 
+Object.defineProperty(window, "scrollTo", {
+  configurable: true,
+  value: noop,
+})
+
 afterEach(cleanup)

@@ -1,5 +1,4 @@
 /// <reference types="vite/client" />
-/// <reference types="@react-router/node" />
 
 interface Env {
   ANALYZER?: Fetcher;
@@ -19,25 +18,7 @@ interface Env {
   TURNSTILE_GRANT_SECRET?: string;
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_ENABLED?: string;
-  SESSION_SECRET?: string;
   SERVICE_VERSION?: string;
-}
-
-
-
-declare module "virtual:react-router/server-build" {
-  import type { ServerBuild } from "react-router";
-
-  export const routes: ServerBuild["routes"];
-  export const assets: ServerBuild["assets"];
-  export const future: ServerBuild["future"];
-  export const publicPath: ServerBuild["publicPath"];
-  export const entry: ServerBuild["entry"];
-  export const assetsBuildDirectory: ServerBuild["assetsBuildDirectory"];
-  export const ssr: ServerBuild["ssr"];
-  export const isSpaMode: ServerBuild["isSpaMode"];
-  export const prerender: ServerBuild["prerender"];
-  export const routeDiscovery: ServerBuild["routeDiscovery"];
 }
 
 declare module "mediainfo.js" {

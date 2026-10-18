@@ -1,4 +1,4 @@
-import { Link } from "react-router"
+import { Link } from "@tanstack/react-router"
 
 const CURRENT_YEAR = new Date().getFullYear()
 

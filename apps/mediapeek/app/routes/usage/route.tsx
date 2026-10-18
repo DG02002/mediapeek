@@ -1,18 +1,8 @@
-import { Link } from "react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
 
 import { PolicyLayout, PolicySection } from "~/components/policy-layout"
 
-import type { Route } from "./+types/route"
-
-export const meta: Route.MetaFunction = () => [
-  { title: "Usage Policy - MediaPeek" },
-  {
-    name: "description",
-    content: "Rules for submitting media URLs to MediaPeek.",
-  },
-]
-
-export default function UsagePolicy() {
+function UsagePolicy() {
   return (
     <PolicyLayout
       title="Usage Policy"
@@ -144,3 +134,16 @@ export default function UsagePolicy() {
     </PolicyLayout>
   )
 }
+
+export const Route = createFileRoute("/usage")({
+  head: () => ({
+    meta: [
+      { title: "Usage Policy - MediaPeek" },
+      {
+        name: "description",
+        content: "Rules for submitting media URLs to MediaPeek.",
+      },
+    ],
+  }),
+  component: UsagePolicy,
+})

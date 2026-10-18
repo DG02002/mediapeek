@@ -7,7 +7,8 @@
       "project": ["scripts/**/*.{ts,mjs}"]
     },
     "apps/mediapeek": {
-      "entry": ["*.{ts,tsx,mjs}", "app/features/analyze/analysis-session.ts"],
+      "entry": ["app/router.tsx"],
+      "ignoreDependencies": ["cloudflare"],
       "paths": {
         "~/*": ["./app/*"]
       },
@@ -18,7 +19,9 @@
         "*.{ts,tsx,mjs}"
       ],
       "ignoreIssues": {
-        "app/components/ui/**/*.tsx": ["exports"]
+        "app/components/ui/**/*.tsx": ["exports"],
+        "app/lib/logger.server.ts": ["exports", "types"],
+        "app/routes/app/compare/route.tsx": ["types"]
       }
     },
     "apps/mediapeek-analyzer": {

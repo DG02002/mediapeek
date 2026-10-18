@@ -6,12 +6,14 @@
     "base.json",
     "react-library.json",
     "react-router.json",
+    "tanstack-start.json",
     "hono.json"
   ],
   "exports": {
     "./base": "./base.json",
     "./react-library": "./react-library.json",
     "./react-router": "./react-router.json",
+    "./tanstack-start": "./tanstack-start.json",
     "./hono": "./hono.json"
   },
   "peerDependencies": {

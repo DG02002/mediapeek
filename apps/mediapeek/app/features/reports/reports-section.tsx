@@ -1,7 +1,7 @@
 "use client"
 
+import { useNavigate } from "@tanstack/react-router"
 import { useState } from "react"
-import { useNavigate } from "react-router"
 
 import {
   AlertDialog,
@@ -76,12 +76,17 @@ export function ReportsSection() {
             <ReportRow
               key={report.id}
               report={report}
-              onOpen={() => void navigate(`/app/item/${report.id}`)}
+              onOpen={() =>
+                void navigate({
+                  to: "/app/item/$itemId",
+                  params: { itemId: report.id },
+                })
+              }
               onCompare={() => {
-                const params = new URLSearchParams()
-
-                params.append("item", report.id)
-                void navigate(`/app/compare?${params.toString()}`)
+                void navigate({
+                  to: "/app/compare",
+                  search: { item: [report.id] },
+                })
               }}
               onDelete={() => setDeleteTarget(report)}
             />

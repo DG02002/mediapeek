@@ -1,23 +1,13 @@
 import { createEvlogLoggerConfig } from "@mediapeek/shared/evlog"
 import { Schema } from "effect"
 import { createRequestLogger, initLogger, type AuditableLogger } from "evlog"
-import { evlog, loggerContext } from "evlog/react-router"
-import type { MiddlewareFunction, RouterContext } from "react-router"
 
 export interface RequestLoggerHandle {
   readonly logger: AuditableLogger
   readonly managed: boolean
 }
 
-export interface RequestContextProvider {
-  get<T>(context: RouterContext<T>): T
-}
-
 initLogger(createEvlogLoggerConfig("mediapeek"))
-
-export const requestLoggerMiddleware: MiddlewareFunction<Response> = evlog({
-  include: ["/api/analyze"],
-})
 
 const getFallbackRequestId = (request: Request) =>
   request.headers.get("x-request-id")?.trim() ||
@@ -48,22 +38,8 @@ export const getRequestIdFromLogger = (
   return getFallbackRequestId(request)
 }
 
-export const getRequestLogger = (
-  context: RequestContextProvider,
-  request: Request
-): RequestLoggerHandle => {
-  try {
-    const logger = context.get(loggerContext)
-
-    if (logger) {
-      return { logger, managed: true }
-    }
-  } catch {
-    return createFallbackRequestLogger(request)
-  }
-
-  return createFallbackRequestLogger(request)
-}
+export const getRequestLogger = (request: Request): RequestLoggerHandle =>
+  createFallbackRequestLogger(request)
 
 export const finishFallbackRequestLogger = (
   handle: RequestLoggerHandle,

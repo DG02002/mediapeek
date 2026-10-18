@@ -133,7 +133,7 @@ import wasmModule from "./MediaInfoModule.wasm"
 
 ### Prerendering
 
-**DO NOT enable `prerender()` in `react-router.config.ts`.**
+**Do not enable prerendering for this app in TanStack Start.**
 
 Prerendering runs server code at build time in a Node.js/Vite environment, which triggers WASM loading via the direct `.wasm` import. This environment cannot handle WASM imports the same way Cloudflare Workers can, resulting in build errors like:
 

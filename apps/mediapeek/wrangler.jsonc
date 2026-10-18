@@ -3,11 +3,8 @@
   "name": "mediapeek",
   "compatibility_date": "2026-10-13",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "workers/app.ts",
-  "assets": {
-    "binding": "ASSETS",
-    "directory": "public",
-  },
+  "main": "./app/server.ts",
+  "upload_source_maps": true,
   "services": [
     {
       "binding": "ANALYZER",

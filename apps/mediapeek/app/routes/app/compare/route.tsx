@@ -1,6 +1,5 @@
-"use client"
-
-import { Link, useNavigate, useSearchParams } from "react-router"
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
+import { Schema } from "effect"
 
 import { MediaSkeleton } from "~/components/media-skeleton"
 import { buttonVariants } from "~/components/ui/button"
@@ -8,18 +7,23 @@ import { ReportCompare } from "~/features/compare/report-compare"
 import { useStoredReports } from "~/features/reports/use-stored-reports"
 import { useHydrated } from "~/hooks/use-hydrated"
 
-import type { Route } from "./+types/route"
+const compareSearchSchema = Schema.Struct({
+  item: Schema.optionalKey(
+    Schema.Union([Schema.String, Schema.Array(Schema.String)])
+  ),
+  format: Schema.optionalKey(Schema.String),
+})
 
-export const meta: Route.MetaFunction = () => [
-  { title: "Compare Media Reports - MediaPeek" },
-]
+export interface CompareSearch {
+  item: Array<string>
+  format?: string
+}
 
-export default function AppCompareRoute() {
-  const [searchParams] = useSearchParams()
+function AppComparePage() {
+  const { item: itemIds } = Route.useSearch()
   const navigate = useNavigate()
   const isHydrated = useHydrated()
   const reportsSnapshot = useStoredReports(isHydrated)
-  const itemIds = searchParams.getAll("item")
 
   const baseReport = reportsSnapshot.reports.find(
     (report) => report.id === itemIds[0]
@@ -55,7 +59,26 @@ export default function AppCompareRoute() {
     <ReportCompare
       baseReport={baseReport}
       reports={reportsSnapshot.reports}
-      onClose={() => void navigate("/app")}
+      onClose={() => void navigate({ to: "/app" })}
     />
   )
 }
+
+export const Route = createFileRoute("/app/compare")({
+  validateSearch: (search) => {
+    const { format, item } =
+      Schema.decodeUnknownSync(compareSearchSchema)(search)
+
+    const validatedSearch: CompareSearch = {
+      item: Schema.is(Schema.String)(item) ? [item] : Array.from(item ?? []),
+    }
+
+    if (format) {
+      validatedSearch.format = format
+    }
+
+    return validatedSearch
+  },
+  head: () => ({ meta: [{ title: "Compare Media Reports - MediaPeek" }] }),
+  component: AppComparePage,
+})

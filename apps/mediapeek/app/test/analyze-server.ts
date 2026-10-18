@@ -1,6 +1,6 @@
-import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
 import { Result, Schema } from "effect"
 
+const ANALYZE_PROGRESS_STREAM_CONTENT_TYPE = "application/x-ndjson"
 const encoder = new TextEncoder()
 
 const AnalyzeTestRequestSchema = Schema.Struct({
@@ -186,4 +186,46 @@ export const createAnalyzeServer = (): AnalyzeServer => {
       return script.respond(init)
     },
   }
+}
+
+export const createScriptedAnalyzerFetcher = async (request: {
+  readonly headers: Headers
+}) => {
+  if (
+    request.headers
+      .get("accept")
+      ?.includes(ANALYZE_PROGRESS_STREAM_CONTENT_TYPE)
+  ) {
+    return new Response('{"type":"started"}\n', {
+      headers: { "content-type": ANALYZE_PROGRESS_STREAM_CONTENT_TYPE },
+    })
+  }
+
+  return Response.json({
+    success: true,
+    requestId: "analyzer-request-id",
+    fileSize: 10,
+    results: { json: '{"media":{"track":[]}}' },
+    diagnostics: {
+      fetch: {
+        headRequestDurationMs: 1,
+        fetchRequestDurationMs: 1,
+        totalDurationMs: 2,
+        isGoogleDrive: false,
+        resolvedFilename: "video.mp4",
+        resolvedFilenameSource: "url",
+        responseStatus: 206,
+        probeMethod: "HEAD",
+      },
+      analysis: {
+        wasmLoadTimeMs: 1,
+        factoryCreateTimeMs: 1,
+        formatGenerationTimes: { json: 1 },
+        totalAnalysisTimeMs: 3,
+        formatErrors: {},
+        resolvedFilename: "video.mp4",
+        resolvedFilenameSource: "url",
+      },
+    },
+  })
 }
