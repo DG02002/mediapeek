@@ -64,13 +64,6 @@ interface CompareDiffSummary {
   readonly afterLabel: string
 }
 
-const diffRowKey = (row: CollapsedDiffRow, index: number) => {
-  const detail =
-    row.kind === "gap" ? `gap-${String(row.hiddenCount)}` : `line-${row.text}`
-
-  return `${String(index)}-${detail}`
-}
-
 const normalizeJsonOutput = (content: string) => {
   try {
     return JSON.stringify(JSON.parse(content), null, 2)
@@ -135,7 +128,8 @@ export function ReportCompare({
   const [isSwapped, setIsSwapped] = useState(false)
   const otherReports = reports.filter((report) => report.id !== baseReport.id)
 
-  const targetId = searchParams.get("with") ?? ""
+  const itemIds = searchParams.getAll("item")
+  const targetId = itemIds[1] ?? ""
   const formatParam = toCompareFormat(searchParams.get("format") ?? "")
   const targetReport = otherReports.find((report) => report.id === targetId)
   const beforeReport = isSwapped ? targetReport : baseReport
@@ -145,10 +139,14 @@ export function ReportCompare({
     formatParam ?? pickCompareFormat(baseReport, targetReport)
 
   const changeTarget = (id: string) => {
-    const next = new URLSearchParams(searchParams)
+    const next = new URLSearchParams()
 
-    next.set("with", id)
-    next.delete("format")
+    next.append("item", baseReport.id)
+
+    if (id) {
+      next.append("item", id)
+    }
+
     setSearchParams(next, { preventScrollReset: true })
   }
 
@@ -181,13 +179,6 @@ export function ReportCompare({
     isSwapped,
     format: resolvedFormat,
   })
-
-  const diffItems = diff
-    ? diff.rows.map((row, index) => ({
-        row,
-        key: diffRowKey(row, index),
-      }))
-    : []
 
   const sideBySideItems = diff
     ? toSideBySideDiffRows(diff.rows).map((row, index) => ({
@@ -319,36 +310,26 @@ export function ReportCompare({
               </span>
             </span>
           </div>
-          <div className="hidden grid-cols-2 divide-x md:grid">
-            <span
-              className="text-muted-foreground min-w-0 truncate border-b px-3 py-2 text-xs font-medium"
-              title={diff.beforeLabel}
-            >
-              Before · {diff.beforeLabel}
-            </span>
-            <span
-              className="text-muted-foreground min-w-0 truncate border-b px-3 py-2 text-xs font-medium"
-              title={diff.afterLabel}
-            >
-              After · {diff.afterLabel}
-            </span>
+          <div className="overflow-x-auto">
+            <div className="min-w-[42rem]">
+              <div className="grid grid-cols-2 divide-x border-b px-3 py-2 text-xs font-medium text-muted-foreground">
+                <span className="min-w-0 truncate" title={diff.beforeLabel}>
+                  Before · {diff.beforeLabel}
+                </span>
+                <span className="min-w-0 truncate" title={diff.afterLabel}>
+                  After · {diff.afterLabel}
+                </span>
+              </div>
+              <ol
+                aria-label="Side-by-side report diff"
+                className="font-mono text-xs leading-5"
+              >
+                {sideBySideItems.map((item) => (
+                  <SideBySideDiffRow key={item.key} row={item.row} />
+                ))}
+              </ol>
+            </div>
           </div>
-          <ol
-            aria-label="Side-by-side report diff"
-            className="hidden overflow-x-auto font-mono text-xs leading-5 md:block"
-          >
-            {sideBySideItems.map((item) => (
-              <SideBySideDiffRow key={item.key} row={item.row} />
-            ))}
-          </ol>
-          <ol
-            aria-label="Unified report diff"
-            className="overflow-x-auto py-2 font-mono text-xs leading-5 md:hidden"
-          >
-            {diffItems.map((item) => (
-              <DiffRow key={item.key} row={item.row} />
-            ))}
-          </ol>
         </div>
       )}
     </section>
@@ -365,49 +346,6 @@ const rowSigns: Record<LineDiffRowKind, string> = {
   context: "",
   added: "+",
   removed: "−",
-}
-
-function DiffRow({ row }: { row: CollapsedDiffRow }) {
-  if (row.kind === "gap") {
-    return (
-      <li
-        className="text-muted-foreground/70 select-none px-4 py-1 text-center"
-        aria-label={`${String(row.hiddenCount)} unchanged lines hidden`}
-      >
-        ⋯ {String(row.hiddenCount)} unchanged lines
-      </li>
-    )
-  }
-
-  return (
-    <li className={cn("flex gap-3 px-4", rowStyles[row.kind])}>
-      <span className="text-muted-foreground/50 w-10 shrink-0 select-none text-right tabular-nums">
-        {row.beforeNumber === null ? "" : String(row.beforeNumber)}
-      </span>
-      <span className="text-muted-foreground/50 w-10 shrink-0 select-none text-right tabular-nums">
-        {row.afterNumber === null ? "" : String(row.afterNumber)}
-      </span>
-      <span
-        className={cn(
-          "w-4 shrink-0 select-none",
-          row.kind === "added" && "text-emerald-600 dark:text-emerald-400",
-          row.kind === "removed" && "text-red-600 dark:text-red-400"
-        )}
-        aria-hidden
-      >
-        {rowSigns[row.kind]}
-      </span>
-      <span
-        className={cn(
-          "min-w-0 break-all whitespace-pre-wrap",
-          row.kind === "added" && "text-emerald-700 dark:text-emerald-300",
-          row.kind === "removed" && "text-red-700 dark:text-red-300"
-        )}
-      >
-        {row.text || " "}
-      </span>
-    </li>
-  )
 }
 
 function SideBySideDiffRow({

@@ -1,3 +1,4 @@
+import { readStreamBytesWithinLimit } from "@mediapeek/shared/bounded-stream-read"
 import { Schema } from "effect"
 
 import {
@@ -159,34 +160,6 @@ const parsePrivateBinResponse = async (
   return result
 }
 
-interface PrivateBinBodyReadState {
-  readonly reader: ReadableStreamDefaultReader<Uint8Array>
-  readonly signal: AbortSignal
-  readonly chunks: Uint8Array[]
-  byteLength: number
-}
-
-const readNextPrivateBinResponseChunk = async (
-  state: PrivateBinBodyReadState
-): Promise<void> => {
-  state.signal.throwIfAborted()
-  const { done, value } = await state.reader.read()
-
-  if (done) {
-    return
-  }
-
-  if (value.byteLength > MAX_PRIVATEBIN_RESPONSE_BYTES - state.byteLength) {
-    await state.reader.cancel()
-    throw new Error("PrivateBin response exceeded the maximum size.")
-  }
-
-  state.chunks.push(value)
-  state.byteLength += value.byteLength
-
-  return readNextPrivateBinResponseChunk(state)
-}
-
 const readPrivateBinResponseBody = async (
   response: Response,
   signal: AbortSignal
@@ -197,28 +170,22 @@ const readPrivateBinResponseBody = async (
     throw new Error("PrivateBin returned an empty response.")
   }
 
-  const state: PrivateBinBodyReadState = {
-    reader,
-    signal,
-    chunks: [],
-    byteLength: 0,
-  }
-
   try {
-    await readNextPrivateBinResponseChunk(state)
+    const bytes = await readStreamBytesWithinLimit({
+      reader,
+      maxBytes: MAX_PRIVATEBIN_RESPONSE_BYTES,
+      overflow: "reject",
+      signal,
+    })
+
+    if (bytes === null) {
+      throw new Error("PrivateBin response exceeded the maximum size.")
+    }
+
+    return new TextDecoder().decode(bytes)
   } finally {
     reader.releaseLock()
   }
-
-  const bytes = new Uint8Array(state.byteLength)
-  let offset = 0
-
-  for (const chunk of state.chunks) {
-    bytes.set(chunk, offset)
-    offset += chunk.byteLength
-  }
-
-  return new TextDecoder().decode(bytes)
 }
 
 // Simple Base58 encoder map

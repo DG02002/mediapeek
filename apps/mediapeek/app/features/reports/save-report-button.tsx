@@ -4,17 +4,22 @@ import { useState } from "react"
 import { Button } from "~/components/ui/button"
 import type { AnalysisResult } from "~/features/analyze/analysis-session"
 import { parseMediaReport } from "~/features/reports/media-report"
-import { reportStorageStore } from "~/features/reports/report-storage"
+import {
+  reportStorageStore,
+  type StoredReport,
+} from "~/features/reports/report-storage"
 import { fetchAnalyzeFormat } from "~/lib/analyze-client"
 
 interface SaveReportButtonProps {
   analysis: AnalysisResult
   requestTurnstileToken?: () => Promise<string | null>
+  onSaved?: (report: StoredReport) => void
 }
 
 export function SaveReportButton({
   analysis,
   requestTurnstileToken,
+  onSaved,
 }: SaveReportButtonProps) {
   const [message, setMessage] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -47,12 +52,14 @@ export function SaveReportButton({
         ? parsed.report.file.displayName
         : extractFilenameFromUrl(analysis.url)
 
-      await reportStorageStore.save({
+      const report = await reportStorageStore.save({
         sourceUrl: analysis.url,
         filename,
         analyzedAt: new Date().toISOString(),
         outputs,
       })
+
+      onSaved?.(report)
 
       setMessage(
         textUnavailable

@@ -1,30 +1,16 @@
 "use client"
 
-import {
-  AlertCircleIcon,
-  ArrowRight02Icon,
-  Loading03Icon,
-} from "@hugeicons/core-free-icons"
+import { AlertCircleIcon, ArrowRight02Icon } from "@hugeicons/core-free-icons"
 import { Schema } from "effect"
 import {
   type ClipboardEvent,
   type SyntheticEvent,
-  useEffect,
   useRef,
   useState,
 } from "react"
+import { useNavigate } from "react-router"
 
-import { MediaSkeleton } from "~/components/media-skeleton"
-import { MediaView } from "~/components/media-view"
-import { TurnstileWidget } from "~/components/turnstile-widget"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog"
 import { Icon } from "~/components/ui/icon"
 import {
   InputGroup,
@@ -34,32 +20,10 @@ import {
 } from "~/components/ui/input-group"
 import { ClipboardAccessIcon } from "~/features/analyze/clipboard-access-icon"
 import { ClipboardPermissionDialog } from "~/features/analyze/clipboard-permission-dialog"
-import {
-  type AnalysisQueueItem,
-  type AnalysisQueueItemStatus,
-} from "~/features/analyze/queue/analysis-queue"
-import {
-  useAnalysisQueue,
-  useAnalysisQueueFeedback,
-} from "~/features/analyze/queue/use-analysis-queue"
+import { useAnalysisQueue } from "~/features/analyze/queue/use-analysis-queue"
+import { TurnstileVerificationDialog } from "~/features/analyze/turnstile-verification-dialog"
 import { useClipboardUrl } from "~/features/analyze/use-clipboard-url"
 import { useTurnstileVerification } from "~/features/analyze/use-turnstile-verification"
-import { SaveReportButton } from "~/features/reports/save-report-button"
-
-const usePendingStatusVisibility = (isPending: boolean) => {
-  const [isVisible, setIsVisible] = useState(false)
-
-  useEffect(() => {
-    const timeoutId = setTimeout(
-      () => setIsVisible(isPending),
-      isPending ? 5_000 : 0
-    )
-
-    return () => clearTimeout(timeoutId)
-  }, [isPending])
-
-  return isVisible
-}
 
 const getFormString = (formData: FormData, name: string) => {
   const value = formData.get(name)
@@ -67,45 +31,13 @@ const getFormString = (formData: FormData, name: string) => {
   return Schema.is(Schema.String)(value) ? value : null
 }
 
-const statusLabels: Record<AnalysisQueueItemStatus, string> = {
-  queued: "Queued",
-  analyzing: "Analyzing",
-  done: "Done",
-  error: "Failed",
-}
-
-const getSelectedItem = (
-  items: ReadonlyArray<AnalysisQueueItem>,
-  selectedItemId: string | null
-) => {
-  const selectedItem = items.find((item) => item.id === selectedItemId)
-
-  if (selectedItem) {
-    return selectedItem
-  }
-
-  let latestDoneItem: AnalysisQueueItem | undefined
-
-  for (const item of items) {
-    if (item.status === "done") {
-      latestDoneItem = item
-    }
-  }
-
-  return latestDoneItem
-}
-
 export function MediaForm() {
-  const { queue, snapshot: queueSnapshot } = useAnalysisQueue()
-  useAnalysisQueueFeedback(queueSnapshot)
-
+  const navigate = useNavigate()
+  const { queue } = useAnalysisQueue()
   const [formError, setFormError] = useState<string | null>(null)
   const [inputValue, setInputValue] = useState("")
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [isClipboardDialogOpen, setIsClipboardDialogOpen] = useState(false)
-
-  const pendingUrlsRef = useRef<string | null>(null)
-  const pendingRetryItemIdRef = useRef<string | null>(null)
+  const pendingUrlRef = useRef<string | null>(null)
 
   const {
     enabled: turnstileEnabled,
@@ -117,14 +49,6 @@ export function MediaForm() {
     requestToken: requestTurnstileToken,
   } = useTurnstileVerification()
 
-  const selectedItem = getSelectedItem(queueSnapshot.items, selectedItemId)
-
-  const selectedAnalysis =
-    selectedItem?.status === "done" ? selectedItem.analysis : undefined
-
-  const isPending = queueSnapshot.activeItemId !== null
-  const shouldShowPendingStatus = usePendingStatusVisibility(isPending)
-
   const {
     clipboardUrl,
     clipboardPermission,
@@ -132,37 +56,43 @@ export function MediaForm() {
     checkClipboard,
     isClipboardApiSupported,
     requestClipboardAccess,
-  } = useClipboardUrl(selectedAnalysis?.url)
+  } = useClipboardUrl(undefined)
 
-  const enqueueUrls = (rawUrls: string, turnstileToken?: string) => {
-    const outcomes = queue.add(rawUrls, turnstileToken)
-    const queuedOutcome = outcomes.find((outcome) => outcome.kind === "queued")
+  const enqueueUrl = (url: string, turnstileToken?: string) => {
+    const outcome = queue.add(url, turnstileToken).at(0)
 
-    const duplicateOutcome = outcomes.find(
-      (outcome) => outcome.kind === "duplicate"
-    )
-
-    const invalidOutcome = outcomes.find((outcome) => outcome.kind === "error")
-
-    if (queuedOutcome?.kind === "queued") {
-      setSelectedItemId(queuedOutcome.itemId)
+    if (outcome?.kind === "queued") {
       setInputValue("")
-    } else if (duplicateOutcome?.kind === "duplicate") {
-      setSelectedItemId(duplicateOutcome.itemId)
+      setFormError(null)
+      void navigate(`/app/item/${outcome.itemId}`)
+
+      return
     }
 
-    if (invalidOutcome?.kind === "error") {
-      setFormError(invalidOutcome.message)
-    } else if (duplicateOutcome?.kind === "duplicate" && !queuedOutcome) {
-      setFormError("That URL is already in the queue.")
-    } else {
-      setFormError(null)
+    if (outcome?.kind === "duplicate") {
+      setInputValue("")
+      setFormError("That URL is already available in this session.")
+      void navigate(`/app/item/${outcome.itemId}`)
+
+      return
     }
+
+    setFormError(
+      outcome?.kind === "error" ? outcome.message : "Enter a media URL."
+    )
   }
 
-  const submitUrls = (rawUrls: string) => {
-    if (!rawUrls.trim()) {
+  const submitUrl = (rawUrl: string) => {
+    const url = rawUrl.trim()
+
+    if (!url) {
       setFormError("Enter a media URL.")
+
+      return
+    }
+
+    if (url.split(/\r?\n/u).filter(Boolean).length > 1) {
+      setFormError("Analyze one URL at a time.")
 
       return
     }
@@ -172,19 +102,19 @@ export function MediaForm() {
       : ""
 
     if (turnstileEnabled && !turnstileToken) {
-      pendingUrlsRef.current = rawUrls
+      pendingUrlRef.current = url
       setFormError(null)
       void requestTurnstileToken()
 
       return
     }
 
-    enqueueUrls(rawUrls, turnstileToken || undefined)
+    enqueueUrl(url, turnstileToken || undefined)
   }
 
   const onSubmit = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault()
-    submitUrls(getFormString(new FormData(event.currentTarget), "url") ?? "")
+    submitUrl(getFormString(new FormData(event.currentTarget), "url") ?? "")
   }
 
   const handleInputPaste = (event: ClipboardEvent<HTMLInputElement>) => {
@@ -195,25 +125,7 @@ export function MediaForm() {
     }
 
     event.preventDefault()
-    submitUrls(text)
-  }
-
-  const handleRetry = (itemId: string) => {
-    if (turnstileEnabled) {
-      pendingRetryItemIdRef.current = itemId
-      setFormError(null)
-      void requestTurnstileToken()
-
-      return
-    }
-
-    const outcome = queue.retry(itemId)
-
-    if (outcome.kind === "queued") {
-      setSelectedItemId(itemId)
-    } else if (outcome.kind === "error") {
-      setFormError(outcome.message)
-    }
+    setFormError("Analyze one URL at a time.")
   }
 
   return (
@@ -238,7 +150,7 @@ export function MediaForm() {
                       const url = clipboardUrl
 
                       ignoreClipboard()
-                      submitUrls(url)
+                      submitUrl(url)
                     }}
                     className="group w-full cursor-pointer rounded-md px-1 py-2 text-left"
                   >
@@ -254,7 +166,7 @@ export function MediaForm() {
               <div className="mb-4 translate-y-0 opacity-100 transition-[opacity,transform] duration-200 starting:-translate-y-2 starting:opacity-0">
                 <Alert id="media-url-error" variant="destructive">
                   <Icon icon={AlertCircleIcon} size={16} />
-                  <AlertTitle>Queue update</AlertTitle>
+                  <AlertTitle>Analysis could not start</AlertTitle>
                   <AlertDescription>{formError}</AlertDescription>
                 </Alert>
               </div>
@@ -301,8 +213,8 @@ export function MediaForm() {
                   size="icon-xs"
                   variant="default"
                   disabled={!inputValue.trim()}
-                  title="Add to queue"
-                  aria-label="Add to queue"
+                  title="Analyze URL"
+                  aria-label="Analyze URL"
                   className="size-11 rounded-full"
                 >
                   <Icon
@@ -327,201 +239,62 @@ export function MediaForm() {
                 ref={turnstileInputRef}
               />
             ) : null}
-
             {turnstileEnabled && (
-              <Dialog
+              <TurnstileVerificationDialog
                 open={isTurnstileDialogOpen}
+                widgetRef={turnstileWidgetRef}
                 onOpenChange={(open) => {
                   setIsTurnstileDialogOpen(open)
 
-                  if (open) {
-                    return
-                  }
+                  if (!open) {
+                    const hadPendingAction = pendingUrlRef.current !== null
 
-                  const hadPendingAction =
-                    pendingUrlsRef.current !== null ||
-                    pendingRetryItemIdRef.current !== null
+                    pendingUrlRef.current = null
+                    settleTurnstileTokenRequest(null)
 
-                  pendingUrlsRef.current = null
-                  pendingRetryItemIdRef.current = null
-                  settleTurnstileTokenRequest(null)
-
-                  if (hadPendingAction) {
-                    setFormError(
-                      "Verification was canceled. Complete the security check to continue."
-                    )
+                    if (hadPendingAction) {
+                      setFormError(
+                        "Verification was canceled. Complete the security check to continue."
+                      )
+                    }
                   }
                 }}
-              >
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Verify Before Analysis</DialogTitle>
-                    <DialogDescription>
-                      Complete the security check to continue.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="flex min-h-[65px] justify-center">
-                    <TurnstileWidget
-                      ref={turnstileWidgetRef}
-                      onVerify={(token) => {
-                        if (turnstileInputRef.current) {
-                          turnstileInputRef.current.value = token
-                        }
+                onVerify={(token) => {
+                  if (turnstileInputRef.current) {
+                    turnstileInputRef.current.value = token
+                  }
 
-                        const pendingUrls = pendingUrlsRef.current
+                  const pendingUrl = pendingUrlRef.current
+                  pendingUrlRef.current = null
+                  settleTurnstileTokenRequest(token)
+                  setIsTurnstileDialogOpen(false)
 
-                        const pendingRetryItemId = pendingRetryItemIdRef.current
+                  if (pendingUrl) {
+                    enqueueUrl(pendingUrl, token)
+                  }
+                }}
+                onError={() => {
+                  if (turnstileInputRef.current) {
+                    turnstileInputRef.current.value = ""
+                  }
 
-                        pendingUrlsRef.current = null
-                        pendingRetryItemIdRef.current = null
-                        settleTurnstileTokenRequest(token)
-                        setIsTurnstileDialogOpen(false)
-
-                        if (pendingUrls) {
-                          enqueueUrls(pendingUrls, token)
-                        } else if (pendingRetryItemId) {
-                          const outcome = queue.retry(pendingRetryItemId, token)
-
-                          if (outcome.kind === "queued") {
-                            setSelectedItemId(pendingRetryItemId)
-                          }
-                        }
-                      }}
-                      onError={() => {
-                        if (turnstileInputRef.current) {
-                          turnstileInputRef.current.value = ""
-                        }
-
-                        pendingUrlsRef.current = null
-                        pendingRetryItemIdRef.current = null
-                        settleTurnstileTokenRequest(null)
-                        setIsTurnstileDialogOpen(false)
-                        setFormError(
-                          "Security check failed. Refresh the page and try again."
-                        )
-                      }}
-                      onExpire={() => {
-                        if (turnstileInputRef.current) {
-                          turnstileInputRef.current.value = ""
-                        }
-                      }}
-                    />
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  pendingUrlRef.current = null
+                  settleTurnstileTokenRequest(null)
+                  setIsTurnstileDialogOpen(false)
+                  setFormError(
+                    "Security check failed. Refresh the page and try again."
+                  )
+                }}
+                onExpire={() => {
+                  if (turnstileInputRef.current) {
+                    turnstileInputRef.current.value = ""
+                  }
+                }}
+              />
             )}
           </form>
-
-          {queueSnapshot.items.length > 0 && (
-            <section
-              aria-labelledby="analysis-queue-title"
-              className="space-y-3"
-            >
-              <h2 id="analysis-queue-title" className="text-lg font-semibold">
-                Analysis queue
-              </h2>
-              <ol className="space-y-2">
-                {queueSnapshot.items.map((item) => (
-                  <li
-                    key={item.id}
-                    className="bg-card flex items-start gap-3 rounded-xl border p-3"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setSelectedItemId(item.id)}
-                      aria-pressed={selectedItem?.id === item.id}
-                      className="min-w-0 flex-1 text-left"
-                    >
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">
-                          {statusLabels[item.status]}
-                        </span>
-                        {item.status === "analyzing" && (
-                          <Icon
-                            icon={Loading03Icon}
-                            size={14}
-                            className="animate-spin"
-                          />
-                        )}
-                      </span>
-                      <span className="text-muted-foreground mt-1 block break-all text-sm">
-                        {item.url}
-                      </span>
-                      {item.progress && (
-                        <span className="text-muted-foreground mt-2 block text-sm">
-                          <span className="font-medium">
-                            {item.progress.title}
-                          </span>
-                          {" — "}
-                          {item.progress.message}
-                        </span>
-                      )}
-                      {item.message && (
-                        <span className="text-destructive mt-2 block text-sm">
-                          {item.message}
-                        </span>
-                      )}
-                    </button>
-                    {item.status === "error" && (
-                      <button
-                        type="button"
-                        onClick={() => handleRetry(item.id)}
-                        className="text-sm font-medium underline underline-offset-4"
-                      >
-                        Retry
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => queue.remove(item.id)}
-                      aria-label={`${item.status === "analyzing" ? "Cancel" : "Remove"} ${item.url}`}
-                      className="text-muted-foreground hover:text-foreground px-2 py-1 text-sm"
-                    >
-                      {item.status === "analyzing" ? "Cancel" : "Remove"}
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          )}
         </div>
       </div>
-
-      {isPending && shouldShowPendingStatus && (
-        <div className="mb-4 mt-6 w-full">
-          <Alert>
-            <Icon icon={Loading03Icon} size={16} className="animate-spin" />
-            <AlertTitle>
-              {queueSnapshot.items.find(
-                (item) => item.id === queueSnapshot.activeItemId
-              )?.progress?.title ?? "Submitting Request"}
-            </AlertTitle>
-            <AlertDescription>
-              {queueSnapshot.items.find(
-                (item) => item.id === queueSnapshot.activeItemId
-              )?.progress?.message ?? "Sending the analysis request."}
-            </AlertDescription>
-          </Alert>
-        </div>
-      )}
-
-      {isPending && !selectedAnalysis && <MediaSkeleton />}
-
-      {selectedAnalysis?.outputs.json && (
-        <div className="mt-6 w-full">
-          <div className="animate-in fade-in slide-in-from-bottom-4 ease-smooth duration-300">
-            <SaveReportButton
-              analysis={selectedAnalysis}
-              requestTurnstileToken={requestTurnstileToken}
-            />
-            <MediaView
-              data={selectedAnalysis.outputs}
-              url={selectedAnalysis.url}
-              requestTurnstileToken={requestTurnstileToken}
-            />
-          </div>
-        </div>
-      )}
     </div>
   )
 }

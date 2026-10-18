@@ -1,8 +1,8 @@
 "use client"
 
-import { Archive04Icon, Cancel01Icon } from "@hugeicons/core-free-icons"
+import { Archive04Icon } from "@hugeicons/core-free-icons"
 import { useState } from "react"
-import { useSearchParams } from "react-router"
+import { useNavigate } from "react-router"
 
 import {
   AlertDialog,
@@ -14,17 +14,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "~/components/ui/alert-dialog"
-import { Button } from "~/components/ui/button"
 import { Icon } from "~/components/ui/icon"
-import { ReportCompare } from "~/features/compare/report-compare"
-import { ReportRow } from "~/features/reports/report-row"
 import {
   reportStorageStore,
   type StoredReport,
 } from "~/features/reports/report-storage"
-import { StoredReportView } from "~/features/reports/stored-report-view"
 import { useHydrated } from "~/hooks/use-hydrated"
 
+import { ReportRow } from "./report-row"
 import { useStoredReports } from "./use-stored-reports"
 
 const ReportsEmptyState = () => (
@@ -52,71 +49,12 @@ const ReportsEmptyState = () => (
   </section>
 )
 
-const clearModeParams = (params: URLSearchParams) => {
-  params.delete("report")
-  params.delete("compare")
-  params.delete("with")
-  params.delete("format")
-}
-
-const useReportModes = () => {
-  const [searchParams, setSearchParams] = useSearchParams()
-
-  const updateParams = (mutate: (params: URLSearchParams) => void) => {
-    const next = new URLSearchParams(searchParams)
-
-    mutate(next)
-    setSearchParams(next, { preventScrollReset: true })
-  }
-
-  const showReport = (id: string) => {
-    updateParams((params) => {
-      clearModeParams(params)
-      params.set("report", id)
-    })
-  }
-
-  const showCompare = (id: string) => {
-    updateParams((params) => {
-      clearModeParams(params)
-      params.set("compare", id)
-    })
-  }
-
-  const closeModes = () => {
-    updateParams(clearModeParams)
-  }
-
-  return { searchParams, showReport, showCompare, closeModes }
-}
-
 export function ReportsSection() {
+  const navigate = useNavigate()
   const isHydrated = useHydrated()
-
   const reportsSnapshot = useStoredReports(isHydrated)
-
-  const { searchParams, showReport, showCompare, closeModes } = useReportModes()
-
   const { reports } = reportsSnapshot
-  const openReportId = searchParams.get("report")
-  const compareBaseId = searchParams.get("compare")
-
-  const openReport = openReportId
-    ? (reports.find((report) => report.id === openReportId) ?? null)
-    : null
-
-  const compareBase = compareBaseId
-    ? (reports.find((report) => report.id === compareBaseId) ?? null)
-    : null
-
-  const openReportMissing =
-    Boolean(openReportId) && !reportsSnapshot.isLoading && !openReport
-
-  const compareBaseMissing =
-    Boolean(compareBaseId) && !reportsSnapshot.isLoading && !compareBase
-
   const [deleteTarget, setDeleteTarget] = useState<StoredReport | null>(null)
-
   const [message, setMessage] = useState<string | null>(null)
 
   const handleDeleteConfirm = async () => {
@@ -162,12 +100,6 @@ export function ReportsSection() {
         </p>
       )}
 
-      {(openReportMissing || compareBaseMissing) && (
-        <p role="status" className="text-muted-foreground text-sm">
-          That report is no longer available.
-        </p>
-      )}
-
       {reportsSnapshot.isLoading && reports.length === 0 && (
         <p className="text-muted-foreground text-sm">Loading your reports…</p>
       )}
@@ -176,45 +108,23 @@ export function ReportsSection() {
         <ReportsEmptyState />
       )}
 
-      {compareBase ? (
-        <ReportCompare
-          baseReport={compareBase}
-          reports={reports}
-          onClose={closeModes}
-        />
-      ) : (
-        reports.length > 0 && (
-          <ol className="flex flex-col divide-y divide-border/70">
-            {reports.map((report) => (
-              <ReportRow
-                key={report.id}
-                report={report}
-                selected={openReport?.id === report.id}
-                onOpen={() => showReport(report.id)}
-                onCompare={() => showCompare(report.id)}
-                onDelete={() => setDeleteTarget(report)}
-              />
-            ))}
-          </ol>
-        )
-      )}
+      {reports.length > 0 && (
+        <ol className="flex flex-col divide-y divide-border/70">
+          {reports.map((report) => (
+            <ReportRow
+              key={report.id}
+              report={report}
+              onOpen={() => void navigate(`/app/item/${report.id}`)}
+              onCompare={() => {
+                const params = new URLSearchParams()
 
-      {!compareBase && openReport && (
-        <div className="space-y-3">
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground"
-              onClick={closeModes}
-            >
-              <Icon icon={Cancel01Icon} size={16} />
-              Close report
-            </Button>
-          </div>
-          <StoredReportView report={openReport} />
-        </div>
+                params.append("item", report.id)
+                void navigate(`/app/compare?${params.toString()}`)
+              }}
+              onDelete={() => setDeleteTarget(report)}
+            />
+          ))}
+        </ol>
       )}
 
       <AlertDialog

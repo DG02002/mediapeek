@@ -16,6 +16,10 @@
       "types": "./dist/analyze-progress.d.ts",
       "default": "./src/analyze-progress.ts"
     },
+    "./bounded-stream-read": {
+      "types": "./dist/bounded-stream-read.d.ts",
+      "default": "./src/bounded-stream-read.ts"
+    },
     "./archive-inspection": {
       "types": "./dist/archive-inspection.d.ts",
       "default": "./src/archive-inspection.ts"

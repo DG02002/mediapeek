@@ -26,8 +26,9 @@ response, progress, and runtime contracts belong in `packages/shared` so both
 Workers use the same boundary.
 
 There is no account service, application database, server-side report store,
-or server queue. The browser runs queued requests one at a time and keeps
-reports in IndexedDB. A visitor can export or share a report explicitly.
+or server queue. The browser processes submitted URLs one at a time and keeps
+reports in IndexedDB. The app has separate recent-report, report, and compare
+views. A visitor can export or share a report explicitly.
 
 ## Range-based analysis
 
@@ -46,8 +47,7 @@ the request is active.
 
 A Media Report contains the requested output formats for one completed
 analysis. The web app owns persistence and deletion.
-Reports render on the app page: the list of stored reports, an opened report,
-and the compare mode all live beside the analysis form.
+The app shows recent reports separately from an opened report or a comparison.
 
 Compare takes two stored reports and diffs the visitor-chosen JSON or text
 output line by line, in the style of a git diff. It works only on outputs the

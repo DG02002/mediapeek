@@ -1,4 +1,5 @@
 import type { AnalyzeErrorCode } from "@mediapeek/shared/analyze-contract"
+import { readStreamBytesWithinLimit } from "@mediapeek/shared/bounded-stream-read"
 import { summarizeSensitiveToken } from "@mediapeek/shared/log-redaction"
 import type { RuntimeConfig } from "@mediapeek/shared/runtime-config"
 import type { TurnstileResponse } from "@mediapeek/shared/schemas"
@@ -66,49 +67,10 @@ export type TurnstileAuthorizationResult =
       readonly requestError: Error | undefined
     })
 
-interface BoundedResponseRead {
-  readonly reader: ReadableStreamDefaultReader<Uint8Array>
-  readonly maxBytes: number
-  readonly chunks: Uint8Array[]
-  readonly byteLength: number
-}
-
-const readBoundedResponse = async ({
-  reader,
-  maxBytes,
-  chunks,
-  byteLength,
-}: BoundedResponseRead): Promise<Uint8Array> => {
-  const { done, value } = await reader.read()
-
-  if (done) {
-    const bytes = new Uint8Array(byteLength)
-    let offset = 0
-
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset)
-      offset += chunk.byteLength
-    }
-
-    return bytes
-  }
-
-  if (value.byteLength > maxBytes - byteLength) {
-    await reader.cancel()
-    throw new Error("Turnstile verification response exceeded its size limit.")
-  }
-
-  chunks.push(value)
-
-  return readBoundedResponse({
-    reader,
-    maxBytes,
-    chunks,
-    byteLength: byteLength + value.byteLength,
-  })
-}
-
-const readTurnstileResponse = async (response: Response) => {
+const readTurnstileResponse = async (
+  response: Response,
+  signal: AbortSignal
+) => {
   const reader = response.body?.getReader()
 
   if (!reader) {
@@ -116,12 +78,18 @@ const readTurnstileResponse = async (response: Response) => {
   }
 
   try {
-    const bytes = await readBoundedResponse({
+    const bytes = await readStreamBytesWithinLimit({
       reader,
       maxBytes: MAX_TURNSTILE_RESPONSE_BYTES,
-      chunks: [],
-      byteLength: 0,
+      overflow: "reject",
+      signal,
     })
+
+    if (bytes === null) {
+      throw new Error(
+        "Turnstile verification response exceeded its size limit."
+      )
+    }
 
     return Schema.decodeUnknownSync(TurnstileResponseSchema)(
       JSON.parse(new TextDecoder().decode(bytes))
@@ -135,15 +103,17 @@ const fetchTurnstileOutcome = async (
   input: TurnstileAuthorizationInput,
   formData: FormData
 ): Promise<TurnstileResponse> => {
+  const signal = AbortSignal.any([
+    input.request.signal,
+    AbortSignal.timeout(TURNSTILE_VERIFY_TIMEOUT_MS),
+  ])
+
   const response = await fetch(
     "https://challenges.cloudflare.com/turnstile/v0/siteverify",
     {
       method: "POST",
       body: formData,
-      signal: AbortSignal.any([
-        input.request.signal,
-        AbortSignal.timeout(TURNSTILE_VERIFY_TIMEOUT_MS),
-      ]),
+      signal,
     }
   )
 
@@ -154,7 +124,7 @@ const fetchTurnstileOutcome = async (
     )
   }
 
-  return readTurnstileResponse(response)
+  return readTurnstileResponse(response, signal)
 }
 
 const createVerificationLog = (input: {

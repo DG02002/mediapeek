@@ -5,7 +5,7 @@ import type {
   AnalysisSessionSnapshot,
 } from "../analysis-session"
 
-export type AnalysisQueueItemStatus = "queued" | "analyzing" | "done" | "error"
+type AnalysisQueueItemStatus = "queued" | "analyzing" | "done" | "error"
 
 export interface AnalysisQueueItem {
   readonly id: string

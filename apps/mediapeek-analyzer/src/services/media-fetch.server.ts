@@ -3,6 +3,7 @@ import {
   type ArchiveEntryInspection,
   inspectArchiveEntry,
 } from "@mediapeek/shared/archive-inspection"
+import { readStreamBytesWithinLimit } from "@mediapeek/shared/bounded-stream-read"
 import {
   type FilenameSource,
   parseContentDispositionFilename,
@@ -177,134 +178,26 @@ const readFirstChunkWithTimeout = async (
   }
 }
 
-const joinResponseChunks = (
-  chunks: Uint8Array[],
-  byteLength: number
-): Uint8Array => {
-  const body = new Uint8Array(byteLength)
-  let offset = 0
-
-  for (const chunk of chunks) {
-    body.set(chunk, offset)
-    offset += chunk.byteLength
-  }
-
-  return body
-}
-
-interface LimitedResponseReadState {
-  readonly reader: ReadableStreamDefaultReader<Uint8Array>
-  readonly maxBytes: number
-  readonly overflow: "truncate" | "reject"
-  readonly signal?: AbortSignal
-  readonly chunks: Uint8Array[]
-  byteLength: number
-}
-
-type ResponseChunkResult = "continue" | "complete" | "overflow"
-
-const appendResponseChunk = async (
-  state: LimitedResponseReadState,
-  chunk: Uint8Array
-): Promise<ResponseChunkResult> => {
-  const remaining = state.maxBytes - state.byteLength
-
-  if (chunk.byteLength > remaining && state.overflow === "reject") {
-    await state.reader.cancel()
-
-    return "overflow"
-  }
-
-  const acceptedChunk = chunk.subarray(0, Math.max(0, remaining))
-
-  if (acceptedChunk.byteLength > 0) {
-    state.chunks.push(acceptedChunk)
-    state.byteLength += acceptedChunk.byteLength
-  }
-
-  if (
-    chunk.byteLength > acceptedChunk.byteLength ||
-    (state.byteLength >= state.maxBytes && state.overflow === "truncate")
-  ) {
-    await state.reader.cancel()
-
-    return "complete"
-  }
-
-  return "continue"
-}
-
-const joinLimitedResponse = (state: LimitedResponseReadState) =>
-  joinResponseChunks(state.chunks, state.byteLength)
-
-const readNextResponseChunk = async (
-  state: LimitedResponseReadState
-): Promise<Uint8Array | null> => {
-  state.signal?.throwIfAborted()
-  const { done, value } = await state.reader.read()
-
-  if (done) {
-    return joinLimitedResponse(state)
-  }
-
-  const result = await appendResponseChunk(state, value)
-
-  if (result === "overflow") {
-    return null
-  }
-
-  if (result === "complete") {
-    return joinLimitedResponse(state)
-  }
-
-  return readNextResponseChunk(state)
-}
-
-const readResponseStreamWithinLimit = async (options: {
-  readonly reader: ReadableStreamDefaultReader<Uint8Array>
-  readonly maxBytes: number
-  readonly firstChunk?: Uint8Array | null
-  readonly overflow: "truncate" | "reject"
-  readonly signal?: AbortSignal
-}): Promise<Uint8Array | null> => {
-  const state: LimitedResponseReadState = {
-    ...options,
-    chunks: [],
-    byteLength: 0,
-  }
-
-  try {
-    if (options.firstChunk) {
-      const result = await appendResponseChunk(state, options.firstChunk)
-
-      if (result === "overflow") {
-        return null
-      }
-
-      if (result === "complete") {
-        return joinLimitedResponse(state)
-      }
-    }
-
-    return await readNextResponseChunk(state)
-  } catch (cause) {
-    throw getExternalReadError(cause, options.signal)
-  }
-}
-
-const readStreamIntoBuffer = (options: {
+const readStreamIntoBuffer = async (options: {
   readonly reader: ReadableStreamDefaultReader<Uint8Array>
   readonly firstChunk: Uint8Array | null
   readonly limit: number
   readonly signal: AbortSignal
-}) =>
-  readResponseStreamWithinLimit({
-    reader: options.reader,
-    maxBytes: options.limit,
-    firstChunk: options.firstChunk,
-    overflow: "truncate",
-    signal: options.signal,
-  }).then((body) => body ?? new Uint8Array(0))
+}) => {
+  try {
+    return (
+      (await readStreamBytesWithinLimit({
+        reader: options.reader,
+        maxBytes: options.limit,
+        firstChunk: options.firstChunk,
+        overflow: "truncate",
+        signal: options.signal,
+      })) ?? new Uint8Array(0)
+    )
+  } catch (cause) {
+    throw getExternalReadError(cause, options.signal)
+  }
+}
 
 const readResponseBodyWithinLimit = async (
   response: Response,
@@ -318,12 +211,14 @@ const readResponseBodyWithinLimit = async (
   }
 
   try {
-    return await readResponseStreamWithinLimit({
+    return await readStreamBytesWithinLimit({
       reader,
       maxBytes,
       overflow: "reject",
       signal,
     })
+  } catch (cause) {
+    throw getExternalReadError(cause, signal)
   } finally {
     reader.releaseLock()
   }
