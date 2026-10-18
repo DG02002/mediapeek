@@ -4,7 +4,7 @@ import { reactRouter } from "@react-router/dev/vite"
 import tailwindcss from "@tailwindcss/vite"
 import { defineConfig } from "vite"
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   build: {
     target: "esnext",
     rollupOptions: {
@@ -21,7 +21,16 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   plugins: [
-    cloudflare({ viteEnvironment: { name: "ssr" } }),
+    cloudflare({
+      viteEnvironment: { name: "ssr" },
+      config: () =>
+        command === "serve"
+          ? {
+              compatibility_date:
+                process.env.MEDIAPEAK_DEV_COMPATIBILITY_DATE ?? "2026-10-13",
+            }
+          : undefined,
+    }),
     tailwindcss(),
     reactRouter(),
   ],
@@ -32,4 +41,4 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
   },
-})
+}))
