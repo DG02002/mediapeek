@@ -13,9 +13,7 @@ const getFallbackRequestId = (request: Request) =>
   request.headers.get("cf-ray") ||
   crypto.randomUUID()
 
-const createFallbackRequestLogger = (
-  request: Request
-): RequestLoggerHandle => ({
+export const getRequestLogger = (request: Request): RequestLoggerHandle => ({
   logger: createRequestLogger({
     method: request.method,
     path: new URL(request.url).pathname,
@@ -35,8 +33,6 @@ export const getRequestIdFromLogger = (
 
   return getFallbackRequestId(request)
 }
-
-export const getRequestLogger = createFallbackRequestLogger
 
 export const finishFallbackRequestLogger = (
   handle: RequestLoggerHandle,

@@ -8,7 +8,7 @@
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "dev": "vite dev",
-    "deploy": "pnpm build && wrangler deploy",
+    "deploy": "pnpm build && wrangler deploy --config dist/server/wrangler.json",
     "start": "wrangler dev",
     "postinstall": "pnpm run cf-typegen",
     "generate-routes": "tsr generate && oxfmt app/routeTree.gen.ts",

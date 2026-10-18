@@ -175,7 +175,7 @@ jobs:
         id: previous-web
         working-directory: apps/mediapeek
         run: |
-          deployments="$(pnpm exec wrangler deployments list --config wrangler.jsonc --json)"
+          deployments="$(pnpm exec wrangler deployments list --config dist/server/wrangler.json --json)"
           version_id="$(jq -r '.deployments[0].versions[]? | select(.percentage == 100) | .version_id' <<< "$deployments" | head -n 1)"
           printf 'version_id=%s\n' "$version_id" >> "$GITHUB_OUTPUT"
       - name: Deploy web Worker
@@ -215,7 +215,7 @@ jobs:
           PREVIOUS_VERSION_ID: ${{ steps.previous-web.outputs.version_id }}
         run: >-
           pnpm exec wrangler rollback "$PREVIOUS_VERSION_ID"
-          --config wrangler.jsonc
+          --config dist/server/wrangler.json
           --message "Rollback after release health check failure"
           --yes
       - name: Roll back analyzer Worker after failure
