@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import type { TurnstileWidgetHandle } from "~/components/turnstile-widget"
 
+export type TurnstileVerification = ReturnType<typeof useTurnstileVerification>
+
 export const useTurnstileVerification = () => {
   const [isOpen, setIsOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)

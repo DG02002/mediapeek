@@ -21,7 +21,7 @@ import {
 import { ClipboardAccessIcon } from "~/features/analyze/clipboard-access-icon"
 import { ClipboardPermissionDialog } from "~/features/analyze/clipboard-permission-dialog"
 import { useAnalysisQueue } from "~/features/analyze/queue/use-analysis-queue"
-import { TurnstileVerificationDialog } from "~/features/analyze/turnstile-verification-dialog"
+import { TurnstileTokenDialog } from "~/features/analyze/turnstile-token-dialog"
 import { useClipboardUrl } from "~/features/analyze/use-clipboard-url"
 import { useTurnstileVerification } from "~/features/analyze/use-turnstile-verification"
 
@@ -39,15 +39,13 @@ export function MediaForm() {
   const [isClipboardDialogOpen, setIsClipboardDialogOpen] = useState(false)
   const pendingUrlRef = useRef<string | null>(null)
 
+  const turnstile = useTurnstileVerification()
+
   const {
     enabled: turnstileEnabled,
     inputRef: turnstileInputRef,
-    widgetRef: turnstileWidgetRef,
-    isOpen: isTurnstileDialogOpen,
-    setIsOpen: setIsTurnstileDialogOpen,
-    settle: settleTurnstileTokenRequest,
     requestToken: requestTurnstileToken,
-  } = useTurnstileVerification()
+  } = turnstile
 
   const {
     clipboardUrl,
@@ -71,7 +69,6 @@ export function MediaForm() {
 
     if (outcome?.kind === "duplicate") {
       setInputValue("")
-      setFormError("That URL is already available in this session.")
       void navigate(`/app/item/${outcome.itemId}`)
 
       return
@@ -231,67 +228,35 @@ export function MediaForm() {
               onAllow={requestClipboardAccess}
               onOpenChange={setIsClipboardDialogOpen}
             />
-            {turnstileEnabled ? (
-              <input
-                type="hidden"
-                name="cf-turnstile-response"
-                id="cf-turnstile-response"
-                ref={turnstileInputRef}
-              />
-            ) : null}
-            {turnstileEnabled && (
-              <TurnstileVerificationDialog
-                open={isTurnstileDialogOpen}
-                widgetRef={turnstileWidgetRef}
-                onOpenChange={(open) => {
-                  setIsTurnstileDialogOpen(open)
+            <TurnstileTokenDialog
+              verification={turnstile}
+              onCancel={() => {
+                const hadPendingAction = pendingUrlRef.current !== null
 
-                  if (!open) {
-                    const hadPendingAction = pendingUrlRef.current !== null
+                pendingUrlRef.current = null
 
-                    pendingUrlRef.current = null
-                    settleTurnstileTokenRequest(null)
-
-                    if (hadPendingAction) {
-                      setFormError(
-                        "Verification was canceled. Complete the security check to continue."
-                      )
-                    }
-                  }
-                }}
-                onVerify={(token) => {
-                  if (turnstileInputRef.current) {
-                    turnstileInputRef.current.value = token
-                  }
-
-                  const pendingUrl = pendingUrlRef.current
-                  pendingUrlRef.current = null
-                  settleTurnstileTokenRequest(token)
-                  setIsTurnstileDialogOpen(false)
-
-                  if (pendingUrl) {
-                    enqueueUrl(pendingUrl, token)
-                  }
-                }}
-                onError={() => {
-                  if (turnstileInputRef.current) {
-                    turnstileInputRef.current.value = ""
-                  }
-
-                  pendingUrlRef.current = null
-                  settleTurnstileTokenRequest(null)
-                  setIsTurnstileDialogOpen(false)
+                if (hadPendingAction) {
                   setFormError(
-                    "Security check failed. Refresh the page and try again."
+                    "Verification was canceled. Complete the security check to continue."
                   )
-                }}
-                onExpire={() => {
-                  if (turnstileInputRef.current) {
-                    turnstileInputRef.current.value = ""
-                  }
-                }}
-              />
-            )}
+                }
+              }}
+              onError={() => {
+                pendingUrlRef.current = null
+                setFormError(
+                  "Security check failed. Refresh the page and try again."
+                )
+              }}
+              onVerified={(token) => {
+                const pendingUrl = pendingUrlRef.current
+
+                pendingUrlRef.current = null
+
+                if (pendingUrl) {
+                  enqueueUrl(pendingUrl, token)
+                }
+              }}
+            />
           </form>
         </div>
       </div>

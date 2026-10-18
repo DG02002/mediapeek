@@ -16,7 +16,7 @@ import { Icon } from "~/components/ui/icon"
 import type { AnalysisResult } from "~/features/analyze/analysis-session"
 import type { AnalysisQueueItem } from "~/features/analyze/queue/analysis-queue"
 import { useAnalysisQueue } from "~/features/analyze/queue/use-analysis-queue"
-import { TurnstileVerificationDialog } from "~/features/analyze/turnstile-verification-dialog"
+import { TurnstileTokenDialog } from "~/features/analyze/turnstile-token-dialog"
 import { useTurnstileVerification } from "~/features/analyze/use-turnstile-verification"
 import type { StoredReport } from "~/features/reports/report-storage"
 import { SaveReportButton } from "~/features/reports/save-report-button"
@@ -36,49 +36,6 @@ const RecentReportsLink = () => (
     Recent reports
   </Link>
 )
-
-const TurnstileTokenDialog = ({
-  verification,
-  onError,
-}: {
-  readonly verification: ReturnType<typeof useTurnstileVerification>
-  readonly onError: () => void
-}) => {
-  if (!verification.enabled) {
-    return null
-  }
-
-  const { inputRef, widgetRef, isOpen, setIsOpen, settle } = verification
-
-  return (
-    <>
-      <input type="hidden" name="cf-turnstile-response" ref={inputRef} />
-      <TurnstileVerificationDialog
-        open={isOpen}
-        widgetRef={widgetRef}
-        onOpenChange={(open) => {
-          setIsOpen(open)
-
-          if (!open) {
-            settle(null)
-          }
-        }}
-        onVerify={(token) => {
-          settle(token)
-          setIsOpen(false)
-        }}
-        onError={() => {
-          settle(null)
-          setIsOpen(false)
-          onError()
-        }}
-        onExpire={() => {
-          settle(null)
-        }}
-      />
-    </>
-  )
-}
 
 const AnalysisResultPage = ({
   analysis,
@@ -127,22 +84,20 @@ const AnalysisResultPage = ({
 
 const AnalysisProgressPage = ({
   item,
-  activeItem,
+  isActive,
   onCancel,
 }: {
   readonly item: AnalysisQueueItem
-  readonly activeItem: AnalysisQueueItem | undefined
+  readonly isActive: boolean
   readonly onCancel: () => void
 }) => {
-  const isActive = activeItem?.id === item.id
-
   const title = isActive
     ? (item.progress?.title ?? "Analyzing media")
     : "Waiting for the current analysis to finish"
 
   const message = isActive
     ? (item.progress?.message ?? "Connecting to the analyzer.")
-    : (activeItem?.progress?.message ?? "Your analysis will start shortly.")
+    : "Your analysis will start shortly."
 
   return (
     <section className="mx-auto flex w-full max-w-3xl flex-col gap-5">
@@ -290,7 +245,7 @@ const AppItemRouteContent = ({
     return (
       <AnalysisProgressPage
         item={queueItem}
-        activeItem={activeItem}
+        isActive={activeItem?.id === queueItem.id}
         onCancel={() => {
           queue.remove(queueItem.id)
           void navigate("/app")

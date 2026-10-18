@@ -52,6 +52,7 @@
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "fake-indexeddb": "^6.2.5",
     "tailwindcss": "^4.3.3",
     "typescript": "catalog:",
     "vite": "catalog:",

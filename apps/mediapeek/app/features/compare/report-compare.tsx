@@ -147,6 +147,10 @@ export function ReportCompare({
       next.append("item", id)
     }
 
+    if (formatParam) {
+      next.set("format", formatParam)
+    }
+
     setSearchParams(next, { preventScrollReset: true })
   }
 
