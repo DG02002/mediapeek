@@ -4,21 +4,13 @@ import {
   type AnalyzeErrorCode,
 } from "@mediapeek/shared/analyze-contract"
 import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
-import {
-  redactSensitiveUrl,
-  summarizeSensitiveToken,
-} from "@mediapeek/shared/log-redaction"
-import {
-  type AnalyzeInput,
-  type TurnstileResponse,
-} from "@mediapeek/shared/schemas"
+import { redactSensitiveUrl } from "@mediapeek/shared/log-redaction"
+import { type AnalyzeInput } from "@mediapeek/shared/schemas"
 import { Effect, Match, Result, Schema } from "effect"
 
 import {
   DEFAULT_ANALYZER_REQUEST_TIMEOUT_MS,
-  MAX_TURNSTILE_RESPONSE_BYTES,
   MAX_ANALYZER_REQUEST_TIMEOUT_MS,
-  TURNSTILE_VERIFY_TIMEOUT_MS,
 } from "~/constants"
 import { cloudflareContext } from "~/lib/cloudflare-context.server"
 import { type LogContext, requestStorage } from "~/lib/logger.server"
@@ -27,16 +19,11 @@ import {
   getRequestIdFromLogger,
   getRequestLogger,
 } from "~/lib/request-logger.server"
-import { TurnstileResponseSchema } from "~/lib/schemas/turnstile"
-import {
-  createTurnstileGrantToken,
-  readTurnstileGrantCookie,
-  serializeTurnstileGrantCookie,
-  verifyTurnstileGrantToken,
-} from "~/lib/turnstile-grant.server"
 import {
   AnalysisGateway,
   AnalysisGatewayError,
+  type AnalysisGatewayRequestBase,
+  type AnalysisGatewayResponse,
 } from "~/services/analysis-gateway.server"
 import {
   AnalysisPolicy,
@@ -48,94 +35,12 @@ import {
   createRequestContext,
   RequestContext,
 } from "~/services/request-context.server"
+import { authorizeTurnstile } from "~/services/turnstile-authorization.server"
 
 import type { Route } from "./+types/route"
 
 const LEGACY_GET_WARNING =
   '299 - "GET /resource/analyze is deprecated. Use POST /resource/analyze with JSON body."'
-
-interface BoundedResponseRead {
-  readonly reader: ReadableStreamDefaultReader<Uint8Array>
-  readonly maxBytes: number
-  readonly chunks: Uint8Array[]
-  readonly byteLength: number
-}
-
-const readResponseChunks = async (
-  options: BoundedResponseRead
-): Promise<number | null> => {
-  const { reader, maxBytes, chunks, byteLength } = options
-  const { done, value } = await reader.read()
-
-  if (done) {
-    return byteLength
-  }
-
-  if (value.byteLength > maxBytes - byteLength) {
-    await reader.cancel()
-
-    return null
-  }
-
-  chunks.push(value)
-
-  return readResponseChunks({
-    ...options,
-    byteLength: byteLength + value.byteLength,
-  })
-}
-
-const joinResponseChunks = (
-  chunks: ReadonlyArray<Uint8Array>,
-  byteLength: number
-): Uint8Array => {
-  const bytes = new Uint8Array(byteLength)
-  let offset = 0
-
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset)
-    offset += chunk.byteLength
-  }
-
-  return bytes
-}
-
-const decodeResponseJson = (bytes: Uint8Array): Schema.Json =>
-  Schema.decodeUnknownSync(Schema.Json)(
-    JSON.parse(new TextDecoder().decode(bytes))
-  )
-
-const readBoundedJson = async (
-  response: Response,
-  maxBytes: number
-): Promise<Schema.Json> => {
-  const reader = response.body?.getReader()
-
-  if (!reader) {
-    throw new Error("Turnstile verification returned an empty response.")
-  }
-
-  const chunks: Uint8Array[] = []
-
-  try {
-    const byteLength = await readResponseChunks({
-      reader,
-      maxBytes,
-      chunks,
-      byteLength: 0,
-    })
-
-    if (byteLength === null) {
-      throw new Error(
-        "Turnstile verification response exceeded its size limit."
-      )
-    }
-
-    return decodeResponseJson(joinResponseChunks(chunks, byteLength))
-  } finally {
-    reader.releaseLock()
-  }
-}
 
 type AnalyzerSuccessResponse = Extract<AnalyzerRpcResponse, { success: true }>
 
@@ -329,12 +234,6 @@ const getAnalyzerTimeoutMs = (env: Env) => {
   return Math.min(MAX_ANALYZER_REQUEST_TIMEOUT_MS, configured)
 }
 
-interface TurnstileDecision {
-  authorized: boolean
-  response?: Response
-  grantCookieHeader?: string
-}
-
 const createExecution = ({
   request,
   context,
@@ -492,277 +391,37 @@ const validateAnalyzeRequest = async (
   }
 }
 
-const recordTurnstileVerification = (
+const createAnalyzerSignal = (state: AnalyzeRequestState) =>
+  AbortSignal.any([
+    state.request.signal,
+    AbortSignal.timeout(getAnalyzerTimeoutMs(state.env)),
+  ])
+
+const createAnalysisGatewayRequest = (
   state: AnalyzeRequestState,
-  input: {
-    success: boolean
-    tokenSummary: ReturnType<typeof summarizeSensitiveToken>
-    result: string
-    outcome?: TurnstileResponse
-  }
+  input: { data: AnalyzeInput; grantCookieHeader?: string },
+  stream: boolean
 ) => {
-  state.customContext.turnstileVerification = {
-    success: input.success,
-    tokenPresent: input.tokenSummary.tokenPresent,
-    tokenLength: input.tokenSummary.tokenLength,
-    result: input.result,
-    errorCodes: input.outcome?.["error-codes"],
-  }
-}
-
-const rejectTurnstile = (
-  state: AnalyzeRequestState,
-  input: {
-    failure: AnalyzeFailure
-    tokenSummary?: ReturnType<typeof summarizeSensitiveToken>
-    outcome?: TurnstileResponse
-  }
-): TurnstileDecision => {
-  const { failure, tokenSummary, outcome } = input
-
-  if (tokenSummary) {
-    recordTurnstileVerification(state, {
-      success: false,
-      tokenSummary,
-      result: "REJECTED",
-      outcome,
-    })
-  }
-
-  return { authorized: false, response: failRequest(state, failure) }
-}
-
-const fetchTurnstileOutcome = async (
-  state: AnalyzeRequestState,
-  formData: FormData
-): Promise<TurnstileResponse> => {
-  const result = await fetch(
-    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-    {
-      method: "POST",
-      body: formData,
-      signal: AbortSignal.any([
-        state.request.signal,
-        AbortSignal.timeout(TURNSTILE_VERIFY_TIMEOUT_MS),
-      ]),
-    }
-  )
-
-  if (!result.ok) {
-    throw new Error(
-      `Turnstile verification returned HTTP ${String(result.status)}.`
-    )
-  }
-
-  const rawOutcome = await readBoundedJson(result, MAX_TURNSTILE_RESPONSE_BYTES)
-
-  return Schema.decodeUnknownSync(TurnstileResponseSchema)(rawOutcome)
-}
-
-const verifyTurnstileToken = async (
-  state: AnalyzeRequestState,
-  input: {
-    url: string
-    secret: string
-    grantSecret: string
-    token: string
-    tokenSummary: ReturnType<typeof summarizeSensitiveToken>
-  }
-): Promise<TurnstileDecision> => {
-  const formData = new FormData()
-  formData.append("secret", input.secret)
-  formData.append("response", input.token)
-  formData.append(
-    "remoteip",
-    state.request.headers.get("CF-Connecting-IP") ?? ""
-  )
-  formData.append("idempotency_key", state.requestId)
-
-  let outcome: TurnstileResponse
-
-  try {
-    outcome = await fetchTurnstileOutcome(state, formData)
-  } catch (cause) {
-    state.requestError =
-      cause instanceof Error ? cause : new Error(String(cause))
-
-    const response = failRequest(state, {
-      status: 503,
-      code: "INTERNAL_ERROR",
-      message:
-        "Security check is unavailable right now. Try again in a moment.",
-      retryable: true,
-      severity: "ERROR",
-      errorClass: "TURNSTILE_VERIFY_UNAVAILABLE",
-    })
-
-    return { authorized: false, response }
-  }
-
-  if (!outcome.success) {
-    return rejectTurnstile(state, {
-      failure: {
-        status: 403,
-        code: "AUTH_INVALID",
-        message: "Security check failed. Refresh the page and try again.",
-        retryable: false,
-        severity: "WARNING",
-        errorClass: "ANALYZE_AUTH_FAILED",
-      },
-      tokenSummary: input.tokenSummary,
-      outcome,
-    })
-  }
-
-  state.customContext.turnstileGrantOutcome = "TOKEN_VERIFIED"
-  recordTurnstileVerification(state, {
-    success: true,
-    tokenSummary: input.tokenSummary,
-    result: "TOKEN_VERIFIED",
-    outcome,
-  })
-
-  const grant = await createTurnstileGrantToken({
-    secret: input.grantSecret,
-    url: input.url,
-  })
-
-  const grantCookieHeader = serializeTurnstileGrantCookie({
-    token: grant.token,
-    appEnv: state.runtimeConfig.appEnv,
-  })
-
-  return { authorized: true, grantCookieHeader }
-}
-
-const authorizeTurnstile = async (
-  state: AnalyzeRequestState,
-  url: string
-): Promise<TurnstileDecision> => {
-  if (!state.runtimeConfig.turnstileEnabled) {
-    return { authorized: true }
-  }
-
-  const secret = state.env.TURNSTILE_SECRET_KEY?.trim() ?? ""
-  const grantSecret = state.env.TURNSTILE_GRANT_SECRET?.trim() ?? ""
-
-  if (!secret || !grantSecret) {
-    return {
-      authorized: false,
-      response: failRequest(state, {
-        status: 500,
-        code: "INTERNAL_ERROR",
-        message:
-          "Security verification is unavailable right now. Try again later.",
-        retryable: true,
-        severity: "ERROR",
-        errorClass: "TURNSTILE_MISCONFIGURED",
-      }),
-    }
-  }
-
-  const token = state.request.headers.get("CF-Turnstile-Response")
-  const tokenSummary = summarizeSensitiveToken(token)
-
-  const existingGrantToken = readTurnstileGrantCookie(
-    state.request.headers.get("cookie")
-  )
-
-  const grantResult = await verifyTurnstileGrantToken({
-    secret: grantSecret,
-    url,
-    token: existingGrantToken,
-  })
-
-  state.customContext.turnstileGrantOutcome = grantResult.reason
-
-  if (grantResult.valid) {
-    recordTurnstileVerification(state, {
-      success: true,
-      tokenSummary: summarizeSensitiveToken(null),
-      result: "GRANT_VALID",
-    })
-
-    return { authorized: true }
-  }
-
-  if (!token) {
-    return rejectTurnstile(state, {
-      failure: {
-        status: 403,
-        code: "AUTH_REQUIRED",
-        message: "Complete the security check to continue.",
-        retryable: false,
-        severity: "WARNING",
-        errorClass: "ANALYZE_AUTH_FAILED",
-      },
-      tokenSummary,
-      outcome: { success: false, "error-codes": ["missing-input-response"] },
-    })
-  }
-
-  return verifyTurnstileToken(state, {
-    url,
-    secret,
-    grantSecret,
-    token,
-    tokenSummary,
-  })
-}
-
-const createAnalyzerRequestOptions = (state: AnalyzeRequestState) => {
-  const headers: Record<string, string> = {}
   const apiKey = state.env.ANALYZE_API_KEY?.trim()
 
-  if (apiKey) {
-    headers["x-api-key"] = apiKey
+  const request: AnalysisGatewayRequestBase = apiKey
+    ? { ...input.data, apiKey }
+    : { ...input.data }
+
+  if (stream) {
+    return {
+      ...request,
+      mode: "stream" as const,
+      responseHeaders: mergeHeaders(
+        state.compatibilityHeaders,
+        input.grantCookieHeader
+          ? { "Set-Cookie": input.grantCookieHeader }
+          : undefined
+      ),
+    }
   }
 
-  return {
-    headers,
-    signal: AbortSignal.any([
-      state.request.signal,
-      AbortSignal.timeout(getAnalyzerTimeoutMs(state.env)),
-    ]),
-  }
-}
-
-const streamAnalyzerResponse = async (
-  state: AnalyzeRequestState,
-  input: {
-    binding: Fetcher
-    url: string
-    format: ReadonlyArray<string>
-    options: ReturnType<typeof createAnalyzerRequestOptions>
-    grantCookieHeader?: string
-  }
-) => {
-  const response = await input.binding.fetch("https://analyzer/analyze", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      accept: ANALYZE_PROGRESS_STREAM_CONTENT_TYPE,
-      ...input.options.headers,
-    },
-    body: JSON.stringify({ url: input.url, format: input.format }),
-    signal: input.options.signal,
-  })
-
-  state.customContext.analyzerStatus = response.status
-  state.customContext.analyzerContentType =
-    response.headers.get("content-type")?.toLowerCase() ?? ""
-
-  return new Response(response.body, {
-    status: response.status,
-    headers: mergeHeaders(
-      response.headers,
-      state.compatibilityHeaders,
-      input.grantCookieHeader
-        ? { "Set-Cookie": input.grantCookieHeader }
-        : undefined,
-      { "Cache-Control": "no-store" }
-    ),
-  })
+  return { ...request, mode: "json" as const }
 }
 
 const getBackendErrorClass = (code: AnalyzeErrorCode) =>
@@ -882,53 +541,33 @@ const handleAnalysisGatewayError = (
   })
 }
 
-const callAnalyzerJson = async (
+const handleAnalysisGatewayResponse = (
   state: AnalyzeRequestState,
-  input: {
-    readonly data: AnalyzeInput
-    readonly grantCookieHeader?: string
-    readonly signal: AbortSignal
-  }
+  response: AnalysisGatewayResponse,
+  grantCookieHeader?: string
 ) => {
-  const runtime = getWorkerAppRuntime(state.env)
+  state.customContext.analyzerStatus = response.status
+  state.customContext.analyzerContentType = response.contentType
 
-  const requestContext = createRequestContext({
-    request: state.request,
-    requestId: state.requestId,
-    runtimeConfig: state.runtimeConfig,
-    signal: input.signal,
-  })
+  if (response.mode === "stream") {
+    state.status = response.status
 
-  try {
-    const response = await runtime.runPromise(
-      Effect.gen(function* () {
-        const analysisGateway = yield* AnalysisGateway
-        const apiKey = state.env.ANALYZE_API_KEY?.trim()
-        const gatewayRequest = apiKey ? { ...input.data, apiKey } : input.data
-
-        return yield* analysisGateway.analyze(gatewayRequest)
-      }).pipe(Effect.provideService(RequestContext, requestContext))
-    )
-
-    state.customContext.analyzerStatus = response.status
-    state.customContext.analyzerContentType = response.contentType
-
-    if (!response.data.success) {
-      return handleAnalyzerError(state, response.status, response.data.error)
+    if (response.status >= 500) {
+      state.severity = "ERROR"
+    } else if (response.status >= 400) {
+      state.severity = "WARNING"
+    } else {
+      state.severity = "INFO"
     }
 
-    return completeAnalyzeResponse(
-      state,
-      response.data,
-      input.grantCookieHeader
-    )
-  } catch (caughtError) {
-    if (caughtError instanceof AnalysisGatewayError) {
-      return handleAnalysisGatewayError(state, caughtError)
-    }
-
-    throw caughtError
+    return response.response
   }
+
+  if (!response.data.success) {
+    return handleAnalyzerError(state, response.status, response.data.error)
+  }
+
+  return completeAnalyzeResponse(state, response.data, grantCookieHeader)
 }
 
 const callAnalyzer = async (
@@ -939,46 +578,47 @@ const callAnalyzer = async (
   }
 ) => {
   const initialUrl = input.data.url
-  const requestedFormats = input.data.format
   const redactedUrl = redactSensitiveUrl(initialUrl)
+
   state.customContext.targetUrl = redactedUrl
 
-  const analyzerBinding = state.env.ANALYZER
+  const stream = wantsProgressStream(state.request)
+  const runtime = getWorkerAppRuntime(state.env)
 
-  if (!analyzerBinding) {
-    return failRequest(state, {
-      status: 503,
-      code: "INTERNAL_ERROR",
-      message: "Analyzer service is unavailable. Try again in a moment.",
-      retryable: true,
-      severity: "ERROR",
-      errorClass: "ANALYZER_BINDING_MISSING",
-    })
-  }
-
-  const options = createAnalyzerRequestOptions(state)
-
-  if (wantsProgressStream(state.request)) {
-    return streamAnalyzerResponse(state, {
-      binding: analyzerBinding,
-      url: initialUrl,
-      format: requestedFormats,
-      options,
-      grantCookieHeader: input.grantCookieHeader,
-    })
-  }
-
-  return callAnalyzerJson(state, {
-    data: input.data,
-    grantCookieHeader: input.grantCookieHeader,
-    signal: options.signal,
+  const requestContext = createRequestContext({
+    request: state.request,
+    requestId: state.requestId,
+    runtimeConfig: state.runtimeConfig,
+    signal: createAnalyzerSignal(state),
   })
-}
 
-const remoteFetchErrorSchema = Schema.Struct({ remote: Schema.Boolean })
+  try {
+    const response = await runtime.runPromise(
+      Effect.gen(function* () {
+        const analysisGateway = yield* AnalysisGateway
 
-const isRemoteFetchError = (error: Error) => {
-  return Schema.is(remoteFetchErrorSchema)(error) && error.remote
+        const gatewayRequest = createAnalysisGatewayRequest(
+          state,
+          input,
+          stream
+        )
+
+        return yield* analysisGateway.analyze(gatewayRequest)
+      }).pipe(Effect.provideService(RequestContext, requestContext))
+    )
+
+    return handleAnalysisGatewayResponse(
+      state,
+      response,
+      input.grantCookieHeader
+    )
+  } catch (caughtError) {
+    if (caughtError instanceof AnalysisGatewayError) {
+      return handleAnalysisGatewayError(state, caughtError)
+    }
+
+    throw caughtError
+  }
 }
 
 const isAnalyzerTimeout = (error: Error) =>
@@ -1020,16 +660,6 @@ const handleUnexpectedError = (
       retryable: true,
       severity: "ERROR",
       errorClass: "ANALYZER_TIMEOUT",
-    }
-  } else if (isRemoteFetchError(caughtError)) {
-    failure = {
-      status: 503,
-      code: "UPSTREAM_FETCH_FAILED",
-      message:
-        "Unable to retrieve the media file. The remote server may be incompatible with our fetcher.",
-      retryable: true,
-      severity: "ERROR",
-      errorClass: "ANALYZE_INTERNAL_ERROR",
     }
   }
 
@@ -1082,21 +712,35 @@ const executeAnalyzeRequest = async (
     return validation.response
   }
 
-  const turnstile = await authorizeTurnstile(state, validation.data.url)
+  const turnstile = await authorizeTurnstile({
+    request: state.request,
+    requestId: state.requestId,
+    url: validation.data.url,
+    env: state.env,
+    runtimeConfig: state.runtimeConfig,
+    createFailureResponse: (failure) => failRequest(state, failure),
+  })
+
+  if (turnstile.grantOutcome) {
+    state.customContext.turnstileGrantOutcome = turnstile.grantOutcome
+  }
+
+  if (turnstile.verification) {
+    state.customContext.turnstileVerification = {
+      success: turnstile.verification.success,
+      tokenPresent: turnstile.verification.tokenPresent,
+      tokenLength: turnstile.verification.tokenLength,
+      result: turnstile.verification.result,
+      errorCodes: turnstile.verification.errorCodes,
+    }
+  }
 
   if (!turnstile.authorized) {
-    return (
-      turnstile.response ??
-      failRequest(state, {
-        status: 500,
-        code: "INTERNAL_ERROR",
-        message:
-          "Security verification is unavailable right now. Try again later.",
-        retryable: true,
-        severity: "ERROR",
-        errorClass: "TURNSTILE_MISCONFIGURED",
-      })
-    )
+    if (turnstile.requestError) {
+      state.requestError = turnstile.requestError
+    }
+
+    return turnstile.response
   }
 
   return callAnalyzer(state, {

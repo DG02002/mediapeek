@@ -1,3 +1,4 @@
+import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
 import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import { RouterContextProvider } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -126,6 +127,34 @@ describe("analyze route Turnstile flag", () => {
     expect(analyzerFetch).toHaveBeenCalledOnce()
     expect(siteverifyFetch).not.toHaveBeenCalled()
     expect(response.headers.get("set-cookie")).toBeNull()
+  })
+
+  it("streams analyzer progress through the analysis gateway", async () => {
+    const { context, analyzerFetch } = createContext()
+    analyzerFetch.mockResolvedValueOnce(
+      new Response('{"type":"started"}\n', {
+        headers: { "content-type": ANALYZE_PROGRESS_STREAM_CONTENT_TYPE },
+      })
+    )
+
+    const response = await invokeAction(
+      post({ accept: ANALYZE_PROGRESS_STREAM_CONTENT_TYPE }),
+      context
+    )
+
+    const analyzerRequestHeaders = new Headers(
+      analyzerFetch.mock.calls[0]?.[1]?.headers
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get("content-type")).toBe(
+      ANALYZE_PROGRESS_STREAM_CONTENT_TYPE
+    )
+    expect(response.headers.get("cache-control")).toBe("no-store")
+    expect(await response.text()).toBe('{"type":"started"}\n')
+    expect(analyzerRequestHeaders.get("accept")).toBe(
+      ANALYZE_PROGRESS_STREAM_CONTENT_TYPE
+    )
   })
 
   it("requires a token or valid grant when Turnstile is enabled", async () => {

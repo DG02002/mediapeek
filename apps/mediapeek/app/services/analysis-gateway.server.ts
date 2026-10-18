@@ -3,6 +3,7 @@ import {
   AnalyzerRpcResponseSchema,
   type AnalyzerRpcResponse,
 } from "@mediapeek/shared/analyze-contract"
+import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
 import { Context, Effect, Layer, Result, Schema } from "effect"
 
 import {
@@ -28,17 +29,36 @@ const ANALYZER_UNAVAILABLE_MESSAGE =
 
 const ANALYZER_RESPONSE_PREVIEW_MAX_CHARS = 240
 
-export interface AnalysisGatewayRequest {
+export interface AnalysisGatewayRequestBase {
   readonly url: string
   readonly format: ReadonlyArray<AnalysisOutputId>
   readonly apiKey?: string
 }
 
-export interface AnalysisGatewayResponse {
+export type AnalysisGatewayRequest =
+  | (AnalysisGatewayRequestBase & { readonly mode?: "json" })
+  | (AnalysisGatewayRequestBase & {
+      readonly mode: "stream"
+      readonly responseHeaders?: HeadersInit
+    })
+
+interface AnalysisGatewayJsonResponse {
+  readonly mode: "json"
   readonly status: number
   readonly contentType: string
   readonly data: AnalyzerRpcResponse
 }
+
+interface AnalysisGatewayStreamResponse {
+  readonly mode: "stream"
+  readonly status: number
+  readonly contentType: string
+  readonly response: Response
+}
+
+export type AnalysisGatewayResponse =
+  | AnalysisGatewayJsonResponse
+  | AnalysisGatewayStreamResponse
 
 const AnalysisGatewayErrorReasonSchema = Schema.Literals([
   "aborted",
@@ -112,7 +132,32 @@ const makeRequestHeaders = (
     headers.set("x-api-key", input.apiKey)
   }
 
+  if (input.mode === "stream") {
+    headers.set("accept", ANALYZE_PROGRESS_STREAM_CONTENT_TYPE)
+  }
+
   return headers
+}
+
+const makeStreamResponse = (
+  response: Response,
+  responseHeaders?: HeadersInit
+) => {
+  const headers = new Headers(response.headers)
+
+  if (responseHeaders) {
+    new Headers(responseHeaders).forEach((value, key) => {
+      headers.append(key, value)
+    })
+  }
+
+  headers.set("cache-control", "no-store")
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
 }
 
 export class AnalysisGateway extends Context.Service<
@@ -172,6 +217,15 @@ export class AnalysisGateway extends Context.Service<
 
           const contentType =
             response.headers.get("content-type")?.toLowerCase() ?? ""
+
+          if (input.mode === "stream") {
+            return {
+              mode: "stream",
+              status: response.status,
+              contentType,
+              response: makeStreamResponse(response, input.responseHeaders),
+            } satisfies AnalysisGatewayStreamResponse
+          }
 
           const responseBody = yield* Effect.tryPromise({
             try: () => response.text(),
@@ -243,10 +297,11 @@ export class AnalysisGateway extends Context.Service<
           }
 
           return {
+            mode: "json",
             status: response.status,
             contentType,
             data: decodedResponse.success,
-          }
+          } satisfies AnalysisGatewayJsonResponse
         })
       )
 
