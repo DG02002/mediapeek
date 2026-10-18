@@ -11,20 +11,6 @@ import type { CSSProperties } from "react"
 
 import { Icon } from "~/components/ui/icon"
 
-type SonnerStyle = CSSProperties & {
-  "--normal-bg": string
-  "--normal-text": string
-  "--normal-border": string
-  "--border-radius": string
-}
-
-const toasterStyle: SonnerStyle = {
-  "--normal-bg": "var(--popover)",
-  "--normal-text": "var(--popover-foreground)",
-  "--normal-border": "var(--border)",
-  "--border-radius": "var(--radius)",
-}
-
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme } = useTheme()
 
@@ -57,7 +43,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
           />
         ),
       }}
-      style={toasterStyle}
+      style={
+        {
+          "--normal-bg": "var(--popover)",
+          "--normal-text": "var(--popover-foreground)",
+          "--normal-border": "var(--border)",
+          "--border-radius": "var(--radius)",
+        } as CSSProperties
+      }
       toastOptions={{
         classNames: {
           toast: "cn-toast",
