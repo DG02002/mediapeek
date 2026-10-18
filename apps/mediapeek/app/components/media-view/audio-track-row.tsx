@@ -1,18 +1,14 @@
 import { AnimatePresence, motion } from "motion/react"
-import { memo, useMemo } from "react"
+import { memo } from "react"
 
 import { AudioStreamStructure } from "~/components/media-view/audio-stream-structure"
 import { AudioTechDetails } from "~/components/media-view/audio-tech-details"
 import { Badge } from "~/components/ui/badge"
-import {
-  cleanAudioTrackTitle,
-  cleanMetadataString,
-  formatAudioChannels,
-} from "~/lib/formatters"
-import type { MediaTrackJSON } from "~/types/media"
+import type { AudioTrackReport } from "~/features/reports/media-report"
+import { cleanMetadataString, formatAudioChannels } from "~/lib/formatters"
 
 interface AudioTrackRowProps {
-  track: MediaTrackJSON
+  track: AudioTrackReport
   trackNumber: string | undefined
   showTrackNumber: boolean
   showOriginalTitles: boolean
@@ -24,46 +20,23 @@ export const AudioTrackRow = memo(function AudioTrackRow({
   showTrackNumber,
   showOriginalTitles,
 }: AudioTrackRowProps) {
-  const langName = track.Language_String ?? track.Language ?? "Unknown"
-  const rawTitle = track.Title
-
-  const title = useMemo(() => {
-    return showOriginalTitles
-      ? rawTitle
-      : cleanAudioTrackTitle(rawTitle, track, langName)
-  }, [showOriginalTitles, rawTitle, track, langName])
+  const title = showOriginalTitles ? track.title : track.displayTitle
 
   const channelsStr =
-    (formatAudioChannels(track.Channels, track.ChannelPositions) ||
-      track["Channel(s)_String"]) ??
-    track.Channels_String ??
-    track["Channel(s)"] ??
-    track.Channels
+    formatAudioChannels(track.channels, track.channelPositions) ||
+    track.channelsText ||
+    track.channels
 
   let channels = String(channelsStr)
 
-  if (track.extra?.NumberOfDynamicObjects) {
-    channels += ` with ${String(track.extra.NumberOfDynamicObjects)} Objects`
-  } else if (track.extra?.SignalGroup) {
-    const signalGroups = track.extra.SignalGroup
-
-    const objectCount = signalGroups.reduce((acc, group) => {
-      if (group.Type === "Object" && group.NumberOfObjects) {
-        return acc + (parseInt(group.NumberOfObjects, 10) || 0)
-      }
-
-      return acc
-    }, 0)
-
-    if (objectCount > 0) {
-      channels += ` with ${String(objectCount)} Objects`
-    }
+  if (track.objectCount > 0) {
+    channels += ` with ${String(track.objectCount)} Objects`
   }
 
-  const commercial = cleanMetadataString(track.Format_Commercial_IfAny)
-  const info = track.Format_Info
-  const rawFormat = cleanMetadataString(track.Format)
-  const codecInfo = track.CodecID_Info
+  const commercial = cleanMetadataString(track.formatCommercialIfAny)
+  const info = track.formatInfo
+  const rawFormat = cleanMetadataString(track.formatName)
+  const { codecInfo } = track
 
   // Prioritize CodecID_Info if available
   const format = codecInfo ?? commercial ?? info ?? rawFormat
@@ -72,12 +45,12 @@ export const AudioTrackRow = memo(function AudioTrackRow({
   const renderBadges = () => {
     return (
       <>
-        {track.Default === "Yes" && (
+        {track.isDefault && (
           <Badge className="border border-emerald-500/20 bg-emerald-500/15 text-[10px] text-emerald-700 hover:bg-emerald-500/25 dark:bg-emerald-500/20 dark:text-emerald-400">
             Default
           </Badge>
         )}
-        {track.Forced === "Yes" && (
+        {track.isForced && (
           <Badge className="border border-amber-500/20 bg-amber-500/15 text-[10px] text-amber-700 hover:bg-amber-500/25 dark:bg-amber-500/20 dark:text-amber-400">
             Forced
           </Badge>
@@ -122,7 +95,7 @@ export const AudioTrackRow = memo(function AudioTrackRow({
           <div className="flex items-start justify-between gap-2">
             <div className="flex flex-wrap items-baseline gap-2">
               <span className="text-foreground text-base font-semibold">
-                {langName}
+                {track.language}
               </span>
               <span className="text-muted-foreground text-sm">
                 ({channels})
@@ -143,9 +116,9 @@ export const AudioTrackRow = memo(function AudioTrackRow({
                   </span>
                 )}
               </span>
-              {track.ChannelLayout && (
+              {track.channelLayout && (
                 <span className="text-muted-foreground font-mono text-xs">
-                  {track.ChannelLayout}
+                  {track.channelLayout}
                 </span>
               )}
             </div>

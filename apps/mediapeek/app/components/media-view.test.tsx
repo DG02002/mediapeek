@@ -38,6 +38,63 @@ describe("MediaView", () => {
     logError.mockRestore()
   })
 
+  it("renders sections from the parsed Media Report", () => {
+    render(
+      <MediaView
+        data={{
+          json: JSON.stringify({
+            creatingLibrary: {
+              name: "MediaInfoLib",
+              version: "25.04",
+              url: "https://mediaarea.net",
+            },
+            media: {
+              track: [
+                {
+                  "@type": "General",
+                  CompleteName: "movie.mkv",
+                  Format: "Matroska",
+                  Duration_String: "47 min",
+                },
+                {
+                  "@type": "Video",
+                  Format: "AVC",
+                  Width: 1920,
+                  Height: 1080,
+                },
+                {
+                  "@type": "Audio",
+                  Format: "AAC",
+                  Language_String: "English",
+                  Channels: 2,
+                },
+                {
+                  "@type": "Text",
+                  Format: "UTF-8",
+                  Language_String: "English",
+                  Title: "English SDH",
+                },
+                {
+                  "@type": "Menu",
+                  extra: { _00_00_00_000: "en:Opening" },
+                },
+              ],
+            },
+          }),
+        }}
+        url="https://example.com/movie.mkv"
+      />
+    )
+
+    expect(screen.getByRole("heading", { name: "movie.mkv" })).toBeTruthy()
+    expect(screen.getAllByText("Matroska")).toHaveLength(2)
+    expect(screen.getAllByText("1920 x 1080")).toHaveLength(2)
+    expect(screen.getByRole("heading", { name: "Chapters" })).toBeTruthy()
+    expect(screen.getAllByText("Opening")).toHaveLength(2)
+    expect(screen.getAllByText("SDH Subtitles")).toHaveLength(2)
+    expect(screen.getAllByText("MediaInfoLib 25.04")).toHaveLength(2)
+  })
+
   it("loads text output once when toggled into text view", async () => {
     const fetchFormat = vi.fn<FetchAnalyzeFormat>().mockResolvedValue({
       ok: true,

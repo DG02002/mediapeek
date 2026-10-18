@@ -1,11 +1,10 @@
-import { getMediaBadges } from "@mediapeek/shared/media-utils"
 import { forwardRef, memo } from "react"
 
 import {
   MEDIA_EXPORT_POSITION_OFFSET_PX,
   MEDIA_EXPORT_WIDTH_PX,
 } from "~/constants"
-import type { MediaInfoJSON, MediaTrackJSON } from "~/types/media"
+import type { MediaReport } from "~/features/reports/media-report"
 
 import { AccessibilitySection } from "./accessibility-section"
 import { AudioSection } from "./audio-section"
@@ -17,52 +16,14 @@ import { SubtitleSection } from "./subtitle-section"
 import { VideoSection } from "./video-section"
 
 interface MediaReportExportProps {
-  filename: string
-  generalTrack?: MediaTrackJSON
-  videoTracks: MediaTrackJSON[]
-  audioTracks: MediaTrackJSON[]
-  textTracks: MediaTrackJSON[]
-  menuTrack?: MediaTrackJSON
-  creatingLibrary?: MediaInfoJSON["creatingLibrary"]
+  report: MediaReport
   showOriginalTitles: boolean
 }
 
-const getTrackSize = (track: MediaTrackJSON | undefined) =>
-  track?.FileSize_String ??
-  track?.["FileSize/String"] ??
-  (track?.FileSize === undefined ? undefined : String(track.FileSize))
-
-const getTrackDuration = (track: MediaTrackJSON | undefined) =>
-  track?.Duration_String ??
-  track?.["Duration/String"] ??
-  (track?.Duration === undefined ? undefined : String(track.Duration))
-
 export const MediaReportExport = memo(
   forwardRef<HTMLDivElement, MediaReportExportProps>(
-    (
-      {
-        filename,
-        generalTrack,
-        videoTracks,
-        audioTracks,
-        textTracks,
-        menuTrack,
-        creatingLibrary,
-        showOriginalTitles,
-      },
-      ref
-    ) => {
-      const badges = getMediaBadges({
-        videoTracks,
-        audioTracks,
-        textTracks,
-        generalTrack,
-      })
-
-      const archiveName = generalTrack?.Archive_Name?.split("/")
-        .pop()
-        ?.split("\\")
-        .pop()
+    ({ report, showOriginalTitles }, ref) => {
+      const { file, badges } = report
 
       return (
         <div
@@ -80,24 +41,20 @@ export const MediaReportExport = memo(
               <p className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
                 MediaPeek metadata report
               </p>
-              {archiveName && (
+              {file.archive?.name && (
                 <p className="text-muted-foreground font-mono text-xs font-semibold tracking-wider break-all uppercase">
-                  {archiveName}
+                  {file.archive.name}
                 </p>
               )}
               <h1 className="text-3xl font-bold tracking-tight break-all">
-                {filename}
+                {file.displayName}
               </h1>
             </div>
 
             <div className="flex items-start justify-between gap-8">
               <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                {getTrackDuration(generalTrack) && (
-                  <span>{getTrackDuration(generalTrack)}</span>
-                )}
-                {getTrackSize(generalTrack) && (
-                  <span>{getTrackSize(generalTrack)}</span>
-                )}
+                {file.duration && <span>{file.duration}</span>}
+                {file.size && <span>{file.size}</span>}
               </div>
               {badges.length > 0 && (
                 <div className="flex max-w-sm flex-wrap justify-end gap-3">
@@ -110,32 +67,22 @@ export const MediaReportExport = memo(
           </header>
 
           <div className="space-y-8">
-            <GeneralSection generalTrack={generalTrack} />
+            <GeneralSection report={report} />
             <VideoSection
-              videoTracks={videoTracks}
-              archiveSizingWarning={generalTrack?.Archive_Sizing_Warning}
+              videoTracks={report.videos}
+              archiveSizingWarning={file.archive?.sizing.warning}
             />
             <AudioSection
-              audioTracks={audioTracks}
+              audioTracks={report.audios}
               showOriginalTitles={showOriginalTitles}
             />
             <SubtitleSection
-              textTracks={textTracks}
+              textTracks={report.subtitles}
               showOriginalTitles={showOriginalTitles}
             />
-            <ChapterSection menuTrack={menuTrack} />
-            <AccessibilitySection
-              generalTrack={generalTrack}
-              audioTracks={audioTracks}
-              textTracks={textTracks}
-            />
-            <LibrarySection
-              library={creatingLibrary}
-              generalTrack={generalTrack}
-              videoTracks={videoTracks}
-              audioTracks={audioTracks}
-              textTracks={textTracks}
-            />
+            <ChapterSection chapters={report.chapters} />
+            <AccessibilitySection accessibility={report.accessibility} />
+            <LibrarySection library={report.engine} badges={report.badges} />
           </div>
         </div>
       )

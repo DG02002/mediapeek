@@ -1,13 +1,13 @@
 import { memo } from "react"
 
 import { VideoTrackItem } from "~/components/media-view/video-track-item"
-import type { MediaTrackJSON } from "~/types/media"
+import type { VideoTrackReport } from "~/features/reports/media-report"
 
 export const VideoSection = memo(function VideoSection({
   videoTracks,
   archiveSizingWarning,
 }: {
-  videoTracks: MediaTrackJSON[]
+  videoTracks: ReadonlyArray<VideoTrackReport>
   archiveSizingWarning?: string
 }) {
   if (videoTracks.length === 0) {
@@ -20,9 +20,9 @@ export const VideoSection = memo(function VideoSection({
         <h2 className="mb-3 text-xl font-semibold tracking-tight">Video</h2>
       </div>
       <div className="grid gap-4">
-        {videoTracks.map((video, idx) => (
+        {videoTracks.map((video) => (
           <VideoTrackItem
-            key={video.ID ?? video.UniqueID ?? idx}
+            key={video.key}
             video={video}
             archiveSizingWarning={archiveSizingWarning}
           />

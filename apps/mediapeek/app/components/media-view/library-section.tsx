@@ -1,36 +1,18 @@
-import { getMediaBadges } from "@mediapeek/shared/media-utils"
 import { memo } from "react"
 
-import type { MediaTrackJSON } from "~/types/media"
+import type { MediaReport } from "~/features/reports/media-report"
 
 import { TrademarkNotice } from "./trademark-notice"
 
 interface LibrarySectionProps {
-  library?: {
-    name: string
-    version: string
-    url: string
-  }
-  generalTrack?: MediaTrackJSON
-  videoTracks: MediaTrackJSON[]
-  audioTracks: MediaTrackJSON[]
-  textTracks: MediaTrackJSON[]
+  library: MediaReport["engine"]
+  badges: MediaReport["badges"]
 }
 
 export const LibrarySection = memo(function LibrarySection({
   library,
-  generalTrack,
-  videoTracks,
-  audioTracks,
-  textTracks,
+  badges,
 }: LibrarySectionProps) {
-  const badges = getMediaBadges({
-    videoTracks,
-    audioTracks,
-    textTracks,
-    generalTrack,
-  })
-
   if (!library) {
     return null
   }

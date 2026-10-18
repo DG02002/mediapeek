@@ -58,7 +58,7 @@ interface ContainerReport {
   readonly uniqueId?: string
 }
 
-interface VideoTrackReport {
+export interface VideoTrackReport {
   readonly key: string
   readonly id?: string
   readonly uniqueId?: string
@@ -107,7 +107,7 @@ interface VideoTrackReport {
   readonly codecConfigurationBox?: string
 }
 
-interface AudioTrackReport {
+export interface AudioTrackReport {
   readonly key: string
   readonly order?: string
   readonly id?: string
@@ -159,7 +159,7 @@ interface AudioTrackReport {
   readonly signalGroups: readonly MediaStructureValue[]
 }
 
-interface SubtitleTrackReport {
+export interface SubtitleTrackReport {
   readonly key: string
   readonly order?: string
   readonly id?: string
@@ -175,7 +175,7 @@ interface SubtitleTrackReport {
   readonly isForced: boolean
 }
 
-interface ChapterReport {
+export interface ChapterReport {
   readonly time: string
   readonly name: string
 }
@@ -186,7 +186,7 @@ interface MediaAccessibilityReport {
   readonly audioDescription: boolean
 }
 
-interface MediaReport {
+export interface MediaReport {
   readonly file: MediaFileReport
   readonly container?: ContainerReport
   readonly videos: readonly VideoTrackReport[]
@@ -317,7 +317,7 @@ const audioStructure = (track: MediaTrackJSON) => {
   let signalObjectCount = 0
 
   for (const group of signalGroups) {
-    if (!isMediaStructureRecord(group)) {
+    if (!isMediaStructureRecord(group) || text(group, "Type") !== "Object") {
       continue
     }
 
@@ -450,8 +450,14 @@ const toAudioTrackReport = (
     codecInfo: text(track, "CodecID_Info"),
     language: trackLanguage,
     title,
-    channels: text(track, "Channels", "Channel(s)"),
-    channelsText: text(track, "Channels_String", "Channel(s)_String"),
+    channels: text(track, "Channels"),
+    channelsText: text(
+      track,
+      "Channel(s)_String",
+      "Channels_String",
+      "Channel(s)",
+      "Channels"
+    ),
     channelPositions: text(track, "ChannelPositions"),
     channelLayout: text(track, "ChannelLayout"),
     isDefault: yes(track, "Default"),
@@ -467,7 +473,11 @@ const toAudioTrackReport = (
     delay: text(track, "Delay"),
     sourceDelay: text(structure.extra, "Source_Delay"),
     sourceDelaySource: text(structure.extra, "Source_Delay_Source"),
-    dialogueNormalization: text(structure.extra, "dialnorm_String", "dialnorm"),
+    dialogueNormalization:
+      text(structure.extra, "dialnorm_String") ??
+      (text(structure.extra, "dialnorm")
+        ? `${text(structure.extra, "dialnorm")} dB`
+        : undefined),
     compressionMode: text(track, "Compression_Mode"),
     compressionModeText: text(track, "Compression_Mode_String"),
     encodedLibrary: text(track, "Encoded_Library"),

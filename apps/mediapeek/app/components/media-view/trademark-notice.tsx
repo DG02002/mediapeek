@@ -1,11 +1,11 @@
 import { MEDIA_CONSTANTS } from "@mediapeek/shared/media"
 
 interface TrademarkNoticeProps {
-  badges: string[]
+  badges: ReadonlyArray<string>
 }
 
 const getDolbyNotice = (
-  badges: string[],
+  badges: ReadonlyArray<string>,
   badgeNames: typeof MEDIA_CONSTANTS.BADGES
 ) => {
   const terms = ["Dolby"]
@@ -37,7 +37,7 @@ const getDolbyNotice = (
 }
 
 const getDtsNotice = (
-  badges: string[],
+  badges: ReadonlyArray<string>,
   badgeNames: typeof MEDIA_CONSTANTS.BADGES
 ) => {
   const hasDts = badges.includes(badgeNames.DTS)
@@ -50,7 +50,7 @@ const getDtsNotice = (
   return "DTS, the Symbol, DTS and the Symbol together, DTS:X, and the DTS:X logo are registered trademarks or trademarks of DTS, Inc. in the United States and/or other countries."
 }
 
-const getTrademarkNotices = (badges: string[]) => {
+const getTrademarkNotices = (badges: ReadonlyArray<string>) => {
   const { BADGES } = MEDIA_CONSTANTS
   const notices = [getDolbyNotice(badges, BADGES)]
 

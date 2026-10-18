@@ -1,7 +1,6 @@
 "use client"
 
 import { ArrowExpandIcon, ArrowShrink02Icon } from "@hugeicons/core-free-icons"
-import { Schema } from "effect"
 import { AnimatePresence, motion } from "motion/react"
 import {
   memo,
@@ -16,11 +15,10 @@ import {
 import { Button } from "~/components/ui/button"
 import { Icon } from "~/components/ui/icon"
 import { Skeleton } from "~/components/ui/skeleton"
+import { parseMediaReport } from "~/features/reports/media-report"
 import { fetchAnalyzeFormat } from "~/lib/analyze-client"
 import { SmoothTransition } from "~/lib/animation"
 import { clientLog } from "~/lib/client-logger"
-import { MediaInfoJSONSchema } from "~/lib/media-info-schema"
-import { removeEmptyStrings } from "~/lib/media-utils"
 import { cn } from "~/lib/utils"
 import { startNativeViewTransition } from "~/lib/view-transition"
 
@@ -29,7 +27,7 @@ import { AudioSection } from "./media-view/audio-section"
 import { ChapterSection } from "./media-view/chapter-section"
 import { GeneralSection } from "./media-view/general-section"
 import { LibrarySection } from "./media-view/library-section"
-import { MediaHeader, resolveDisplayFilename } from "./media-view/media-header"
+import { MediaHeader } from "./media-view/media-header"
 import { MediaReportExport } from "./media-view/media-report-export"
 import { SubtitleSection } from "./media-view/subtitle-section"
 import { useMediaPngExport } from "./media-view/use-media-png-export"
@@ -44,54 +42,22 @@ interface MediaViewProps {
   fetchFormat?: typeof fetchAnalyzeFormat
 }
 
-const parseMediaViewData = (jsonString?: string) => {
-  try {
-    if (!jsonString) {
-      return { track: null, creatingLibrary: undefined, parseError: null }
-    }
-
-    const json = Schema.decodeUnknownSync(MediaInfoJSONSchema)(
-      JSON.parse(jsonString)
-    )
-
-    if (!json.media?.track) {
-      return { track: null, creatingLibrary: undefined, parseError: null }
-    }
-
-    const normalizedJson = Schema.decodeUnknownSync(MediaInfoJSONSchema)(
-      removeEmptyStrings(json)
-    )
-
-    return {
-      track: normalizedJson.media?.track ?? null,
-      creatingLibrary: normalizedJson.creatingLibrary,
-      parseError: null,
-    }
-  } catch (cause) {
-    const failureMessage =
-      cause instanceof Error ? cause.message : String(cause)
-
-    return {
-      track: null,
-      creatingLibrary: undefined,
-      parseError: failureMessage,
-    }
-  }
-}
-
-const useParsedMediaViewData = (data: MediaViewData) => {
-  const parsedData = useMemo(() => parseMediaViewData(data.json), [data.json])
+const useParsedMediaReport = (data: MediaViewData, url: string) => {
+  const parsedReport = useMemo(
+    () => parseMediaReport({ json: data.json ?? "", sourceUrl: url }),
+    [data.json, url]
+  )
 
   useEffect(() => {
-    if (parsedData.parseError) {
+    if (!parsedReport.ok) {
       clientLog.error({
         event: "media_report_json_parse_failed",
-        error: parsedData.parseError,
+        error: parsedReport.error.message,
       })
     }
-  }, [parsedData.parseError])
+  }, [parsedReport])
 
-  return parsedData
+  return parsedReport
 }
 
 export const MediaView = memo(function MediaView({
@@ -225,11 +191,7 @@ export const MediaView = memo(function MediaView({
     }
   }, [isTextView])
 
-  const {
-    track: parsedData,
-    creatingLibrary,
-    parseError,
-  } = useParsedMediaViewData(data)
+  const parsedReport = useParsedMediaReport(data, url)
 
   // Merge lazy-loaded text into data
   const fullData = useMemo(() => {
@@ -242,36 +204,14 @@ export const MediaView = memo(function MediaView({
     }
   }, [data, fetchedText, isTextLoading])
 
-  const { General, VideoTracks, AudioTracks, TextTracks, MenuTrack } =
-    useMemo(() => {
-      if (!parsedData) {
-        return {
-          General: undefined,
-          VideoTracks: [],
-          AudioTracks: [],
-          TextTracks: [],
-          MenuTrack: undefined,
-        }
-      }
-
-      return {
-        General: parsedData.find((t) => t["@type"] === "General"),
-        VideoTracks: parsedData.filter((t) => t["@type"] === "Video"),
-        AudioTracks: parsedData.filter((t) => t["@type"] === "Audio"),
-        TextTracks: parsedData.filter((t) => t["@type"] === "Text"),
-        MenuTrack: parsedData.find((t) => t["@type"] === "Menu"),
-      }
-    }, [parsedData])
-
-  const exportFilename = resolveDisplayFilename(
-    General?.CompleteName ?? General?.File_Name ?? "Unknown",
-    url
-  )
+  const exportFilename = parsedReport.ok
+    ? parsedReport.report.file.displayName
+    : "Unknown"
 
   const { handleExportPng, isExportingPng, mediaReportExportRef } =
     useMediaPngExport(exportFilename)
 
-  if (!parsedData) {
+  if (!parsedReport.ok) {
     return (
       <div
         role="alert"
@@ -279,10 +219,9 @@ export const MediaView = memo(function MediaView({
       >
         <p className="font-medium">Analysis Error</p>
         <p className="text-sm">
-          {parseError
-            ? "Unable to read this Media Report. Try analyzing the URL again."
-            : "Unable to parse analysis data."}
+          Unable to read this Media Report. Try analyzing the URL again.
         </p>
+        <p className="mt-1 text-sm">{parsedReport.error.message}</p>
         <pre className="mt-2 overflow-x-auto text-xs whitespace-pre-wrap opacity-70">
           {(data["@ref"] ?? "").endsWith(".json") && "No JSON data"}
         </pre>
@@ -290,27 +229,28 @@ export const MediaView = memo(function MediaView({
     )
   }
 
+  const { report } = parsedReport
+
   return (
     <div
       ref={containerRef}
       data-view-mode={isTextView ? "text" : "structured"}
       className="animate-in fade-in mx-auto w-full max-w-5xl space-y-6 pb-20"
     >
-      <MediaHeader
-        url={url}
-        generalTrack={General}
-        videoTracks={VideoTracks}
-        audioTracks={AudioTracks}
-        textTracks={TextTracks}
-        isTextView={isTextView}
-        setIsTextView={handleSetIsTextView}
-        showOriginalTitles={showOriginalTitles}
-        setShowOriginalTitles={handleSetShowOriginalTitles}
-        rawData={fullData}
-        requestTurnstileToken={requestTurnstileToken}
-        onExportPng={handleExportPng}
-        isExportingPng={isExportingPng}
-      />
+      {report.container && (
+        <MediaHeader
+          url={url}
+          report={report}
+          isTextView={isTextView}
+          setIsTextView={handleSetIsTextView}
+          showOriginalTitles={showOriginalTitles}
+          setShowOriginalTitles={handleSetShowOriginalTitles}
+          rawData={fullData}
+          requestTurnstileToken={requestTurnstileToken}
+          onExportPng={handleExportPng}
+          isExportingPng={isExportingPng}
+        />
+      )}
 
       {isTextView ? (
         <div className="animate-in fade-in duration-300">
@@ -413,45 +353,29 @@ export const MediaView = memo(function MediaView({
         </div>
       ) : (
         <div className="animate-in fade-in space-y-6 duration-300">
-          <GeneralSection generalTrack={General} />
+          <GeneralSection report={report} />
           <VideoSection
-            videoTracks={VideoTracks}
-            archiveSizingWarning={General?.Archive_Sizing_Warning}
+            videoTracks={report.videos}
+            archiveSizingWarning={report.file.archive?.sizing.warning}
           />
           <AudioSection
-            audioTracks={AudioTracks}
+            audioTracks={report.audios}
             showOriginalTitles={showOriginalTitles}
           />
           <SubtitleSection
-            textTracks={TextTracks}
+            textTracks={report.subtitles}
             showOriginalTitles={showOriginalTitles}
           />
-          <ChapterSection menuTrack={MenuTrack} />
-          <AccessibilitySection
-            generalTrack={General}
-            audioTracks={AudioTracks}
-            textTracks={TextTracks}
-          />
-          <LibrarySection
-            library={creatingLibrary}
-            generalTrack={General}
-            videoTracks={VideoTracks}
-            audioTracks={AudioTracks}
-            textTracks={TextTracks}
-          />
+          <ChapterSection chapters={report.chapters} />
+          <AccessibilitySection accessibility={report.accessibility} />
+          <LibrarySection library={report.engine} badges={report.badges} />
         </div>
       )}
 
-      {General && (
+      {report.container && (
         <MediaReportExport
           ref={mediaReportExportRef}
-          filename={exportFilename}
-          generalTrack={General}
-          videoTracks={VideoTracks}
-          audioTracks={AudioTracks}
-          textTracks={TextTracks}
-          menuTrack={MenuTrack}
-          creatingLibrary={creatingLibrary}
+          report={report}
           showOriginalTitles={showOriginalTitles}
         />
       )}

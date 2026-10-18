@@ -1,6 +1,6 @@
 import { memo } from "react"
 
-import type { MediaTrackJSON } from "~/types/media"
+import type { SubtitleTrackReport } from "~/features/reports/media-report"
 
 import { SubtitleTrackRow } from "./subtitle-track-row"
 
@@ -8,7 +8,7 @@ export const SubtitleSection = memo(function SubtitleSection({
   textTracks,
   showOriginalTitles,
 }: {
-  textTracks: MediaTrackJSON[]
+  textTracks: ReadonlyArray<SubtitleTrackReport>
   showOriginalTitles: boolean
 }) {
   if (textTracks.length === 0) {
@@ -21,9 +21,9 @@ export const SubtitleSection = memo(function SubtitleSection({
         <h2 className="text-xl font-semibold tracking-tight">Subtitles</h2>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {textTracks.map((text, idx) => (
+        {textTracks.map((text) => (
           <SubtitleTrackRow
-            key={text.ID ?? text.UniqueID ?? idx}
+            key={text.key}
             track={text}
             showOriginalTitles={showOriginalTitles}
           />

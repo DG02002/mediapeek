@@ -1,6 +1,6 @@
 type MediaInfoScalar = string | number | boolean | null | undefined
 
-export type MediaTrackValue = MediaInfoScalar | MediaTrackExtra | undefined
+type MediaTrackValue = MediaInfoScalar | MediaTrackExtra | undefined
 
 export interface MediaTrackJSON {
   "@type": string
@@ -602,7 +602,7 @@ interface PresentationEntry {
  * Typed extra fields for MediaTrack
  * Contains known fields from AC-4, MPEG-H, Dolby Atmos, etc.
  */
-export interface MediaTrackExtra {
+interface MediaTrackExtra {
   // Dolby Atmos / Object Audio
   NumberOfDynamicObjects?: string | number
   NumberOfObjects?: string | number

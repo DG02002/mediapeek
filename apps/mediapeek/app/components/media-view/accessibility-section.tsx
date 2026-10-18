@@ -1,24 +1,19 @@
-import { getAccessibilityFeatures } from "@mediapeek/shared/media-utils"
 import { memo } from "react"
 
-import type { MediaTrackJSON } from "~/types/media"
+import type { MediaReport } from "~/features/reports/media-report"
 
 import { MediaIcon } from "./media-icon"
 
 export const AccessibilitySection = memo(function AccessibilitySection({
-  generalTrack,
-  audioTracks,
-  textTracks,
+  accessibility,
 }: {
-  generalTrack: MediaTrackJSON | undefined
-  audioTracks: MediaTrackJSON[]
-  textTracks: MediaTrackJSON[]
+  accessibility: MediaReport["accessibility"]
 }) {
-  const { hasSDH, hasCC, hasAD } = getAccessibilityFeatures(
-    audioTracks,
-    textTracks,
-    generalTrack
-  )
+  const {
+    sdh: hasSDH,
+    closedCaptions: hasCC,
+    audioDescription: hasAD,
+  } = accessibility
 
   if (!hasSDH && !hasCC && !hasAD) {
     return null

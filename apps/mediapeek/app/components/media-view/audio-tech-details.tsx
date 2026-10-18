@@ -1,12 +1,12 @@
 import { memo, type ReactNode, useMemo } from "react"
 
+import type { AudioTrackReport } from "~/features/reports/media-report"
 import { cleanBitrateString, cleanMetadataString } from "~/lib/formatters"
-import type { MediaTrackJSON } from "~/types/media"
 
 import { MediaDetailItem } from "./media-detail-item"
 
 interface AudioTechDetailsProps {
-  track: MediaTrackJSON
+  track: AudioTrackReport
 }
 
 interface DetailItem {
@@ -22,68 +22,66 @@ export const AudioTechDetails = memo(function AudioTechDetails({
     return [
       {
         label: "Format",
-        value: track.Format_String ?? track.Format_Commercial ?? track.Format,
+        value: track.formatText ?? track.formatCommercial ?? track.formatName,
       },
       {
         label: "Format Settings",
-        value: [track.Format_Settings_Endianness, track.Format_Settings_Sign]
+        value: [track.formatEndianness, track.formatSign]
           .filter(Boolean)
           .join(" / "),
       },
       {
         label: "Format Profile",
         value: [
-          track.Format_Profile,
-          track.Format_Level && `@L${track.Format_Level}`,
-          track.Format_Tier && `@${track.Format_Tier}`,
+          track.formatProfile,
+          track.formatLevel && `@L${track.formatLevel}`,
+          track.formatTier && `@${track.formatTier}`,
         ]
           .filter(Boolean)
           .join(""),
       },
       {
         label: "Format Mode",
-        value: track.Format_Settings_Mode,
+        value: track.formatMode,
       },
       {
         label: "Bitrate",
-        value: cleanBitrateString(
-          track.BitRate_String ?? track.BitRate_Maximum_String ?? ""
-        ),
+        value: cleanBitrateString(track.bitrate ?? track.maximumBitrate ?? ""),
 
-        sub: track.BitRate_Mode_String ?? track.BitRate_Mode,
+        sub: track.bitrateModeText ?? track.bitrateMode,
       },
       {
         label: "Sample Rate",
 
         value:
-          track.SamplingRate_String ??
-          (track.SamplingRate ? `${String(track.SamplingRate)} Hz` : undefined),
+          track.samplingRateText ??
+          (track.samplingRate ? `${track.samplingRate} Hz` : undefined),
       },
       {
         label: "Bit Depth",
         value:
-          track.BitDepth_String ??
-          (track.BitDepth ? `${String(track.BitDepth)}-bit` : undefined),
+          track.bitDepthText ??
+          (track.bitDepth ? `${track.bitDepth}-bit` : undefined),
       },
       {
         label: "Delay",
         value: (() => {
-          const d = track.Delay
-          const sd = track.extra?.Source_Delay
+          const d = track.delay
+          const sd = track.sourceDelay
 
           if (d && d !== "0" && d !== "0.000") {
-            return `${String(d)}ms`
+            return `${d}ms`
           }
 
           if (sd && sd !== "0" && sd !== "0.000") {
-            return `${String(sd)}ms`
+            return `${sd}ms`
           }
 
           return undefined
         })(),
         sub: (() => {
-          const d = track.Delay
-          const sd = track.extra?.Source_Delay
+          const d = track.delay
+          const sd = track.sourceDelay
 
           // If primary delay exists, we don't show source.
           // If primary is empty/0, and we use source delay, show its source if available.
@@ -93,7 +91,7 @@ export const AudioTechDetails = memo(function AudioTechDetails({
             sd !== "0" &&
             sd !== "0.000"
           ) {
-            return track.extra?.Source_Delay_Source
+            return track.sourceDelaySource
           }
 
           return undefined
@@ -101,32 +99,28 @@ export const AudioTechDetails = memo(function AudioTechDetails({
       },
       {
         label: "Dialogue Intelligence",
-        value:
-          track.extra?.dialnorm_String ??
-          (track.extra?.dialnorm
-            ? `${String(track.extra.dialnorm)} dB`
-            : undefined),
+        value: track.dialogueNormalization,
       },
       {
         label: "Compression",
 
         value:
-          track.Compression_Mode_String ??
-          cleanMetadataString(track.Compression_Mode),
+          track.compressionModeText ??
+          cleanMetadataString(track.compressionMode),
       },
       {
         label: "Encoded Library",
 
-        value: track.Encoded_Library_String ?? track.Encoded_Library,
+        value: track.encodedLibraryText ?? track.encodedLibrary,
       },
       {
         label: "Service Kind",
 
-        value: track.ServiceKind_String ?? track.ServiceKind,
+        value: track.serviceKindText ?? track.serviceKind,
       },
       {
         label: "Codec Configuration Box",
-        value: track.extra?.CodecConfigurationBox,
+        value: track.codecConfigurationBox,
       },
     ].filter((item) => item.value)
   }, [track])

@@ -1,15 +1,12 @@
 import { memo } from "react"
 
-import { parseChapters } from "~/lib/media-utils"
-import type { MediaTrackJSON } from "~/types/media"
+import type { ChapterReport } from "~/features/reports/media-report"
 
 export const ChapterSection = memo(function ChapterSection({
-  menuTrack,
+  chapters,
 }: {
-  menuTrack?: MediaTrackJSON
+  chapters: ReadonlyArray<ChapterReport>
 }) {
-  const chapters = parseChapters(menuTrack)
-
   if (chapters.length === 0) {
     return null
   }
