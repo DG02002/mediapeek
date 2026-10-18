@@ -40,23 +40,14 @@ This starts the web app and analyzer Worker. Use the package scripts to work
 on one app at a time. Regenerate Cloudflare binding types with that app's
 `cf-typegen` script after changing its Wrangler configuration.
 
-The checked-in Wrangler configurations keep the deployment compatibility
-date. The local `workerd` runtime can lag that date. Both development servers
-use `MEDIAPEAK_DEV_COMPATIBILITY_DATE` locally and currently default to
-`2026-10-13`, the newest date supported by the locked runtime. If the runtime
-reports a different supported date, set the variable when starting the app:
+Both Workers currently use compatibility date `2026-10-13`, the newest date
+supported by the locked local runtime. The seven-day minimum release-age
+policy delays runtime upgrades. Update both Wrangler configurations when the
+locked runtime supports a newer date, after checking the compatibility changes
+and testing both Workers. Cloudflare keeps deployed Workers on their selected
+compatibility behavior until the date is changed.
 
-```sh
-MEDIAPEAK_DEV_COMPATIBILITY_DATE=2026-10-13 pnpm dev
-```
-
-The override only affects local development. A lower local date does not test
-compatibility changes enabled after that date; update the local Wrangler and
-`workerd` runtime to test against the deployment date. The seven-day minimum
-release-age policy delays runtime upgrades; remove the local fallback once
-the locked runtime supports the deployment date. To run the analyzer
-directly, use `pnpm --filter mediapeek-analyzer run dev` so the package script
-applies the same override.
+To run only the analyzer, use `pnpm --filter mediapeek-analyzer run dev`.
 
 ## Refreshed dependency versions
 

@@ -12,7 +12,7 @@
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "deploy": "wrangler deploy",
-    "dev": "wrangler dev --compatibility-date \"${MEDIAPEAK_DEV_COMPATIBILITY_DATE:-2026-10-13}\"",
+    "dev": "wrangler dev",
     "start": "wrangler dev",
     "postinstall": "pnpm run cf-typegen",
     "test": "vitest",
