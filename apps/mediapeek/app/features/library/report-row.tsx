@@ -77,7 +77,7 @@ export function ReportRow({
   return (
     <li
       className={cn(
-        "flex w-full items-stretch border-b transition-colors hover:bg-muted",
+        "flex w-full items-stretch transition-colors hover:bg-muted",
         selected && "bg-sky-500/15 hover:bg-sky-500/20"
       )}
     >

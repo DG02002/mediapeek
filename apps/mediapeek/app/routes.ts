@@ -8,6 +8,9 @@ export default [
   route("resource/analyze", "routes/api/analyze/route.ts"),
   route("privacy", "routes/privacy/route.tsx"),
   route("terms", "routes/terms/route.tsx"),
+  route("cookies", "routes/cookies/route.tsx"),
+  route("usage", "routes/usage/route.tsx"),
+  route("licenses", "routes/licenses/route.tsx"),
   route("healthz", "routes/healthz.ts"),
   route("robots.txt", "routes/robots.txt.ts"),
   route(

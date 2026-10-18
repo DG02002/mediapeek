@@ -7,12 +7,14 @@ interface PolicyLayoutProps {
   title: string
   description: string
   children: ReactNode
+  showReviewStatus?: boolean
 }
 
 export function PolicyLayout({
   title,
   description,
   children,
+  showReviewStatus = true,
 }: PolicyLayoutProps) {
   return (
     <div className="flex min-h-screen flex-col font-sans">
@@ -22,10 +24,12 @@ export function PolicyLayout({
           <time dateTime="2026-10-18" className="text-muted-foreground text-sm">
             Updated October 18, 2026
           </time>
-          <span className="bg-muted text-muted-foreground rounded-full px-3 py-1 text-xs font-medium">
-            Draft for product and legal review
-          </span>
-          <h1 className="py-2 text-4xl font-normal text-balance md:py-4 md:text-6xl">
+          {showReviewStatus && (
+            <span className="bg-muted text-muted-foreground rounded-full px-3 py-1 text-xs font-medium">
+              Draft for product and legal review
+            </span>
+          )}
+          <h1 className="py-4 text-4xl font-normal text-balance md:py-6 md:text-6xl">
             {title}
           </h1>
           <p className="text-muted-foreground max-w-xl text-base leading-7">

@@ -217,10 +217,14 @@ export function MediaForm() {
   }
 
   return (
-    <div className="flex w-full flex-col pt-4 md:pt-6">
-      <div className="relative w-full sm:py-2">
+    <div className="mb-8 flex w-full flex-col">
+      <div className="relative w-full">
         <div className="relative z-10 space-y-8">
-          <form onSubmit={onSubmit} className="relative space-y-5" noValidate>
+          <form
+            onSubmit={onSubmit}
+            className="relative flex flex-col gap-4"
+            noValidate
+          >
             <div
               inert={!clipboardUrl}
               className={`grid transition-[grid-template-rows,opacity] duration-200 motion-reduce:transition-none ${clipboardUrl ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
@@ -238,7 +242,7 @@ export function MediaForm() {
                     }}
                     className="group w-full cursor-pointer rounded-md px-1 py-2 text-left"
                   >
-                    <span className="shimmer block max-w-full truncate text-base font-normal break-all text-primary">
+                    <span className="shimmer shimmer-color-blue-500/60 shimmer-duration-900 shimmer-spread-24 block max-w-full truncate text-base font-normal text-primary">
                       {clipboardUrl}
                     </span>
                   </button>
@@ -246,8 +250,22 @@ export function MediaForm() {
               </div>
             </div>
 
+            {formError && (
+              <div className="mb-4 translate-y-0 opacity-100 transition-[opacity,transform] duration-200 starting:-translate-y-2 starting:opacity-0">
+                <Alert id="media-url-error" variant="destructive">
+                  <Icon icon={AlertCircleIcon} size={16} />
+                  <AlertTitle>Queue update</AlertTitle>
+                  <AlertDescription>{formError}</AlertDescription>
+                </Alert>
+              </div>
+            )}
+
+            <label htmlFor="media-url" className="sr-only">
+              Media URL
+            </label>
             <InputGroup className="h-13.5 w-full rounded-full border-2 border-border bg-muted/30 sm:flex-1 has-[[data-slot=input-group-control]:focus-visible]:border-2 has-[[data-slot=input-group-control]:focus-visible]:border-blue-500 has-[[data-slot=input-group-control]:focus-visible]:ring-0">
               <InputGroupInput
+                id="media-url"
                 name="url"
                 placeholder="https://example.com/video"
                 autoComplete="off"
@@ -261,8 +279,9 @@ export function MediaForm() {
                   }
                 }}
                 onPaste={handleInputPaste}
-                aria-label="Media URL"
-                className="pl-5 text-base"
+                aria-describedby={formError ? "media-url-error" : undefined}
+                aria-invalid={Boolean(formError)}
+                className="pl-5 text-base text-foreground md:text-base"
               />
               <InputGroupAddon align="inline-end">
                 {(clipboardPermission === "prompt" ||
@@ -300,11 +319,6 @@ export function MediaForm() {
               onAllow={requestClipboardAccess}
               onOpenChange={setIsClipboardDialogOpen}
             />
-            <p className="text-muted-foreground text-sm">
-              Paste one media URL, or paste several at once to analyze them one
-              by one.
-            </p>
-
             {turnstileEnabled ? (
               <input
                 type="hidden"
@@ -397,14 +411,6 @@ export function MediaForm() {
               </Dialog>
             )}
           </form>
-
-          {formError && (
-            <Alert variant="destructive">
-              <Icon icon={AlertCircleIcon} size={16} />
-              <AlertTitle>Queue update</AlertTitle>
-              <AlertDescription>{formError}</AlertDescription>
-            </Alert>
-          )}
 
           {queueSnapshot.items.length > 0 && (
             <section

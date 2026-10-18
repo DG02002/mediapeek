@@ -17,7 +17,7 @@ export function Header({ className, sticky = true }: HeaderProps) {
         className
       )}
     >
-      <div className="flex w-full items-center gap-4 px-6 py-3 md:px-8 lg:px-10 xl:px-14">
+      <div className="flex h-14 w-full items-center gap-3 px-6 md:h-16 md:px-8 lg:px-10 xl:px-14">
         <Link
           to="/"
           viewTransition

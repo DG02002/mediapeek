@@ -1,11 +1,7 @@
 "use client"
 
-import {
-  ArrowDownToLineIcon,
-  ArrowUpFromLineIcon,
-  Cancel01Icon,
-} from "@hugeicons/core-free-icons"
-import { useEffect, useRef, useState } from "react"
+import { Archive04Icon, Cancel01Icon } from "@hugeicons/core-free-icons"
+import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router"
 
 import {
@@ -23,8 +19,6 @@ import { Icon } from "~/components/ui/icon"
 import { ReportCompare } from "~/features/diff/report-compare"
 import {
   deleteReport,
-  exportAll,
-  importAll,
   type StoredReport,
 } from "~/features/library/report-library"
 import { ReportRow } from "~/features/library/report-row"
@@ -33,6 +27,31 @@ import { StoredReportView } from "~/features/library/stored-report-view"
 import { useHydrated } from "~/hooks/use-hydrated"
 
 import { useReportLibrary } from "./use-report-library"
+
+const ReportsEmptyState = () => (
+  <section
+    aria-labelledby="reports-empty-title"
+    className="flex min-h-72 w-full flex-col items-center justify-center px-6 py-16 text-center"
+  >
+    <div
+      aria-hidden="true"
+      className="mb-5 flex size-14 items-center justify-center rounded-full bg-muted text-muted-foreground"
+    >
+      <Icon icon={Archive04Icon} strokeWidth={1.8} className="size-7" />
+    </div>
+    <div className="flex max-w-md flex-col items-center gap-2">
+      <h2
+        id="reports-empty-title"
+        className="font-heading text-xl font-semibold"
+      >
+        No saved reports yet
+      </h2>
+      <p className="max-w-sm text-sm leading-6 text-muted-foreground text-pretty">
+        Save a report to see it here.
+      </p>
+    </div>
+  </section>
+)
 
 const clearModeParams = (params: URLSearchParams) => {
   params.delete("report")
@@ -101,8 +120,6 @@ export function ReportsSection() {
   const [deleteTarget, setDeleteTarget] = useState<StoredReport | null>(null)
 
   const [message, setMessage] = useState<string | null>(null)
-  const [isBusy, setIsBusy] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(
     () =>
@@ -112,45 +129,6 @@ export function ReportsSection() {
     [libraryStore]
   )
 
-  const handleExport = async () => {
-    setIsBusy(true)
-
-    try {
-      const count = await exportAll()
-      setMessage(`Exported ${String(count)} reports.`)
-    } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Unable to export reports."
-      )
-    } finally {
-      setIsBusy(false)
-    }
-  }
-
-  const handleImport = async (file: File | undefined) => {
-    if (!file) {
-      return
-    }
-
-    setIsBusy(true)
-
-    try {
-      const count = await importAll(file)
-      await libraryStore.refresh()
-      setMessage(`Imported ${String(count)} reports.`)
-    } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Unable to import reports."
-      )
-    } finally {
-      setIsBusy(false)
-
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""
-      }
-    }
-  }
-
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) {
       return
@@ -158,7 +136,6 @@ export function ReportsSection() {
 
     const report = deleteTarget
     setDeleteTarget(null)
-    setIsBusy(true)
 
     try {
       await deleteReport(report.id)
@@ -168,60 +145,27 @@ export function ReportsSection() {
       setMessage(
         error instanceof Error ? error.message : "Unable to delete the report."
       )
-    } finally {
-      setIsBusy(false)
     }
   }
 
   return (
     <section
-      aria-labelledby="recent-title"
-      className="mt-12 space-y-4 md:mt-16"
+      aria-labelledby={reports.length > 0 ? "recent-title" : undefined}
+      aria-label={reports.length === 0 ? "Recent reports" : undefined}
+      className="space-y-4"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="recent-title" className="text-2xl font-bold">
-          Recent{" "}
-          {reports.length > 0 && (
-            <span className="text-muted-foreground">
-              ({String(reports.length)})
-            </span>
-          )}
-        </h2>
-        <div className="flex items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json,.json"
-            className="sr-only"
-            aria-label="Import report library JSON"
-            onChange={(event) => {
-              void handleImport(event.currentTarget.files?.item(0) ?? undefined)
-            }}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground"
-            disabled={isBusy}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Icon icon={ArrowUpFromLineIcon} size={16} />
-            Import
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground"
-            disabled={isBusy || reports.length === 0}
-            onClick={() => void handleExport()}
-          >
-            <Icon icon={ArrowDownToLineIcon} size={16} />
-            Export
-          </Button>
+      {(reports.length > 0 || librarySnapshot.isLoading) && (
+        <div>
+          <h2 id="recent-title" className="font-heading text-2xl font-bold">
+            Recent{" "}
+            {reports.length > 0 && (
+              <span className="text-muted-foreground">
+                ({String(reports.length)})
+              </span>
+            )}
+          </h2>
         </div>
-      </div>
+      )}
 
       {(message ?? librarySnapshot.error) && (
         <p role="status" className="text-muted-foreground text-sm">
@@ -240,10 +184,7 @@ export function ReportsSection() {
       )}
 
       {!librarySnapshot.isLoading && reports.length === 0 && (
-        <p className="border-border text-muted-foreground border-y px-4 py-6 text-sm">
-          Reports you analyze stay on this device. Choose “Save report” after an
-          analysis to keep one here.
-        </p>
+        <ReportsEmptyState />
       )}
 
       {compareBase ? (
@@ -254,7 +195,7 @@ export function ReportsSection() {
         />
       ) : (
         reports.length > 0 && (
-          <ol className="border-border border-t">
+          <ol className="flex flex-col divide-y divide-border/70">
             {reports.map((report) => (
               <ReportRow
                 key={report.id}

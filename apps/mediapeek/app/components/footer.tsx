@@ -2,32 +2,49 @@ import { Link } from "react-router"
 
 const CURRENT_YEAR = new Date().getFullYear()
 
+const policyLinks = [
+  { label: "Terms of use", to: "/terms" },
+  { label: "Privacy policy", to: "/privacy" },
+  { label: "Cookie policy", to: "/cookies" },
+  { label: "Usage policy", to: "/usage" },
+  { label: "Open-source licenses", to: "/licenses" },
+] as const
+
 export function Footer() {
   return (
-    <footer className="bg-muted/50 border-t backdrop-blur-md">
-      <div className="w-full px-6 py-6 md:px-8 lg:px-10 xl:px-14">
-        <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <p className="text-muted-foreground text-center text-sm font-medium">
-            Copyright &copy; {CURRENT_YEAR} MediaPeek. All rights reserved.
-          </p>
-          <div className="flex items-center gap-4 text-sm font-medium">
-            <Link
-              to="/privacy"
-              viewTransition
-              className="text-muted-foreground hover:text-foreground transition-colors"
+    <footer className="bg-background">
+      <div className="w-full px-6 md:px-8 lg:px-10 xl:px-14">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-12 pt-16 sm:grid-cols-4 md:pt-20">
+          <nav
+            aria-labelledby="footer-policies-heading"
+            className="flex flex-col items-start gap-5"
+          >
+            <h2
+              id="footer-policies-heading"
+              className="text-sm font-normal text-muted-foreground"
             >
-              Privacy Policy
-            </Link>
-            <span className="text-muted-foreground/30">|</span>
-            <Link
-              to="/terms"
-              viewTransition
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Terms of Use
-            </Link>
-          </div>
+              Terms and policies
+            </h2>
+            <ul className="flex flex-col items-start gap-4">
+              {policyLinks.map((link) => (
+                <li key={link.to}>
+                  <Link
+                    to={link.to}
+                    viewTransition
+                    className="text-sm text-foreground transition-opacity hover:opacity-70"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
         </div>
+      </div>
+      <div className="mt-16 w-full px-6 pt-5 pb-10 md:mt-20 md:px-8 md:pb-12 lg:px-10 xl:px-14">
+        <p className="text-center text-sm text-muted-foreground">
+          MediaPeek © {CURRENT_YEAR}
+        </p>
       </div>
     </footer>
   )

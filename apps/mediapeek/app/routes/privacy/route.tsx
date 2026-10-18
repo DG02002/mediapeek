@@ -42,11 +42,7 @@ export default function PrivacyPolicy() {
           remains there until you delete it or clear this site&apos;s browser
           data. MediaPeek does not keep a server-side report library.
         </p>
-        <p>
-          Exporting downloads a file to your device. Importing a report library
-          reads the file you choose and adds its reports to this browser&apos;s
-          library.
-        </p>
+        <p>Exporting downloads the selected report to your device.</p>
       </PolicySection>
 
       <PolicySection title="Clipboard and browser storage">
@@ -65,7 +61,7 @@ export default function PrivacyPolicy() {
           the response token to Cloudflare for server-side verification. See
           Cloudflare&apos;s{" "}
           <a
-            href="https://www.cloudflare.com/en-au/turnstile-privacy-policy/"
+            href="https://www.cloudflare.com/turnstile-privacy-policy/"
             target="_blank"
             rel="noreferrer"
             className="underline underline-offset-4"
@@ -80,14 +76,23 @@ export default function PrivacyPolicy() {
         <p>
           Sharing is optional. When you choose Share, MediaPeek encrypts the
           selected report output in your browser and uploads the encrypted
-          payload to PrivateBin. The generated link contains the decryption key
-          in its URL fragment. Anyone with the full link can open the report, so
-          share it only with people you trust. The upload is configured to
-          expire after one week; PrivateBin controls the hosted paste and its
-          availability.
+          payload to the configured host, <code>privatebin.net</code>. The
+          generated link contains the decryption key in its URL fragment. Anyone
+          with the full link can open the report, so share it only with people
+          you trust. The upload is configured to expire after one week; the host
+          controls the stored paste and its availability.
         </p>
         <p>
           Read the{" "}
+          <a
+            href="https://privatebin.net/"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-4"
+          >
+            PrivateBin host
+          </a>{" "}
+          and{" "}
           <a
             href="https://privatebin.info/"
             target="_blank"
@@ -96,7 +101,9 @@ export default function PrivacyPolicy() {
           >
             PrivateBin project information
           </a>{" "}
-          for how that service handles requests and encrypted pastes.
+          for information about the software. The repository does not include
+          the hosting operator&apos;s privacy or retention terms; confirm those
+          before publication.
         </p>
       </PolicySection>
 
@@ -115,7 +122,7 @@ export default function PrivacyPolicy() {
           deliver the service and may handle information under its own terms.
           See the{" "}
           <a
-            href="https://www.cloudflare.com/privacypolicy/"
+            href="https://www.cloudflare.com/policies/privacy/"
             target="_blank"
             rel="noreferrer"
             className="underline underline-offset-4"
@@ -146,16 +153,40 @@ export default function PrivacyPolicy() {
           . Issues are public; do not include personal, private, or confidential
           information.
         </p>
+        <p>
+          The repository does not designate a private channel for privacy
+          requests or name the service operator responsible for them. Confirm
+          both before publication; public GitHub issues are not a private
+          request channel.
+        </p>
       </PolicySection>
 
-      <PolicySection title="Related terms">
+      <PolicySection title="Related policies">
         <p>
-          The service terms are on the{" "}
+          Read the{" "}
           <Link to="/terms" className="underline underline-offset-4">
             Terms of Use
+          </Link>
+          ,{" "}
+          <Link to="/cookies" className="underline underline-offset-4">
+            Cookie Policy
+          </Link>
+          , and{" "}
+          <Link to="/usage" className="underline underline-offset-4">
+            Usage Policy
           </Link>{" "}
-          page. Both policy drafts need product and legal review before
+          with this draft. These policies need product and legal review before
           publication.
+        </p>
+      </PolicySection>
+
+      <PolicySection title="Review before publication">
+        <p>
+          Confirm the service operator, privacy contact, deployment and logging
+          configuration, log retention period, and any production services that
+          process visitor information. Review the privacy and retention terms
+          for the configured PrivateBin host as well. The repository does not
+          provide those details.
         </p>
       </PolicySection>
     </PolicyLayout>
