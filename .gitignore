@@ -24,15 +24,14 @@ dist/
 .mf
 .wrangler
 .wrangler/
-.dev.vars
-.dev.vars.*
+.dev.vars*
+!.dev.vars.example
 .dev.var
 .dev.var.*
 worker-configuration.d.ts
 
 # Environment Variables
-.env
-.env.*
+.env*
 !.env.example
 .envrc
 .envrc.local
@@ -50,7 +49,6 @@ worker-configuration.d.ts
 
 # Editor
 .idea/
-.agents/
 # We keep .vscode tracked for shared settings
 
 # Cache & Stores
@@ -68,3 +66,15 @@ coverage/
 # Temporary
 temp/
 tmp/
+
+# Agent plans and vendored read-only references
+.plans/
+.repos/
+
+# Keep repository source visible when machine-wide [Ll]ib or [Ss]cripts rules are active.
+!apps/mediapeek/app/lib/
+!apps/mediapeek/app/lib/**
+!apps/mediapeek-analyzer/src/lib/
+!apps/mediapeek-analyzer/src/lib/**
+!scripts/
+!scripts/**

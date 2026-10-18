@@ -1,0 +1,128 @@
+name: Bug report
+description: Report broken behavior, regressions, crashes, or reliability problems.
+title: '[Bug]: '
+labels:
+  - bug
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for one reproducible problem. Search existing issues first.
+        For security vulnerabilities, use the private reporting link instead.
+        Redact credentials, cookies, private URLs, and personal data.
+
+  - type: checkboxes
+    id: before-submitting
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I removed credentials, cookies, private URLs, and personal data.
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of MediaPeek is affected?
+      options:
+        - Browser app or analysis form
+        - Analysis queue
+        - Web Worker route or rate limiting
+        - Analyzer Worker or MediaInfo
+        - Range-based media fetching
+        - Saved reports or report comparison
+        - Export, sharing, or Turnstile
+        - CI, release, or operations
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Give the smallest deterministic sequence that shows the problem.
+      placeholder: |
+        1. Open MediaPeek.
+        2. Enter a public media URL.
+        3. Submit the analysis.
+        4. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should MediaPeek have done?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead? Include visible error text exactly when possible.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      description: How bad is this in practice?
+      options:
+        - Blocks the main workflow completely
+        - Major degradation or frequent failure
+        - Minor bug or occasional failure
+        - Cosmetic issue
+    validations:
+      required: true
+
+  - type: input
+    id: public-source
+    attributes:
+      label: Public source URL or hostname
+      description: Optional. Share only a public reproducible source, never a private or credential-bearing URL.
+
+  - type: input
+    id: version
+    attributes:
+      label: MediaPeek version or commit
+      description: Use the release version, commit SHA, or production release identity if known.
+      placeholder: 1.2.0 or main @ abc1234
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include the browser, device, network, or local development details that matter.
+      placeholder: |
+        Browser and version:
+        Device:
+        Network or local development mode:
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or stack traces
+      description: Paste only relevant output and redact secrets, cookies, URLs, and personal data.
+      render: shell
+
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Screenshots or recordings
+      description: Add screenshots or a short recording when they clarify the problem. Redact sensitive information first.
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround
+      description: If you found a temporary workaround, include it.

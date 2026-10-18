@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/knip/schema.json",
+  "treatConfigHintsAsErrors": true,
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/**/*.{ts,mjs}"],
+      "project": ["scripts/**/*.{ts,mjs}"]
+    },
+    "apps/mediapeek": {
+      "entry": ["*.{ts,tsx,mjs}", "app/features/analyze/analysis-session.ts"],
+      "paths": {
+        "~/*": ["./app/*"]
+      },
+      "project": [
+        "app/**/*.{ts,tsx}!",
+        "app/**/*.css!",
+        "!app/test/**!",
+        "*.{ts,tsx,mjs}"
+      ],
+      "ignoreIssues": {
+        "app/components/ui/**/*.tsx": ["exports"]
+      }
+    },
+    "apps/mediapeek-analyzer": {
+      "project": ["src/**/*.ts", "*.{ts,tsx,mjs}"]
+    },
+    "packages/shared": {
+      "entry": ["src/**/*.ts"],
+      "project": ["src/**/*.ts"]
+    }
+  }
+}

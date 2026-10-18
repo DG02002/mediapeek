@@ -1,0 +1,41 @@
+{
+  "name": "mediapeek-analyzer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check": "pnpm run fmt:check && pnpm run lint && pnpm run typecheck",
+    "build": "wrangler deploy --dry-run --outdir=dist",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "start": "wrangler dev",
+    "postinstall": "pnpm run cf-typegen",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "cf-typegen": "wrangler types",
+    "lint": "cd ../.. && oxlint --config .oxlintrc.json apps/mediapeek-analyzer",
+    "clean": "rm -rf dist node_modules"
+  },
+  "dependencies": {
+    "@hono/standard-validator": "^0.4.0",
+    "@mediapeek/shared": "workspace:*",
+    "@standard-schema/spec": "^1.1.0",
+    "effect": "catalog:",
+    "evlog": "catalog:",
+    "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@mediapeek/config-typescript": "workspace:*",
+    "@types/node": "^26.6.5",
+    "mediainfo.js": "^0.3.8",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  }
+}

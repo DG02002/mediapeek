@@ -1,7 +1,6 @@
-<p align="center">
-  <img src="resources/app_icons/MediaPeek-Dark-Default-1024x1024@1x.png" alt="MediaPeek Icon" width="200"/>
-</p>
-<h1 align="center">MediaPeek</h1>
+# MediaPeek
+
+![MediaPeek app icon](resources/app_icons/MediaPeek-Dark-Default-1024x1024@1x.png)
 
 MediaPeek provides detailed technical metadata for video, audio, image, and subtitle files directly in the browser. It fetches only the data segments needed for analysis, without downloading the full file first.
 
@@ -10,18 +9,23 @@ MediaPeek provides detailed technical metadata for video, audio, image, and subt
 ## Docs
 
 - [Contributing and development](CONTRIBUTING.md)
-- [Analyzer API and configuration](apps/analyzer/README.md)
+- [Analyzer API and configuration](apps/mediapeek-analyzer/README.md)
 
 ## Features
 
-| Capability | What it gives you |
-| --- | --- |
-| **Range-based analysis** | Reads only the parts of a remote file that MediaInfo needs instead of downloading the full asset first. |
-| **Archive-aware inspection** | Opens supported media inside `.zip` and `.tar` archives and keeps both archive and inner filenames visible. |
-| **Flexible sources** | Works with direct HTTP/HTTPS media URLs and supported public sources such as Google Drive files and folders. |
-| **Multiple output formats** | Exports metadata as Object, JSON, Text, HTML, or XML for inspection, sharing, or reuse. |
-| **Secure result sharing** | Shares reports through end-to-end encrypted PrivateBin links. |
-| **Safer fetch pipeline** | Blocks local and private network targets to reduce SSRF risk. |
+| Capability                   | What it gives you                                                                                                            |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **Range-based analysis**     | Reads only the parts of a remote file that MediaInfo needs instead of downloading the full asset first.                      |
+| **Archive-aware inspection** | Opens supported media inside `.zip` and `.tar` archives and keeps both archive and inner filenames visible.                  |
+| **Flexible sources**         | Works with direct HTTP/HTTPS media URLs and supported public sources such as Google Drive files and folders.                 |
+| **URL analysis**             | Analyze one public media URL at a time, with progress, retry, and cancellation on its report page.                           |
+| **On-device reports**        | Saves reports in your browser so you can reopen or delete them. Reports leave the device only when you export or share them. |
+| **Report comparison**        | Compares two saved reports as a git-style line diff of the JSON or Text output.                                              |
+| **Multiple output formats**  | Exports metadata as Object, JSON, Text, HTML, or XML for inspection, sharing, or reuse.                                      |
+| **PNG export**               | Captures a report as a styled image in light or dark theme.                                                                  |
+| **Secure result sharing**    | Shares reports through end-to-end encrypted PrivateBin links.                                                                |
+| **Safer fetch pipeline**     | Blocks local and private network targets to reduce SSRF risk.                                                                |
+| **Optional Turnstile**       | Cloudflare Turnstile gating is available for the analyze endpoint but is disabled by default.                                |
 
 ## Try It
 

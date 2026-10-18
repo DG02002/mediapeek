@@ -2,34 +2,39 @@
   "name": "mediapeek-monorepo",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.30.3+sha512.c961d1e0a2d8e354ecaa5166b822516668b7f44cb5bd95122d590dd81922f606f5473b6d23ec4a5be05e7fcd18e8488d47d978bbe981872f1145d06e9a740017",
   "scripts": {
+    "check": "pnpm run fmt:check && oxlint scripts && pnpm run lint:markdown && pnpm run check:workflows && pnpm -r --if-present run check && knip && pnpm run knip:production",
+    "check:workflows": "node scripts/check-workflows.mjs",
     "build": "pnpm -r --if-present run build",
-    "dev": "pnpm --parallel --stream --filter mediapeek-analyzer --filter mediapeek-web run dev",
-    "test": "pnpm -r --if-present run test",
+    "dev": "pnpm --parallel --stream --filter mediapeek-analyzer --filter mediapeek run dev",
+    "test": "pnpm --workspace-concurrency=1 -r --if-present run test --run",
     "typecheck": "pnpm -r --if-present run typecheck",
-    "lint": "pnpm -r --if-present run lint",
-    "fmt": "oxfmt",
-    "fmt:check": "oxfmt --check",
+    "lint": "oxlint scripts && pnpm run lint:markdown && pnpm -r --if-present run lint",
+    "lint:markdown": "markdownlint-cli2",
+    "knip": "knip",
+    "knip:production": "knip --production --include files,dependencies",
+    "fmt": "oxfmt package.json pnpm-workspace.yaml knip.json lint-staged.config.mjs scripts/check-workflows.mjs .oxlintrc.json .oxfmtrc.json .markdownlint-cli2.jsonc",
+    "fmt:check": "oxfmt package.json pnpm-workspace.yaml knip.json lint-staged.config.mjs scripts/check-workflows.mjs .oxlintrc.json .oxfmtrc.json .markdownlint-cli2.jsonc --check",
+    "prepare": "husky",
+    "sync:repos": "tsx scripts/sync-repos.ts",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist apps/*/dist-electron packages/*/dist .turbo apps/*/.turbo packages/*/.turbo",
     "approve-builds": "pnpm approve-builds"
   },
   "devDependencies": {
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "oxfmt": "^0.48.0",
-    "oxlint": "^1.63.0",
-    "oxlint-tsgolint": "^0.22.1",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.5"
+    "@oxlint/plugins": "catalog:",
+    "husky": "catalog:",
+    "js-yaml": "^5.4.3",
+    "knip": "catalog:",
+    "lint-staged": "catalog:",
+    "markdownlint-cli2": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "msw",
-      "workerd"
-    ],
-    "ignoredBuiltDependencies": [
-      "sharp"
-    ]
-  }
+  "engines": {
+    "node": "26.12.0"
+  },
+  "packageManager": "pnpm@10.30.3+sha512.c961d1e0a2d8e354ecaa5166b822516668b7f44cb5bd95122d590dd81922f606f5473b6d23ec4a5be05e7fcd18e8488d47d978bbe981872f1145d06e9a740017"
 }

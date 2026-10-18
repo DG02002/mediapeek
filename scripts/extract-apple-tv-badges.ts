@@ -1,92 +1,100 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, writeFile } from "node:fs/promises"
+import { join } from "node:path"
 
 const PAGE_URL =
-  'https://tv.apple.com/in/show/pluribus/umc.cmc.37axgovs2yozlyh3c2cmwzlza';
-const OUTPUT_DIR = join(process.cwd(), 'experiment', 'extracted-badges');
+  "https://tv.apple.com/in/show/pluribus/umc.cmc.37axgovs2yozlyh3c2cmwzlza"
 
-async function main() {
-  console.log(`Fetching page: ${PAGE_URL}`);
-  const pageRes = await fetch(PAGE_URL);
-  const pageHtml = await pageRes.text();
+const OUTPUT_DIR = join(process.cwd(), "experiment", "extracted-badges")
 
-  // Find the main css file
-  // Look for <link rel="stylesheet" ... href="/assets/main~...">
-  // Example: <link rel="stylesheet" crossorigin href="/assets/main~C4ibcj_vaK.css">
-  const cssMatch = /href="([^"]*\/assets\/main[^"]*\.css)"/.exec(pageHtml);
-
-  if (!cssMatch) {
-    console.error('Could not find main CSS file in HTML');
-    // Fallback search for any css if specific main pattern fails
-    const anyCss = /href="(\/assets\/[^"]+\.css)"/.exec(pageHtml);
-    if (!anyCss) {
-      console.error('No CSS assets found.');
-      return;
-    }
-  }
-
-  const cssPath = cssMatch ? cssMatch[1] : '';
-  const cssUrl = new URL(cssPath, 'https://tv.apple.com').toString();
-  console.log(`Fetching CSS: ${cssUrl}`);
-
-  const cssRes = await fetch(cssUrl);
-  const cssContent = await cssRes.text();
-
-  // Regex to find badges
-  // Looks like: .badge--cc.svelte-nd7koe{content:url("data:image/svg+xml;charset=utf-8,%3Csvg ...")}
-  const badgeRegex = /\.badge--([a-zA-Z0-9-]+)[^{]*{content:url\("([^"]+)"\)/g;
-
-  await mkdir(OUTPUT_DIR, { recursive: true });
-
-  let match;
-  let count = 0;
-  while ((match = badgeRegex.exec(cssContent)) !== null) {
-    const badgeName = match[1];
-    const dataUrl = match[2];
-
-    if (!dataUrl.includes('image/svg+xml')) {
-      continue;
-    }
-
-    // Extract the SVG content from data URL. It's URI encoded.
-    // Format: data:image/svg+xml;charset=utf-8,%3Csvg...
-    const rawContent = dataUrl.replace(
-      /^data:image\/svg\+xml;charset=utf-8,/,
-      '',
-    );
-    let svgContent = decodeURIComponent(rawContent);
-
-    // Optional: Beautify/Format?
-    // We can do simple cleanup to convert colors to currentColor if requested,
-    // but for "raw extraction" requests, it's often better to keep as is.
-    // However, the user previously wanted to fix hardcoded colors.
-    // I will replace the specific hardcoded light grey #ebebf5 and dark grey #3C3C43 with currentColor
-    // to make them theme-adaptable, as that seemed to be the user's intent with the manual fix.
-
-    // Apple TV often has two versions of the badge (light/dark mode) or one that matches specific theme.
-    // The CSS might have multiple entries for the same badge with different classes/media queries.
-    // Our regex captures based on class name.
-    // If there are duplicates (e.g. badge--cc defined twice), we might overwrite.
-    // Let's check for duplicates or stick to saving all unique ones found.
-
-    // To handle overwrite, we'll just let it overwrite or check if exists.
-    // Given the CSS structure usually cascades or uses scoping, the last one might be the one intended for specific media,
-    // or they might be identical.
-
-    // Helper to replace colors
-    svgContent = svgContent
-      .replace(/stroke=['"]#ebebf5['"]/gi, 'stroke="currentColor"')
-      .replace(/fill=['"]#ebebf5['"]/gi, 'fill="currentColor"')
-      .replace(/stroke=['"]#3C3C43['"]/gi, 'stroke="currentColor"')
-      .replace(/fill=['"]#3C3C43['"]/gi, 'fill="currentColor"');
-
-    const filePath = join(OUTPUT_DIR, `${badgeName}.svg`);
-    await writeFile(filePath, svgContent);
-    console.log(`Saved ${badgeName}.svg`);
-    count++;
-  }
-
-  console.log(`\nExtracted ${count} badges to ${OUTPUT_DIR}`);
+interface BadgeImage {
+  name: string
+  dataUrl: string
 }
 
-main().catch(console.error);
+const fetchText = async (url: string, label: string): Promise<string> => {
+  console.log(`Fetching ${label}: ${url}`)
+  const response = await fetch(url)
+
+  return response.text()
+}
+
+const getStylesheetUrl = (html: string): string | null => {
+  const match =
+    /href="(?<stylesheet>[^"]*\/assets\/main[^"]*\.css)"/.exec(html) ??
+    /href="(?<stylesheet>\/assets\/[^"]+\.css)"/.exec(html)
+
+  const stylesheetPath = match?.groups?.stylesheet
+
+  return stylesheetPath === undefined
+    ? null
+    : new URL(stylesheetPath, "https://tv.apple.com").toString()
+}
+
+const getBadgeImages = (css: string): BadgeImage[] => {
+  const badgePattern =
+    /\.badge--(?<name>[a-zA-Z0-9-]+)[^{]*{content:url\("(?<dataUrl>[^"]+)"\)/g
+
+  const badges: BadgeImage[] = []
+
+  for (const match of css.matchAll(badgePattern)) {
+    const name = match.groups?.name
+    const dataUrl = match.groups?.dataUrl
+
+    if (name !== undefined && dataUrl?.includes("image/svg+xml")) {
+      badges.push({ name, dataUrl })
+    }
+  }
+
+  return badges
+}
+
+const getSvgContent = (dataUrl: string): string => {
+  const encodedContent = dataUrl.replace(
+    /^data:image\/svg\+xml;charset=utf-8,/,
+    ""
+  )
+
+  const svgContent = decodeURIComponent(encodedContent)
+
+  return svgContent
+    .replaceAll(/stroke=['"]#ebebf5['"]/gi, 'stroke="currentColor"')
+    .replaceAll(/fill=['"]#ebebf5['"]/gi, 'fill="currentColor"')
+    .replaceAll(/stroke=['"]#3C3C43['"]/gi, 'stroke="currentColor"')
+    .replaceAll(/fill=['"]#3C3C43['"]/gi, 'fill="currentColor"')
+}
+
+const saveBadges = async (badges: BadgeImage[]): Promise<number> => {
+  const contentByName = new Map<string, string>()
+
+  for (const badge of badges) {
+    contentByName.set(badge.name, getSvgContent(badge.dataUrl))
+  }
+
+  await Promise.all(
+    [...contentByName].map(async ([name, svgContent]) => {
+      await writeFile(join(OUTPUT_DIR, `${name}.svg`), svgContent)
+      console.log(`Saved ${name}.svg`)
+    })
+  )
+
+  return contentByName.size
+}
+
+const main = async (): Promise<void> => {
+  const pageHtml = await fetchText(PAGE_URL, "page")
+  const stylesheetUrl = getStylesheetUrl(pageHtml)
+
+  if (stylesheetUrl === null) {
+    console.error("Could not find a stylesheet in the page HTML")
+
+    return
+  }
+
+  const cssContent = await fetchText(stylesheetUrl, "CSS")
+  await mkdir(OUTPUT_DIR, { recursive: true })
+  const count = await saveBadges(getBadgeImages(cssContent))
+
+  console.log(`\nSaved ${count} unique badges to ${OUTPUT_DIR}`)
+}
+
+main().catch(console.error)

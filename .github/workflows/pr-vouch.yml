@@ -1,0 +1,180 @@
+name: PR vouch
+
+on:
+  pull_request_target: # zizmor: ignore[dangerous-triggers] Required to label fork PRs; this workflow never checks out or executes PR code.
+    branches:
+      - main
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
+  issue_comment:
+    types: [created]
+  push:
+    branches:
+      - main
+    paths:
+      - .github/VOUCHED.td
+      - .github/labels.json
+      - .github/actions/sync-issue-labels/action.yml
+      - .github/workflows/sync-managed-labels.yml
+      - .github/workflows/pr-vouch.yml
+
+permissions:
+  contents: read
+
+jobs:
+  sync-labels:
+    name: Sync PR trust labels
+    uses: $/.github/workflows/sync-managed-labels.yml
+    with:
+      prefix: "vouch:"
+    permissions:
+      contents: read
+      issues: write
+
+  label:
+    name: Label PR trust
+    needs: sync-labels
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: pr-vouch-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
+      cancel-in-progress: true
+    steps:
+      - name: Check out trusted workflow source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: .github/actions/sync-issue-labels
+          sparse-checkout-cone-mode: false
+      - name: Calculate PR trust labels
+        id: vouch
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const defaultBranch = context.payload.repository.default_branch;
+            const readRepositoryFile = async (path) => {
+              try {
+                const response = await github.rest.repos.getContent({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path,
+                  ref: defaultBranch,
+                });
+
+                if (Array.isArray(response.data) || response.data.type !== "file") {
+                  throw new Error(`${path} must be a file`);
+                }
+
+                return Buffer.from(response.data.content, "base64").toString("utf8");
+              } catch (error) {
+                if (error.status === 404 && path === ".github/VOUCHED.td") {
+                  return "";
+                }
+
+                throw error;
+              }
+            };
+
+            const targets = [];
+            if (context.eventName === "pull_request_target") {
+              const pullRequest = context.payload.pull_request;
+              targets.push({
+                number: pullRequest.number,
+                login: pullRequest.user.login,
+                association: pullRequest.author_association,
+              });
+            } else if (context.eventName === "issue_comment") {
+              const commentBody = context.payload.comment?.body ?? "";
+              const issue = context.payload.issue;
+              if (issue?.pull_request && commentBody.includes("/recheck-vouch")) {
+                const pullRequest = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: issue.number,
+                });
+                targets.push({
+                  number: pullRequest.data.number,
+                  login: pullRequest.data.user.login,
+                  association: pullRequest.data.author_association,
+                });
+              }
+            } else {
+              const openPullRequests = await github.paginate(github.rest.pulls.list, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: "open",
+                per_page: 100,
+              });
+
+              for (const pullRequest of openPullRequests) {
+                targets.push({
+                  number: pullRequest.number,
+                  login: pullRequest.user.login,
+                  association: pullRequest.author_association,
+                });
+              }
+            }
+
+            if (targets.length === 0) {
+              core.info("No pull requests need a trust label.");
+              core.setOutput("managed-labels", "[]");
+              core.setOutput("targets", "[]");
+              return;
+            }
+
+            const labelsText = await readRepositoryFile(".github/labels.json");
+            const vouchLabels = JSON.parse(labelsText).filter((label) =>
+              label.name.startsWith("vouch:"),
+            );
+            const vouchLabelNames = new Set(vouchLabels.map((label) => label.name));
+            const labelTargets = [];
+            const trustText = await readRepositoryFile(".github/VOUCHED.td");
+            const trustedUsers = new Set();
+            const denouncedUsers = new Set();
+
+            for (const rawLine of trustText.split(/\r?\n/)) {
+              const line = rawLine.trim();
+              if (!line || line.startsWith("#")) {
+                continue;
+              }
+
+              if (line.startsWith("-github:")) {
+                denouncedUsers.add(line.slice(8).split(/\s+/, 1)[0].toLowerCase());
+              } else if (line.startsWith("github:")) {
+                trustedUsers.add(line.slice(7).split(/\s+/, 1)[0].toLowerCase());
+              }
+            }
+
+            const trustedAssociations = new Set(["OWNER", "MEMBER", "COLLABORATOR", "BOT"]);
+            for (const target of targets) {
+              const normalizedLogin = target.login.toLowerCase();
+              const authorAssociation = target.association?.toUpperCase();
+              let status = "unvouched";
+              if (denouncedUsers.has(normalizedLogin)) {
+                status = "denounced";
+              } else if (
+                trustedUsers.has(normalizedLogin) ||
+                trustedAssociations.has(authorAssociation)
+              ) {
+                status = "trusted";
+              }
+              const nextLabelName = `vouch:${status}`;
+              if (!vouchLabelNames.has(nextLabelName)) {
+                throw new Error(`Missing managed label definition: ${nextLabelName}`);
+              }
+              labelTargets.push({ issueNumber: target.number, labelName: nextLabelName });
+              core.info(`PR #${target.number}: ${target.login} -> ${nextLabelName}`);
+            }
+
+            core.setOutput("managed-labels", JSON.stringify([...vouchLabelNames]));
+            core.setOutput("targets", JSON.stringify(labelTargets));
+      - name: Apply PR trust labels
+        uses: $/.github/actions/sync-issue-labels
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          managed-labels: ${{ steps.vouch.outputs.managed-labels }}
+          targets: ${{ steps.vouch.outputs.targets }}

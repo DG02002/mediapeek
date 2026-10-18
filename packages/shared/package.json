@@ -3,19 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "lint": "cd ../.. && oxlint packages/shared",
-    "clean": "rm -rf dist node_modules"
-  },
-  "devDependencies": {
-    "@mediapeek/config-typescript": "workspace:*",
-    "@types/node": "^25.6.2",
-    "vitest": "^4.1.5"
-  },
   "exports": {
+    "./analysis-output-formats": {
+      "types": "./dist/analysis-output-formats.d.ts",
+      "default": "./src/analysis-output-formats.ts"
+    },
     "./analyze-contract": {
       "types": "./dist/analyze-contract.d.ts",
       "default": "./src/analyze-contract.ts"
@@ -23,6 +15,10 @@
     "./analyze-progress": {
       "types": "./dist/analyze-progress.d.ts",
       "default": "./src/analyze-progress.ts"
+    },
+    "./bounded-stream-read": {
+      "types": "./dist/bounded-stream-read.d.ts",
+      "default": "./src/bounded-stream-read.ts"
     },
     "./archive-inspection": {
       "types": "./dist/archive-inspection.d.ts",
@@ -40,6 +36,10 @@
       "types": "./dist/media.d.ts",
       "default": "./src/media.ts"
     },
+    "./media-utils": {
+      "types": "./dist/media-utils.d.ts",
+      "default": "./src/media-utils.ts"
+    },
     "./filename-resolution": {
       "types": "./dist/filename-resolution.d.ts",
       "default": "./src/filename-resolution.ts"
@@ -52,12 +52,36 @@
       "types": "./dist/runtime-config.d.ts",
       "default": "./src/runtime-config.ts"
     },
+    "./constants": {
+      "types": "./dist/constants.d.ts",
+      "default": "./src/constants.ts"
+    },
     "./log-redaction": {
       "types": "./dist/log-redaction.d.ts",
       "default": "./src/log-redaction.ts"
+    },
+    "./evlog": {
+      "types": "./dist/evlog.d.ts",
+      "default": "./src/evlog.ts"
     }
   },
+  "scripts": {
+    "check": "pnpm run fmt:check && pnpm run lint && pnpm run typecheck",
+    "build": "tsc -p tsconfig.build.json",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "cd ../.. && oxlint packages/shared",
+    "clean": "rm -rf dist node_modules"
+  },
   "dependencies": {
-    "zod": "^4.4.3"
+    "effect": "catalog:",
+    "evlog": "catalog:"
+  },
+  "devDependencies": {
+    "@mediapeek/config-typescript": "workspace:*",
+    "@types/node": "^26.6.5",
+    "vitest": "catalog:"
   }
 }

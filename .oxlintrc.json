@@ -1,0 +1,140 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "options": {
+    "typeAware": true,
+    "denyWarnings": true,
+    "reportUnusedDisableDirectives": "error"
+  },
+  "ignorePatterns": [
+    ".agent/**",
+    ".agents/**",
+    ".claude/**",
+    ".codex/**",
+    ".continue/**",
+    ".cursor/**",
+    ".gemini/**",
+    ".opencode/**",
+    ".pi/**",
+    ".plans/**",
+    ".repos/**",
+    ".roo/**",
+    ".windsurf/**",
+    "apps/mediapeek/app/components/ui/**",
+    "apps/mediapeek-analyzer/src/lib/mediainfo-bundle.js",
+    "apps/mediapeek/app/lib/mediainfo-bundle.js",
+    "**/mediainfo-bundle.js",
+    "src/lib/mediainfo-bundle.js",
+    "app/lib/mediainfo-bundle.js",
+    "tools/oxlint/anti-slop/**",
+    "**/worker-configuration.d.ts",
+    "node_modules/**",
+    ".turbo/**",
+    "build/**",
+    "dist/**",
+    "coverage/**",
+    ".react-router/**",
+    ".wrangler/**",
+    "sample/**"
+  ],
+  "jsPlugins": [
+    {
+      "name": "anti-slop",
+      "specifier": "./tools/oxlint/anti-slop/index.ts"
+    },
+    {
+      "name": "anti-slop-effect",
+      "specifier": "./tools/oxlint/anti-slop/effect/index.ts"
+    }
+  ],
+  "plugins": ["typescript", "unicorn", "react-hooks", "oxc", "import"],
+  "categories": {
+    "correctness": "warn",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "env": {
+    "builtin": true,
+    "browser": true,
+    "node": true
+  },
+  "rules": {
+    "oxc/no-accumulating-spread": "error",
+    "anti-slop/no-array-filter-map": "error",
+    "anti-slop/no-reduce-accumulator-copy": "error",
+    "anti-slop/no-chained-type-assertions": "error",
+    "anti-slop/no-conditional-empty-object-spread": "error",
+    "anti-slop/no-known-value-widening": "error",
+    "anti-slop/no-module-mocking": "error",
+    "anti-slop/no-object-parameters": "error",
+    "anti-slop/no-reflect-apply": "error",
+    "anti-slop/no-reflect-get": "error",
+    "anti-slop/no-runtime-typeof": "error",
+    "anti-slop/no-shape-in-symbol-names": "error",
+    "anti-slop/no-unknown-parameters": "error",
+    "anti-slop/no-unknown-returns": "error",
+    "anti-slop/no-unknown-type-aliases": "error",
+    "anti-slop/no-unsafe-dictionary-type": "error",
+    "anti-slop/no-widen-then-assert": "error",
+    "anti-slop/require-readable-spacing": "error",
+    "anti-slop/require-safety-comment-for-type-assertion": "error",
+    "anti-slop-effect/no-manual-effect-error-tag": "error",
+    "anti-slop-effect/no-manual-tag-comparison": "error",
+    "anti-slop-effect/no-manual-tagged-construction": "error",
+    "anti-slop-effect/no-service-constructor-imports": "error",
+    "anti-slop-effect/prefer-effect-match": "error",
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "error",
+    "react/react-in-jsx-scope": "off",
+    "react/exhaustive-effect-dependencies": "warn",
+    "react/memo-dependencies": "warn",
+    "react/purity": "warn",
+    "react/refs": "warn",
+    "react/no-array-index-key": "warn",
+    "react/use-memo": "warn",
+    "react/globals": "warn",
+    "react/jsx-no-useless-fragment": "warn",
+    "react/no-react-children": "warn",
+    "react/hook-use-state": "warn",
+    "react/no-unescaped-entities": "warn",
+    "unicorn/prefer-string-replace-all": "warn",
+    "typescript/no-explicit-any": "error",
+    "import/no-cycle": "error",
+    "import/no-unassigned-import": "off",
+    "typescript/no-unsafe-type-assertion": "off",
+    "no-promise-executor-return": "error",
+    "eqeqeq": "warn",
+    "no-var": "warn",
+    "prefer-const": "warn",
+    "curly": "warn",
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "max-statements": [
+      "warn",
+      {
+        "max": 20
+      }
+    ],
+    "max-params": "warn",
+    "no-nested-ternary": "warn",
+    "no-extra-boolean-cast": "warn",
+    "no-await-in-loop": "warn",
+    "prefer-destructuring": "warn",
+    "no-duplicate-imports": "warn",
+    "no-useless-catch": "warn",
+    "consistent-type-imports": "warn",
+    "no-underscore-dangle": [
+      "warn",
+      {
+        "allow": ["_tag", "__BUILD_TIME__", "__BUILD_NUMBER__"]
+      }
+    ],
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ]
+  }
+}
