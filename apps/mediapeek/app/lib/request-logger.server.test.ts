@@ -14,6 +14,7 @@ const createRequest = (pathname: string) =>
 
 const execute = async (pathname: string) => {
   const worker = withRequestLogging(
+    // Status 400 is force-kept by evlog, so this assertion avoids info sampling.
     async () => new Response(null, { status: 400 })
   )
 
@@ -32,13 +33,11 @@ describe("request logging exclusions", () => {
 
     expect(response.status).toBe(400)
 
-    const loggedArguments = consoleSpies
-      .flatMap((spy) => spy.mock.calls)
-      .flatMap((arguments_) => arguments_)
-      .map((argument) => JSON.stringify(argument))
-      .join("\n")
+    const loggedOutput = JSON.stringify(
+      consoleSpies.flatMap((spy) => spy.mock.calls)
+    )
 
-    expect(loggedArguments).toContain("/not-found")
+    expect(loggedOutput).toContain("/not-found")
   })
 
   it("does not emit events for excluded routes or public assets", async () => {
@@ -50,7 +49,10 @@ describe("request logging exclusions", () => {
       "/robots.txt",
       DEVTOOLS_WELL_KNOWN_PATH,
       "/_build/assets/app.js",
+      "/favicon.ico",
       "/favicon.svg",
+      "/cover.png",
+      "/cover.webp",
       "/badges/3d.svg",
       "/badges/icon-light.webp",
       "/brand/github/GitHub_Lockup_Black_Clearspace.svg",
