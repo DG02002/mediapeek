@@ -56,7 +56,9 @@ export const MediaHeader = memo(function MediaHeader({
           {file.duration && <span>{file.duration}</span>}
           {file.size && (
             <>
-              <span className="opacity-30">|</span>
+              <span aria-hidden="true" className="opacity-30">
+                |
+              </span>
               <span className="inline-flex items-center gap-2">
                 <span>{file.size}</span>
                 <ArchiveEstimateTooltip

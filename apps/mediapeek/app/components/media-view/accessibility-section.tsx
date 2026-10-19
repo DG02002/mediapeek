@@ -3,6 +3,7 @@ import { memo } from "react"
 import type { MediaReport } from "~/features/reports/media-report"
 
 import { MediaIcon } from "./media-icon"
+import { SectionHeading } from "./section-heading"
 
 export const AccessibilitySection = memo(function AccessibilitySection({
   accessibility,
@@ -20,11 +21,8 @@ export const AccessibilitySection = memo(function AccessibilitySection({
   }
 
   return (
-    <div className="mt-8 space-y-6">
-      <h3 className="text-sm font-semibold tracking-wider uppercase">
-        Accessibility
-      </h3>
-
+    <section aria-label="Accessibility" className="mt-8 space-y-6">
+      <SectionHeading title="Accessibility" />
       <div className="grid gap-6 md:grid-cols-2">
         {/* SDH */}
         {hasSDH && (
@@ -82,6 +80,6 @@ export const AccessibilitySection = memo(function AccessibilitySection({
           </div>
         )}
       </div>
-    </div>
+    </section>
   )
 })

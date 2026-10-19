@@ -43,6 +43,8 @@ export const MediaIcon = ({
   return (
     <div
       className={cn("bg-foreground inline-block", className)}
+      role="img"
+      aria-label={`${name.replaceAll("-", " ")} badge`}
       style={{
         maskImage: `url(/badges/${name}.svg)`,
         maskRepeat: "no-repeat",

@@ -241,16 +241,20 @@ export function OptionsMenu({
               }}
             >
               <div className="flex flex-1 items-center justify-between gap-2">
-                <span className="flex items-center gap-2">
+                <Label
+                  htmlFor={viewTextId}
+                  className="flex items-center gap-2 font-normal"
+                >
                   <Icon
                     icon={File01Icon}
                     size={16}
                     className={isTextView ? undefined : "opacity-50"}
                   />
                   View as Text
-                </span>
+                </Label>
                 {/* Use pointer-events-none to let the parent DropdownMenuItem handle the click/toggle */}
                 <Switch
+                  id={viewTextId}
                   checked={isTextView}
                   className="pointer-events-none"
                   aria-readonly
@@ -264,15 +268,19 @@ export function OptionsMenu({
               }}
             >
               <div className="flex flex-1 items-center justify-between gap-2">
-                <span className="flex items-center gap-2">
+                <Label
+                  htmlFor={showTitlesId}
+                  className="flex items-center gap-2 font-normal"
+                >
                   <Icon
                     icon={QuoteDownIcon}
                     size={16}
                     className={showOriginalTitles ? undefined : "opacity-50"}
                   />
                   Show Original Titles
-                </span>
+                </Label>
                 <Switch
+                  id={showTitlesId}
                   checked={showOriginalTitles}
                   className="pointer-events-none"
                   aria-readonly
