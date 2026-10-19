@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "pnpm run fmt:check && oxlint scripts && pnpm run lint:markdown && pnpm run check:workflows && pnpm -r --if-present run check && knip && pnpm run knip:production",
+    "check": "pnpm run fmt:check && oxlint scripts && pnpm run lint:markdown && pnpm run check:workflows && pnpm run check:preflight && pnpm -r --if-present run check && knip && pnpm run knip:production",
+    "check:preflight": "node scripts/deployment-preflight.mjs",
     "check:workflows": "node scripts/check-workflows.mjs",
     "build": "pnpm -r --if-present run build",
     "dev": "pnpm --parallel --stream --filter mediapeek-analyzer --filter mediapeek run dev",

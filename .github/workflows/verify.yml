@@ -108,6 +108,10 @@ jobs:
       - name: Dry-run web Worker deployment
         working-directory: apps/mediapeek
         run: pnpm exec wrangler deploy --dry-run --config dist/server/wrangler.json
+      - name: Preflight web Worker deployment configuration
+        run: pnpm run check:preflight
+      - name: Preflight analyzer Worker deployment configuration
+        run: pnpm run check:preflight -- --analyzer
 
   deploy-production:
     name: Deploy production
