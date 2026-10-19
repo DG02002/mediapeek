@@ -2,8 +2,8 @@
 
 MediaPeek is a browser-based MediaInfo analyzer. A visitor submits a public
 media URL, and the web Worker asks the analyzer Worker to inspect it with
-range-based fetching. Reports stay in the visitor's browser unless they choose
-to export or share them.
+range-based fetching. Reports stay in the visitor's browser unless they
+choose to export or share them.
 
 Keep the product simple, predictable, and useful as it grows.
 
@@ -114,35 +114,23 @@ which entries applied. Fixing one path is not fixing the feature.
 
 - **Entry points.** URL submission, queued analysis, stored reports, report
   comparison, settings, exports, and sharing.
-- **Contracts.** Browser routes, web Worker, analyzer Worker, and shared
-  package contracts.
-- **Storage.** Browser state and IndexedDB. Analysis reports do not gain a
-  server persistence path.
-- **Reverse states.** Retry, cancel, reopen, delete, export, and
-  failed analysis.
-- **Outputs.** JSON, text, HTML, XML, and PNG where the feature uses them.
-- **Operations.** Local secrets, CI checks, release workflow, and health
-  check.
+- **Fetch path.** Changes that touch media fetching need a decision per fetch
+  concern — probe, range reads, fallback, archives, cancellation — even if
+  the decision is that it does not apply here.
+- **Contracts.** Browser routes, web Worker, analyzer Worker, and the shared
+  package.
+- **Reverse states.** Retry, cancel, reopen, delete, export, and failed
+  analysis.
 - **Docs.** User-visible behavior belongs in the product UI. Architecture and
-  maintainer procedures belong in `docs/internals/` and `docs/operations/`.
+  maintainer procedures belong in `docs/internals/` or `docs/operations/`.
 
 ## Ways to hurt yourself
 
 1. **Deploying production from a development shell.** CI owns production.
-   Never run `wrangler deploy` or any `--remote` command locally. Stable tags
-   deploy the analyzer Worker first, then the web Worker, and verify
-   `/healthz`.
-2. **Committing secrets.** `.env` and `.dev.vars` contain local values. Keep
-   secrets in per-app `.dev.vars`; commit only the example files.
-3. **Bypassing the analyzer's fetch protections.** Keep range reads, outbound
-   target checks, cancellation, and response limits intact when changing
-   media fetching.
-4. **Treating the archive as current history.** `archive/pre-rebuild` is a
-   read-only porting source. Copy only the files the rebuild plan calls for;
-   never merge, rebase, or cherry-pick the branch.
-5. **Editing vendored references.** `.repos/` contains read-only local
-   references. Read `.repos/effect/LLMS.md` before writing Effect code.
-6. **Killing processes by pattern.** Never `pkill -f`, pipe `pgrep` to
+   Never run `wrangler deploy` or any `--remote` command from a development
+   shell; stable tags deploy the analyzer Worker first, then the web Worker,
+   and verify `/healthz`.
+2. **Killing processes by pattern.** Never `pkill -f`, pipe `pgrep` to
    `kill`, or kill a PID found by matching a name, path, or worktree
    string; the pattern can match your own session or an unrelated dev
    server. Stop only a process you captured at spawn, or the owner of your
@@ -188,8 +176,24 @@ removal can expose the next.
 - Use a clear, correctly capitalized, imperative title with no trailing
   punctuation, for example `Fix queue retries losing the active item`. Do
   not use conventional commit prefixes (`fix:`, `feat:`, `docs:`).
-- Follow `.github/pull_request_template.md`. Every claim in the body must be
-  checkable against the diff; never state an intention as a completed result.
+  Optionally prefix the title with the workspace package when one package is
+  the clear scope, for example `analyzer: Reject alternate IP encodings in
+  outbound targets`.
+- Body: the problem in a sentence or two, then how you fixed it. Close with
+  the model and harness that did the work.
+- Include a `Release Notes:` section as the final section of the body, with a
+  blank line after the heading and exactly one bullet: `- Added ...`,
+  `- Fixed ...`, or `- Improved ...` for user-facing changes, or `- N/A` for
+  docs-only and other non-user-facing changes. For example:
+
+  ```markdown
+  Release Notes:
+
+  - Fixed queue retries losing the active item.
+  ```
+
+- Every claim in the body must be checkable against the diff; never state an
+  intention as a completed result.
 - Review the premise, not only the diff. Spend at least one sentence of
   every review asking whether the spec itself is right — especially for
   docs, where the artifact is the design.
@@ -197,7 +201,8 @@ removal can expose the next.
   developer has agreed to browser or computer use; otherwise ask the
   developer to attach them to the PR. A UI PR with no visual evidence must
   at least carry that request.
-- Upload PR evidence to GitHub. Never commit PR-only screenshots or assets.
+- Upload PR evidence to GitHub. Never commit PR-only screenshots or assets
+  such as `.github/pr-assets/`.
 - One concern per PR, where a concern is a change that can be reviewed and
   reverted on its own. Changes that only make sense together — a contract
   change and its consumers, a migration and the code that reads it — are one
@@ -248,8 +253,8 @@ follow**.
 - Put durable architecture, constraints, and decisions in
   `docs/internals/`. Put deployment and operational procedures in
   `docs/operations/`.
-- A merged PR is the implementation record. Update the tracking item when the
-  work lands; do not preserve a second checklist in the repository.
+- A merged PR is the implementation record. Update the tracking item when
+  the work lands; do not preserve a second checklist in the repository.
 
 ## Documentation
 
@@ -261,15 +266,15 @@ code.
   unintuitive. Before adding text, ask what task or decision it helps the
   visitor with.
 - `docs/internals/` is for architectural decisions and their reasons,
-  constraints that span components, and implementation traps that are hard
-  to discover from the source. Before adding a paragraph, ask what a
+  constraints that span components, and implementation traps that are hard to
+  discover from the source. Before adding a paragraph, ask what a
   maintainer would get wrong without it. If reading the relevant code
   answers the question, leave it out.
 - `docs/operations/` is for maintainer setup, release, and debugging
   procedures.
 - Do not enumerate fields or methods, narrate control flow, maintain file
-  catalogs, or append PR summaries. Types, tests, and code already record
-  the implementation.
+  catalogs, or append PR summaries. Types, tests, and code already record the
+  implementation.
 - When a documented decision or constraint changes, rewrite or remove the
   affected text. Do not append another account of the new behavior.
 
@@ -303,14 +308,6 @@ reports in IndexedDB on the device.
   `pnpm run sync:repos` when bumping the matching dependency. Read
   `.repos/effect/LLMS.md` before writing Effect code.
 
-## Code style
-
-Use interfaces for object contracts, arrow functions, and kebab-case file
-names with descriptive names. Use `Boolean(value)` instead of `!!value`. Put
-shared constants in `constants.ts` as `SCREAMING_SNAKE_CASE` names with unit
-suffixes where the value has a unit. Avoid comments; add a `// HACK:`
-comment only when a workaround needs its reason recorded.
-
 ## Taste
 
 - Put fetch-side complexity at the analyzer boundary. Keep browser state
@@ -342,4 +339,19 @@ comment only when a workaround needs its reason recorded.
   user to check the result instead of grinding.
 - When the developer asks for browser verification, drive the
   chrome-devtools MCP server (dedicated persistent profile) against
-  `pnpm dev`.
+  `pnpm dev` instead of automating a personal browser session.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues; use the `gh` CLI for all operations.
+
+### Triage labels
+
+Use the canonical labels `needs-triage`, `needs-more-info`, `via-triage`, and
+`wontfix`. See `.github/triage/PLAYBOOK.md`.
+
+### Domain docs
+
+Use a single-context layout with root `CONTEXT.md`.
