@@ -16,7 +16,8 @@ describe("router intent preloading", () => {
   it("loads route data on link focus and reuses it for navigation", async () => {
     const loader = vi.fn(() => "loaded")
 
-    // SAFETY: This test registers `/target` outside the app route tree.
+    // SAFETY: The module-registered router type describes the generated app tree,
+    // so it excludes this fixture's separately registered `/target`.
     const rootRoute = createRootRoute({
       component: () => (
         <>
