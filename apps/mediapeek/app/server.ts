@@ -6,6 +6,7 @@ import {
 import type { Register as StartRegister } from "@tanstack/react-start"
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
 import { env as workerEnv } from "cloudflare:workers"
+import { withEvlog } from "evlog/workers"
 
 import { createContentSecurityPolicy } from "~/security/content-security-policy"
 
@@ -47,7 +48,7 @@ const applySecurityHeaders = (
   })
 }
 
-export default createServerEntry({
+const entry = createServerEntry({
   async fetch(request, opts) {
     const url = new URL(request.url)
 
@@ -73,3 +74,27 @@ export default createServerEntry({
     return applySecurityHeaders(response, runtimeConfig)
   },
 })
+
+// /resource/analyze already emits its own richer per-request log through
+// requestStorage and finalizeAnalyzeRequest; the rest are health or asset
+// noise.
+const UNLOGGED_PATH_PATTERNS = [
+  "/resource/analyze",
+  "/healthz",
+  "/robots.txt",
+  DEVTOOLS_WELL_KNOWN_PATH,
+  "/_build/**",
+  "/*.png",
+  "/*.ico",
+]
+
+// The Workers fetch arguments flow straight into the Start entry, the same
+// passthrough Cloudflare's custom-entrypoint guide uses for handler.fetch.
+type EntryOptions = Parameters<typeof entry.fetch>[1]
+
+export default withEvlog(
+  (request, env: EntryOptions) => entry.fetch(request, env),
+  {
+    exclude: UNLOGGED_PATH_PATTERNS,
+  }
+)
