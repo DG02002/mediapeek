@@ -23,7 +23,6 @@ export const TurnstileWidget = forwardRef<
   TurnstileWidgetProps
 >(({ onVerify, onError, onExpire }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [widgetId, setWidgetId] = useState<string | null>(null)
   const widgetIdRef = useRef<string | null>(null)
 
   const [isVerified, setIsVerified] = useState(false)
@@ -37,8 +36,8 @@ export const TurnstileWidget = forwardRef<
 
   useImperativeHandle(ref, () => ({
     reset: () => {
-      if (widgetId && window.turnstile) {
-        window.turnstile.reset(widgetId)
+      if (widgetIdRef.current && window.turnstile) {
+        window.turnstile.reset(widgetIdRef.current)
         setIsVerified(false)
       }
     },
@@ -97,7 +96,6 @@ export const TurnstileWidget = forwardRef<
 
           didFinish = true
           clearTimers()
-          setWidgetId(id)
           widgetIdRef.current = id
         } catch {
           fail()
@@ -120,7 +118,6 @@ export const TurnstileWidget = forwardRef<
         if (widgetIdRef.current && window.turnstile) {
           window.turnstile.remove(widgetIdRef.current)
           widgetIdRef.current = null
-          setWidgetId(null)
         }
       }
     }

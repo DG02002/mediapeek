@@ -1,5 +1,5 @@
 import type { AnalysisOutputId } from "@mediapeek/shared/analysis-output-formats"
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useMemo, useRef } from "react"
 import { toast } from "sonner"
 
 import {
@@ -63,7 +63,6 @@ export function useMediaActions({
   const session = providedSession ?? fallbackSession
   const sharedUrls = useRef<Record<string, string>>({})
   const { triggerSuccess } = useHapticFeedback()
-  const [isSharing, setIsSharing] = useState(false)
 
   const fetchContent = useCallback(
     async (format: AnalysisOutputId, label: string) => {
@@ -166,8 +165,6 @@ export function useMediaActions({
         `Encrypting and Uploading ${label}...`
       )
 
-      setIsSharing(true)
-
       try {
         const { url: newUrl } = await services.uploadToPrivateBin(content)
         sharedUrls.current[format] = newUrl
@@ -185,12 +182,10 @@ export function useMediaActions({
           description: "Could not upload to PrivateBin. Try again in a moment.",
         })
         throw err
-      } finally {
-        setIsSharing(false)
       }
     },
     [fetchContent, services]
   )
 
-  return { handleCopy, getShareUrl, isSharing }
+  return { handleCopy, getShareUrl }
 }

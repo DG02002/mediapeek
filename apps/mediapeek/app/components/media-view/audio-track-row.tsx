@@ -33,7 +33,7 @@ export const AudioTrackRow = memo(function AudioTrackRow({
     track.channelsText ||
     track.channels
 
-  let channels = String(channelsStr)
+  let channels = channelsStr ?? ""
 
   if (track.objectCount > 0) {
     channels += ` with ${String(track.objectCount)} Objects`

@@ -57,13 +57,25 @@ const useParsedMediaReport = (data: MediaViewData, url: string) => {
   return parsedReport
 }
 
+const useTextViewMode = () => {
+  const [isTextView, setIsTextView] = useState(false)
+  const viewModeRef = useRef<"text" | "structured">("structured")
+
+  const updateTextView = useCallback((value: boolean) => {
+    viewModeRef.current = value ? "text" : "structured"
+    setIsTextView(value)
+  }, [])
+
+  return { isTextView, updateTextView, viewModeRef }
+}
+
 export const MediaView = memo(function MediaView({
   data,
   url,
   session: providedSession,
   requestTurnstileToken,
 }: MediaViewProps) {
-  const [isTextView, setIsTextView] = useState(false)
+  const { isTextView, updateTextView, viewModeRef } = useTextViewMode()
   const [showOriginalTitles, setShowOriginalTitles] = useState(false)
   const [isFullScreen, setIsFullScreen] = useState(false)
   const [fetchedText, setFetchedText] = useState<string | null>(null)
@@ -84,17 +96,11 @@ export const MediaView = memo(function MediaView({
   const handleSetIsTextView = useCallback(
     (val: boolean) => {
       startNativeViewTransition(
-        () => {
-          setIsTextView(val)
-        },
-        () => {
-          startTransition(() => {
-            setIsTextView(val)
-          })
-        }
+        () => updateTextView(val),
+        () => startTransition(() => updateTextView(val))
       )
     },
-    [startTransition]
+    [startTransition, updateTextView]
   )
 
   const handleSetShowOriginalTitles = useCallback(
@@ -169,7 +175,7 @@ export const MediaView = memo(function MediaView({
 
     const activeViewMode = isTextView ? "text" : "structured"
 
-    if (containerRef.current.dataset.viewMode !== activeViewMode) {
+    if (viewModeRef.current !== activeViewMode) {
       return
     }
 
@@ -180,7 +186,7 @@ export const MediaView = memo(function MediaView({
     if (scrollTop > absoluteTop) {
       window.scrollTo({ top: absoluteTop, behavior: "instant" })
     }
-  }, [isTextView])
+  }, [isTextView, viewModeRef])
 
   const parsedReport = useParsedMediaReport(data, url)
 
@@ -188,12 +194,9 @@ export const MediaView = memo(function MediaView({
   const fullData = useMemo(() => {
     return {
       ...data,
-      text:
-        (data.text !== "" ? data.text : undefined) ??
-        fetchedText ??
-        (isTextLoading ? "" : ""),
+      text: (data.text !== "" ? data.text : undefined) ?? fetchedText ?? "",
     }
-  }, [data, fetchedText, isTextLoading])
+  }, [data, fetchedText])
 
   const { handleExportPng, isExportingPng, mediaReportExportRef } =
     useMediaPngExport(
@@ -212,7 +215,7 @@ export const MediaView = memo(function MediaView({
         </p>
         <p className="mt-1 text-sm">{parsedReport.error.message}</p>
         <pre className="mt-2 overflow-x-auto text-xs whitespace-pre-wrap opacity-70">
-          {(data["@ref"] ?? "").endsWith(".json") && "No JSON data"}
+          {!(data["@ref"] ?? "").endsWith(".json") && "No JSON data"}
         </pre>
       </div>
     )
@@ -223,7 +226,6 @@ export const MediaView = memo(function MediaView({
   return (
     <div
       ref={containerRef}
-      data-view-mode={isTextView ? "text" : "structured"}
       className="animate-in fade-in mx-auto w-full max-w-5xl space-y-6 pb-20"
     >
       {report.container && (

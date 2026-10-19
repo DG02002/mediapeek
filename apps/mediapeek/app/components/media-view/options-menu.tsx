@@ -63,13 +63,11 @@ interface OptionsMenuProps {
   showOriginalTitles: boolean
   setShowOriginalTitles: (val: boolean) => void
   className?: string
-  onShareSuccess?: (url: string) => void
   onExportPng: (theme: MediaPngExportTheme) => Promise<void>
   isExportingPng: boolean
 }
 
 const formats: ReadonlyArray<{ id: AnalysisOutputId; label: string }> = [
-  { id: "json", label: "Object" },
   { id: "json", label: "JSON" },
   { id: "text", label: "Text" },
   { id: "xml", label: "XML" },
@@ -95,7 +93,6 @@ export function OptionsMenu({
   showOriginalTitles,
   setShowOriginalTitles,
   className,
-  onShareSuccess,
   onExportPng,
   isExportingPng,
 }: OptionsMenuProps) {
@@ -119,24 +116,37 @@ export function OptionsMenu({
     label: string
   } | null>(null)
 
-  const shareClickedRef = React.useRef(false)
+  const shareDialogTimeoutRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null)
+
+  React.useEffect(
+    () => () => {
+      if (shareDialogTimeoutRef.current !== null) {
+        clearTimeout(shareDialogTimeoutRef.current)
+      }
+    },
+    []
+  )
 
   const handleShareClick = async (format: AnalysisOutputId, label: string) => {
     try {
       const shareUrl = await getShareUrl(format, label)
 
       if (shareUrl) {
-        shareClickedRef.current = true
         setShareData({ url: shareUrl, label })
         setOpen(false) // Close the main menu first
 
         // Wait for drawer close animation to finish before opening dialog
         // This prevents layout thrashing and jitter on mobile
-        setTimeout(() => {
+        if (shareDialogTimeoutRef.current !== null) {
+          clearTimeout(shareDialogTimeoutRef.current)
+        }
+
+        shareDialogTimeoutRef.current = setTimeout(() => {
+          shareDialogTimeoutRef.current = null
           blurActiveElement()
           setShareDialogOpen(true)
-          shareClickedRef.current = false
-          onShareSuccess?.(shareUrl)
         }, 300)
       }
     } catch {
@@ -299,9 +309,9 @@ export function OptionsMenu({
                 <span>Copy Metadata</span>
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-48">
-                {formats.map((fmt, i) => (
+                {formats.map((fmt) => (
                   <DropdownMenuItem
-                    key={`${fmt.id}-${String(i)}`}
+                    key={fmt.id}
                     onClick={() => {
                       handleCopy(fmt.id, fmt.label)
                     }}
@@ -318,9 +328,9 @@ export function OptionsMenu({
                 <span>Share Metadata</span>
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-48">
-                {formats.map((fmt, i) => (
+                {formats.map((fmt) => (
                   <DropdownMenuItem
-                    key={`${fmt.id}-${String(i)}`}
+                    key={fmt.id}
                     onClick={() => {
                       void handleShareClick(fmt.id, fmt.label)
                     }}
@@ -418,9 +428,9 @@ export function OptionsMenu({
                     Select a format to copy metadata to the clipboard.
                   </p>
                   <div className="grid grid-cols-3 gap-2">
-                    {formats.map((fmt, i) => (
+                    {formats.map((fmt) => (
                       <Button
-                        key={`copy-${fmt.id}-${String(i)}`}
+                        key={`copy-${fmt.id}`}
                         variant="ghost"
                         size="sm"
                         className="bg-muted/30 hover:bg-muted/50 border"
@@ -439,9 +449,9 @@ export function OptionsMenu({
                     Select a format to create an encrypted PrivateBin link.
                   </p>
                   <div className="grid grid-cols-3 gap-2">
-                    {formats.map((fmt, i) => (
+                    {formats.map((fmt) => (
                       <Button
-                        key={`share-${fmt.id}-${String(i)}`}
+                        key={`share-${fmt.id}`}
                         variant="ghost"
                         size="sm"
                         className="bg-muted/30 hover:bg-muted/50 border"

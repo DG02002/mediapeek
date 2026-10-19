@@ -34,6 +34,28 @@ describe("MediaView", () => {
     logError.mockRestore()
   })
 
+  it("shows the missing JSON hint for references without a JSON suffix", () => {
+    render(
+      <MediaView
+        data={{ json: "{", "@ref": "movie.mp4" }}
+        url="https://example.com/movie.mp4"
+      />
+    )
+
+    expect(screen.getByText("No JSON data")).toBeTruthy()
+  })
+
+  it("omits the missing JSON hint for references with a JSON suffix", () => {
+    render(
+      <MediaView
+        data={{ json: "{", "@ref": "report.json" }}
+        url="https://example.com/movie.mp4"
+      />
+    )
+
+    expect(screen.queryByText("No JSON data")).toBeNull()
+  })
+
   it("renders sections from the parsed Media Report", () => {
     render(
       <MediaView
@@ -89,6 +111,27 @@ describe("MediaView", () => {
     expect(screen.getAllByText("Opening")).toHaveLength(2)
     expect(screen.getAllByText("SDH Subtitles")).toHaveLength(2)
     expect(screen.getAllByText("MediaInfoLib 25.04")).toHaveLength(2)
+  })
+
+  it("does not render an undefined channel label when track metadata omits channels", () => {
+    render(
+      <MediaView
+        data={{
+          json: JSON.stringify({
+            media: {
+              track: [
+                { "@type": "General", CompleteName: "movie.mkv" },
+                { "@type": "Audio", Format: "AAC", Language_String: "English" },
+              ],
+            },
+          }),
+        }}
+        url="https://example.com/movie.mkv"
+      />
+    )
+
+    expect(screen.getAllByText("()")).toHaveLength(2)
+    expect(screen.queryByText("(undefined)")).toBeNull()
   })
 
   it("loads text output once when toggled into text view", async () => {

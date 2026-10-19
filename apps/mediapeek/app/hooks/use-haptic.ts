@@ -24,7 +24,6 @@ export function useHapticFeedback() {
   }, [vibrate])
 
   return {
-    vibrate,
     triggerSuccess,
     triggerCreativeSuccess,
     triggerError,
