@@ -32,7 +32,7 @@ import {
   type AnalyzerRequestLoggingEnvironment,
 } from "./services/request-logging.server"
 
-export { classifyAnalyzerError } from "./services/analyze-responses.server"
+export { classifyAnalyzerFailure } from "./services/analyze-responses.server"
 
 export type { AnalyzerAnalysisExecutor } from "./services/analyze-responses.server"
 

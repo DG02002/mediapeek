@@ -170,6 +170,11 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build both Workers
         run: pnpm build
+      - name: Require the production analyze rate limiter
+        run: >-
+          pnpm run check:preflight --
+          apps/mediapeek/dist/server/wrangler.json
+          --require-analyze-rate-limiter
       - name: Capture current analyzer version for rollback
         id: previous-analyzer
         working-directory: apps/mediapeek-analyzer

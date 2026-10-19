@@ -7,7 +7,7 @@ import { initWorkersLogger } from "evlog/workers"
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
-  classifyAnalyzerError,
+  classifyAnalyzerFailure,
   createAnalyzerApp,
   type AnalyzerAnalysisExecutor,
 } from "./index"
@@ -211,7 +211,7 @@ describe("analyzer Worker boundary", () => {
       },
     },
   ])("classifies tagged analyzer errors", ({ error, expected }) => {
-    expect(classifyAnalyzerError(error)).toMatchObject(expected)
+    expect(classifyAnalyzerFailure(error)).toMatchObject(expected)
   })
 
   it("does not expose unknown internal error details", async () => {

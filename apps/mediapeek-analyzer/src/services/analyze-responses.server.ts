@@ -89,10 +89,22 @@ export type RunAnalyzeRequest = (
   options: RunAnalyzeRequestInput
 ) => Promise<AnalyzeRequestResult>
 
-const classifyAnalyzerFailure = Match.typeTags<
-  AnalyzerFailure,
-  ClassifiedAnalyzeError
->()({
+const internalErrorClassification: ClassifiedAnalyzeError = {
+  status: 500,
+  code: "INTERNAL_ERROR",
+  message: "Internal Server Error",
+  retryable: false,
+  severity: "ERROR",
+  errorClass: "ANALYZER_INTERNAL_ERROR",
+}
+
+type AnalyzerFailureClassifications = {
+  readonly [Tag in AnalyzerFailure["_tag"]]: (
+    failure: Extract<AnalyzerFailure, { readonly _tag: Tag }>
+  ) => ClassifiedAnalyzeError
+}
+
+const analyzerFailureClassifications = {
   CpuBudgetExceededError: () => ({
     status: 503,
     code: "CPU_BUDGET_EXCEEDED",
@@ -126,19 +138,17 @@ const classifyAnalyzerFailure = Match.typeTags<
     severity: "ERROR",
     errorClass: "UPSTREAM_FETCH_FAILED",
   }),
-})
+} satisfies AnalyzerFailureClassifications
 
-export const classifyAnalyzerError = (error: AnalyzerFailure) =>
-  classifyAnalyzerFailure(error)
+const classifyKnownAnalyzerFailure = Match.typeTags<
+  AnalyzerFailure,
+  ClassifiedAnalyzeError
+>()(analyzerFailureClassifications)
 
-const internalErrorClassification: ClassifiedAnalyzeError = {
-  status: 500,
-  code: "INTERNAL_ERROR",
-  message: "Internal Server Error",
-  retryable: false,
-  severity: "ERROR",
-  errorClass: "ANALYZER_INTERNAL_ERROR",
-}
+export const classifyAnalyzerFailure = (failure: AnalyzerFailure) =>
+  Object.hasOwn(analyzerFailureClassifications, failure._tag)
+    ? classifyKnownAnalyzerFailure(failure)
+    : internalErrorClassification
 
 export const classifyAnalyzeError = (
   cause: unknown,
@@ -150,7 +160,7 @@ export const classifyAnalyzeError = (
   const analyzerFailure = diagnosticsError?.cause ?? cause
 
   const classification = isAnalyzerFailure(analyzerFailure)
-    ? classifyAnalyzerError(analyzerFailure)
+    ? classifyAnalyzerFailure(analyzerFailure)
     : internalErrorClassification
 
   if (diagnosticsError) {

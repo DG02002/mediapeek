@@ -343,14 +343,6 @@ reports in IndexedDB on the device.
   chrome-devtools MCP server (dedicated persistent profile) against
   `pnpm dev` instead of automating a personal browser session.
 
-## Code style
-
-Use interfaces for object contracts, arrow functions, and kebab-case file
-names with descriptive names. Use `Boolean(value)` instead of `!!value`. Put
-shared constants in `constants.ts` as `SCREAMING_SNAKE_CASE` names with unit
-suffixes where the value has a unit. Avoid comments; add a `// HACK:` comment
-only when a workaround needs its reason recorded.
-
 ## Agent skills
 
 ### Issue tracker

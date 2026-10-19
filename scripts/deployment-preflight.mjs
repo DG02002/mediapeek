@@ -8,8 +8,13 @@ const cliArguments = process.argv
 
 const analyzerMode = cliArguments.includes("--analyzer")
 
+const requireAnalyzeRateLimiter = cliArguments.includes(
+  "--require-analyze-rate-limiter"
+)
+
 const configArguments = cliArguments.filter(
-  (argument) => argument !== "--analyzer"
+  (argument) =>
+    argument !== "--analyzer" && argument !== "--require-analyze-rate-limiter"
 )
 
 const unknownOptions = configArguments.filter((argument) =>
@@ -18,7 +23,13 @@ const unknownOptions = configArguments.filter((argument) =>
 
 if (unknownOptions.length > 0 || configArguments.length > 1) {
   throw new Error(
-    "Usage: node scripts/deployment-preflight.mjs [config-path] [--analyzer]"
+    "Usage: node scripts/deployment-preflight.mjs [config-path] [--analyzer] [--require-analyze-rate-limiter]"
+  )
+}
+
+if (analyzerMode && requireAnalyzeRateLimiter) {
+  throw new Error(
+    "--require-analyze-rate-limiter applies only to the web Worker"
   )
 }
 
@@ -95,8 +106,13 @@ if (analyzerMode) {
   )
 
   if (analyzeRateLimiters.length === 0) {
-    // T2 leaves this namespace ID to deployment configuration.
-    warnings.push("missing ANALYZE_RATE_LIMITER")
+    const message = "missing ANALYZE_RATE_LIMITER"
+
+    if (requireAnalyzeRateLimiter) {
+      failures.push(message)
+    } else {
+      warnings.push(message)
+    }
   } else if (analyzeRateLimiters.length > 1) {
     failures.push(
       `ANALYZE_RATE_LIMITER appears ${analyzeRateLimiters.length} times; expected 1`

@@ -112,8 +112,9 @@ const writeProgressError = (
 }
 
 const finalizeProgressStream = (state: ProgressStreamState): void => {
-  state.requestState.context.analysis_status = state.requestState.status
-  state.requestState.finalize()
+  const { requestState } = state
+  requestState.context.analysis_status = requestState.status
+  requestState.finalize()
 }
 
 const runProgressAnalysis = async (options: {

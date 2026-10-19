@@ -10,7 +10,6 @@ import { createAnalysisQueue } from "./analysis-queue"
 const result = (url: string): AnalysisResult => ({
   url,
   outputs: { json: JSON.stringify({ url }) },
-  durationMs: 1,
 })
 
 const createDeferred = <Value>() => {

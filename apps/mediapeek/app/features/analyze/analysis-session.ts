@@ -58,7 +58,6 @@ export interface AnalysisResult {
   readonly url: string
   readonly requestId?: string
   readonly outputs: Readonly<AnalysisOutputResults>
-  readonly durationMs?: number
 }
 
 export interface AnalysisProgress {
@@ -329,7 +328,6 @@ export const createBrowserAnalysisSession = (
     analysisGeneration += 1
     const generation = analysisGeneration
     pendingOutputs.clear()
-    const startedAt = performance.now()
     publish({ phase: "analyzing", url })
 
     try {
@@ -370,7 +368,6 @@ export const createBrowserAnalysisSession = (
         url,
         requestId: outcome.requestId,
         outputs: outcome.outputs,
-        durationMs: performance.now() - startedAt,
       }
 
       if (generation === analysisGeneration) {

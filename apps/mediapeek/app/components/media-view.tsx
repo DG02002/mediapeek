@@ -73,35 +73,34 @@ const useTextViewMode = () => {
 const useLazyTextOutput = (options: {
   enabled: boolean
   hasExistingText: boolean
+  data: MediaViewData
   requestTurnstileToken?: () => Promise<string | null>
   session: Pick<AnalysisSession, "output">
 }) => {
-  const [fetchedText, setFetchedText] = useState<string | null>(null)
-  const [textLoadError, setTextLoadError] = useState<string | null>(null)
+  const [textOutputState, setTextOutputState] = useState<{
+    session: Pick<AnalysisSession, "output">
+    data: MediaViewData
+    fetchedText: string | null
+    error: string | null
+  }>(() => ({
+    session: options.session,
+    data: options.data,
+    fetchedText: null,
+    error: null,
+  }))
 
-  const loadText = useCallback(
-    async (isCurrent: () => boolean = () => true) => {
-      try {
-        const text = await options.session.output(
-          "text",
-          options.requestTurnstileToken
-        )
+  const currentTextOutputState =
+    textOutputState.session === options.session &&
+    textOutputState.data === options.data
+      ? textOutputState
+      : null
 
-        if (isCurrent()) {
-          setFetchedText(text)
-        }
-      } catch (error) {
-        if (isCurrent()) {
-          clientLog.error({
-            event: "media_text_output_load_failed",
-            error: error instanceof Error ? error.message : String(error),
-          })
-          setTextLoadError("Unable to load the text output. Try again.")
-        }
-      }
-    },
-    [options.requestTurnstileToken, options.session]
-  )
+  const fetchedText = currentTextOutputState?.fetchedText ?? null
+
+  const textLoadError =
+    options.enabled && !options.hasExistingText && fetchedText === null
+      ? (currentTextOutputState?.error ?? null)
+      : null
 
   useEffect(() => {
     if (
@@ -114,26 +113,58 @@ const useLazyTextOutput = (options: {
     }
 
     let isCurrent = true
-    queueMicrotask(() => {
-      if (isCurrent) {
-        void loadText(() => isCurrent)
+    void (async () => {
+      try {
+        const text = await options.session.output(
+          "text",
+          options.requestTurnstileToken
+        )
+
+        if (isCurrent) {
+          setTextOutputState({
+            session: options.session,
+            data: options.data,
+            fetchedText: text,
+            error: null,
+          })
+        }
+      } catch (error) {
+        if (isCurrent) {
+          clientLog.error({
+            event: "media_text_output_load_failed",
+            error: error instanceof Error ? error.message : String(error),
+          })
+          setTextOutputState({
+            session: options.session,
+            data: options.data,
+            fetchedText: null,
+            error: "Unable to load the text output. Try again.",
+          })
+        }
       }
-    })
+    })()
 
     return () => {
       isCurrent = false
     }
   }, [
     fetchedText,
-    loadText,
+    options.data,
     options.enabled,
     options.hasExistingText,
+    options.requestTurnstileToken,
+    options.session,
     textLoadError,
   ])
 
   const retryTextLoad = useCallback(() => {
-    setTextLoadError(null)
-  }, [])
+    setTextOutputState({
+      session: options.session,
+      data: options.data,
+      fetchedText: null,
+      error: null,
+    })
+  }, [options.data, options.session])
 
   const isTextLoading =
     options.enabled &&
@@ -255,6 +286,7 @@ export const MediaView = memo(function MediaView({
     useLazyTextOutput({
       enabled: allowLazyTextOutput && isTextView,
       hasExistingText: Boolean(data.text),
+      data,
       requestTurnstileToken,
       session,
     })
@@ -422,13 +454,7 @@ export const MediaView = memo(function MediaView({
                 {renderTextOutput({
                   text: fullData.text,
                   isLoading: isTextLoading,
-                  error:
-                    allowLazyTextOutput &&
-                    textLoadError &&
-                    !data.text &&
-                    fetchedText === null
-                      ? textLoadError
-                      : null,
+                  error: textLoadError,
                   isFullScreen,
                   onRetry: retryTextLoad,
                 })}

@@ -21,6 +21,9 @@ The web Worker configuration defaults to `TURNSTILE_ENABLED=false`. The
 release workflow preserves that setting. If you enable Turnstile, configure
 `TURNSTILE_SECRET_KEY` and `TURNSTILE_GRANT_SECRET` as Cloudflare Worker
 secrets and `TURNSTILE_SITE_KEY` as a Worker variable before releasing.
+The web Worker configuration must also define the `ANALYZE_RATE_LIMITER`
+binding with its production namespace ID before a stable release; the release
+workflow blocks deployment when that binding is missing.
 
 Protect `main`, require pull requests, and require the successful
 `Verify / Repository verification` check before merging. Restrict creation of
