@@ -10,6 +10,12 @@ import {
 } from "@mediapeek/shared/analyze-progress"
 import { createEvlogLoggerConfig } from "@mediapeek/shared/evlog"
 import { redactSensitiveUrl } from "@mediapeek/shared/log-redaction"
+import { getRequestId } from "@mediapeek/shared/request-id"
+import {
+  createRequestLogState,
+  type RequestLogSeverity,
+  type RequestLogState,
+} from "@mediapeek/shared/request-log-state"
 import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import { Result, Schema } from "effect"
 import { initWorkersLogger } from "evlog/workers"
@@ -43,7 +49,7 @@ interface AnalyzeLogContext {
   [key: string]: typeof Schema.Json.Type
 }
 
-type RequestSeverity = "INFO" | "WARNING" | "ERROR"
+type RequestSeverity = RequestLogSeverity
 
 type AnalyzeStatus = 200 | 400 | 401 | 403 | 429 | 500 | 502 | 503
 
@@ -61,12 +67,12 @@ interface AnalyzeLogActions {
   setWarning: () => void
 }
 
-interface AnalyzeRequestState {
-  requestId: string
+interface AnalyzeRequestState extends Omit<
+  RequestLogState<AnalyzeLogContext>,
+  "finalize"
+> {
   customContext: AnalyzeLogContext
   log: AnalyzeLogActions
-  status: AnalyzeStatus
-  severity: RequestSeverity
   finalize: () => void
 }
 
@@ -101,24 +107,6 @@ const defaultAnalyzerDependencies: AnalyzerDependencies = {
 
 const MIN_ANALYSIS_CPU_BUDGET_MS = 5_000
 const MAX_ANALYSIS_CPU_BUDGET_MS = 29_000
-const INTERNAL_REQUEST_ID_HEADER = "x-mediapeek-request-id"
-const VALID_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/
-
-const getRequestId = (request: Request): string => {
-  const requestId = request.headers.get("x-request-id")?.trim()
-
-  if (requestId && VALID_REQUEST_ID.test(requestId)) {
-    return requestId
-  }
-
-  const propagated = request.headers.get(INTERNAL_REQUEST_ID_HEADER)?.trim()
-
-  if (propagated && VALID_REQUEST_ID.test(propagated)) {
-    return propagated
-  }
-
-  return request.headers.get("cf-ray") ?? crypto.randomUUID()
-}
 
 const getApiKeyFromRequest = (request: Request): string | null => {
   const xApiKey = request.headers.get("x-api-key")
@@ -182,44 +170,53 @@ const createAnalyzeRequestState = (
 ): AnalyzeRequestState => {
   const request = context.req.raw
   const requestId = getRequestId(request)
-  const customContext: AnalyzeLogContext = { request_id: requestId }
+  const initialContext: AnalyzeLogContext = { request_id: requestId }
+  const requestLogState = createRequestLogState({ requestId, initialContext })
   const clientIp = request.headers.get("CF-Connecting-IP")
   const userAgent = request.headers.get("User-Agent")
+  const annotations: Partial<AnalyzeLogContext> = {}
 
   if (clientIp) {
-    customContext.client_ip = clientIp
+    annotations.client_ip = clientIp
   }
 
   if (userAgent) {
-    customContext.user_agent = userAgent
+    annotations.user_agent = userAgent
   }
+
+  requestLogState.annotate(annotations)
 
   const log = createLogActions(context)
 
-  const state: AnalyzeRequestState = {
-    requestId,
-    customContext,
+  return {
+    ...requestLogState,
+    customContext: requestLogState.context,
     log,
-    status: 200,
-    severity: "INFO",
-    finalize: () => undefined,
+    get status() {
+      return requestLogState.status
+    },
+    get severity() {
+      return requestLogState.severity
+    },
+    finalize: () => finalizeRequestLog(requestLogState, log),
   }
-
-  state.finalize = () => finalizeRequestLog(state)
-
-  return state
 }
 
-const finalizeRequestLog = (state: AnalyzeRequestState): void => {
-  state.log.write(state.customContext)
+const finalizeRequestLog = (
+  state: RequestLogState<AnalyzeLogContext>,
+  log: AnalyzeLogActions
+): void => {
+  state.finalize(({ context, severity }) => {
+    log.write(context)
 
-  if (state.severity === "ERROR") {
-    state.log.setError()
-  }
+    if (severity === "ERROR") {
+      log.setError()
+    }
 
-  if (state.severity === "WARNING") {
-    state.log.setWarning()
-  }
+    if (severity === "WARNING") {
+      log.setWarning()
+    }
+  })
 }
 
 const resolveAnalyzerAuthFailure = (
@@ -258,8 +255,8 @@ const createAuthFailureResponse = (
   state: AnalyzeRequestState,
   failure: AnalyzerAuthFailure
 ): Response => {
-  state.status = failure.status
-  state.severity = "WARNING"
+  state.setStatus(failure.status)
+  state.setSeverity("WARNING")
   state.customContext.errorClass = failure.errorClass
   state.finalize()
 
@@ -515,8 +512,8 @@ const writeProgressError = (
   cause: unknown
 ): void => {
   const classified = classifyAnalyzeError(cause, state.customContext)
-  state.status = classified.status
-  state.severity = classified.severity
+  state.setStatus(classified.status)
+  state.setSeverity(classified.severity)
 
   state.controller?.enqueue(
     state.encoder.encode(
@@ -537,15 +534,7 @@ const writeProgressError = (
 
 const finalizeProgressStream = (state: ProgressStreamState): void => {
   state.customContext.analysis_status = state.status
-  state.log.write(state.customContext)
-
-  if (state.severity === "ERROR") {
-    state.log.setError()
-  }
-
-  if (state.severity === "WARNING") {
-    state.log.setWarning()
-  }
+  state.finalize()
 }
 
 const runProgressAnalysis = async (options: {
@@ -604,6 +593,12 @@ const createProgressResponse = (options: {
 
   const streamState: ProgressStreamState = {
     ...options.requestState,
+    get status() {
+      return options.requestState.status
+    },
+    get severity() {
+      return options.requestState.severity
+    },
     controller: undefined,
     encoder: new TextEncoder(),
     signal,
@@ -672,8 +667,8 @@ const createBufferedErrorResponse = (
   cause: unknown
 ): Response => {
   const classified = classifyAnalyzeError(cause, state.customContext)
-  state.status = classified.status
-  state.severity = classified.severity
+  state.setStatus(classified.status)
+  state.setSeverity(classified.severity)
 
   return context.json(
     {

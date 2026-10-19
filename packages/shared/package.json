@@ -52,6 +52,14 @@
       "types": "./dist/runtime-config.d.ts",
       "default": "./src/runtime-config.ts"
     },
+    "./request-id": {
+      "types": "./dist/request-id.d.ts",
+      "default": "./src/request-id.ts"
+    },
+    "./request-log-state": {
+      "types": "./dist/request-log-state.d.ts",
+      "default": "./src/request-log-state.ts"
+    },
     "./constants": {
       "types": "./dist/constants.d.ts",
       "default": "./src/constants.ts"
