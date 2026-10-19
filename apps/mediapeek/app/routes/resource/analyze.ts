@@ -39,7 +39,7 @@ import {
   createRequestContext,
   RequestContext,
 } from "~/services/request-context.server"
-import { authorizeTurnstile } from "~/services/turnstile-authorization.server"
+import { TurnstileAuthorization } from "~/services/turnstile-authorization.server"
 
 export interface AnalyzeRouteArgs {
   readonly request: Request
@@ -211,14 +211,22 @@ const executeAnalyzeRequest = async (
     return validation.response
   }
 
-  const turnstile = await authorizeTurnstile({
-    request: state.request,
-    requestId: state.requestLog.requestId,
-    url: validation.data.url,
-    env: state.env,
-    runtimeConfig: state.runtimeConfig,
-    createFailureResponse: (failure) => failRequest(state, failure),
-  })
+  const runtime = getWorkerAppRuntime(state.env)
+
+  const turnstile = await runtime.runPromise(
+    Effect.gen(function* () {
+      const authorization = yield* TurnstileAuthorization
+
+      return yield* authorization.authorize({
+        request: state.request,
+        requestId: state.requestLog.requestId,
+        url: validation.data.url,
+        env: state.env,
+        runtimeConfig: state.runtimeConfig,
+        createFailureResponse: (failure) => failRequest(state, failure),
+      })
+    })
+  )
 
   if (turnstile.grantOutcome) {
     state.requestLog.context.turnstileGrantOutcome = turnstile.grantOutcome

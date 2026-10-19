@@ -1,88 +1,43 @@
 import { sValidator } from "@hono/standard-validator"
-import type {
-  AnalyzeErrorCode,
-  AnalyzerRpcSuccessResponse,
-} from "@mediapeek/shared/analyze-contract"
-import {
-  ANALYZE_PROGRESS_STREAM_CONTENT_TYPE,
-  encodeAnalyzeStreamEvent,
-  type AnalyzeProgressReporter,
-} from "@mediapeek/shared/analyze-progress"
+import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
 import { createEvlogLoggerConfig } from "@mediapeek/shared/evlog"
 import { redactSensitiveUrl } from "@mediapeek/shared/log-redaction"
 import { getRequestId } from "@mediapeek/shared/request-id"
 import {
   createRequestLogState,
-  type RequestLogSeverity,
   type RequestLogState,
 } from "@mediapeek/shared/request-log-state"
 import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import { Result, Schema } from "effect"
 import { initWorkersLogger } from "evlog/workers"
-import { Hono, type Context } from "hono"
+import { Hono } from "hono"
 
-import { unknownToError } from "./lib/error"
-import {
-  CpuBudgetExceededError,
-  DiagnosticsError,
-  RateLimitedError,
-  UpstreamFetchError,
-  ValidationFailureError,
-  isAnalyzerFailure,
-  type AnalyzerFailure,
-} from "./lib/error-utils"
 import { analyzeSchema, type AnalyzeInput } from "./lib/schemas"
+import { executeAnalysis } from "./services/analysis-execution.server"
 import {
-  executeAnalysis,
-  type AnalysisExecutionInput,
-  type AnalysisExecutionResult,
-} from "./services/analysis-execution.server"
+  createBufferedErrorResponse,
+  createBufferedSuccessResponse,
+  type AnalyzeLogActions,
+  type AnalyzeLogContext,
+  type AnalyzeRequestState,
+  type AnalyzerAnalysisExecutor,
+  type AnalyzerContext,
+  type RunAnalyzeRequest,
+  type SetLogContextValue,
+} from "./services/analyze-responses.server"
 import { DEFAULT_ANALYSIS_CPU_BUDGET_MS } from "./services/mediainfo.server"
+import { createProgressResponse } from "./services/progress-stream.server"
 import {
   requestLogging,
   type AnalyzerRequestLoggingEnvironment,
 } from "./services/request-logging.server"
 
-export interface AnalyzerAnalysisExecutor {
-  (input: AnalysisExecutionInput): Promise<AnalysisExecutionResult>
-}
+export { classifyAnalyzerError } from "./services/analyze-responses.server"
+
+export type { AnalyzerAnalysisExecutor } from "./services/analyze-responses.server"
 
 export interface AnalyzerDependencies {
   readonly executeAnalysis: AnalyzerAnalysisExecutor
-}
-
-type AnalyzerContext = Context<AnalyzerRequestLoggingEnvironment>
-
-interface AnalyzeLogContext {
-  [key: string]: typeof Schema.Json.Type
-}
-
-type RequestSeverity = RequestLogSeverity
-
-type AnalyzeStatus = 200 | 400 | 401 | 403 | 429 | 500 | 502 | 503
-
-interface ClassifiedAnalyzeError {
-  status: AnalyzeStatus
-  code: AnalyzeErrorCode
-  message: string
-  retryable: boolean
-  severity: RequestSeverity
-  errorClass: string
-}
-
-interface AnalyzeLogActions {
-  write: (context: AnalyzeLogContext) => void
-  setError: () => void
-  setWarning: () => void
-}
-
-interface AnalyzeRequestState extends Omit<
-  RequestLogState<AnalyzeLogContext>,
-  "finalize"
-> {
-  customContext: AnalyzeLogContext
-  log: AnalyzeLogActions
-  finalize: () => void
 }
 
 interface AnalyzerAuthFailure {
@@ -90,24 +45,6 @@ interface AnalyzerAuthFailure {
   code: "AUTH_REQUIRED" | "AUTH_INVALID"
   message: string
   errorClass: "ANALYZER_AUTH_REQUIRED" | "ANALYZER_AUTH_INVALID"
-}
-
-interface AnalyzeRequestResult {
-  fileSize?: number
-  results: Record<string, string>
-  diagnostics: AnalysisExecutionResult["diagnostics"] & {
-    analysis: AnalysisExecutionResult["diagnostics"]["analysis"] & {
-      resolvedFilename: string
-      resolvedFilenameSource: string
-    }
-  }
-}
-
-interface ProgressStreamState extends AnalyzeRequestState {
-  controller?: ReadableStreamDefaultController<Uint8Array>
-  encoder: TextEncoder
-  signal: AbortSignal
-  finished: boolean
 }
 
 const defaultAnalyzerDependencies: AnalyzerDependencies = {
@@ -152,15 +89,49 @@ const wantsProgressStream = (request: Request): boolean =>
     ?.toLowerCase()
     .includes(ANALYZE_PROGRESS_STREAM_CONTENT_TYPE) ?? false
 
-const setLogContextValue = (
-  context: AnalyzeLogContext,
-  key: string,
-  cause: unknown
-): void => {
+const setLogContextValue: SetLogContextValue = (context, key, cause) => {
   const decodedValue = Schema.decodeUnknownResult(Schema.Json)(cause)
 
   if (Result.isSuccess(decodedValue)) {
     context[key] = decodedValue.success
+  }
+}
+
+const runAnalyzeRequest: RunAnalyzeRequest = async (options) => {
+  const result = await options.analysisExecutor({
+    url: options.url,
+    formats: options.formats,
+    cpuBudgetMs: options.cpuBudgetMs,
+    reportProgress: options.reportProgress,
+    signal: options.signal,
+  })
+
+  setLogContextValue(options.customContext, "fetch", result.diagnostics.fetch)
+  setLogContextValue(
+    options.customContext,
+    "analysis",
+    result.diagnostics.analysis
+  )
+
+  if (result.fileSize !== undefined) {
+    options.customContext.fileSize = result.fileSize
+  }
+
+  options.customContext.filename = result.resolvedFilename
+  options.customContext.filenameSource = result.resolvedFilenameSource
+  options.customContext.cpuBudgetRemainingMs = result.cpuBudgetRemainingMs
+
+  return {
+    fileSize: result.fileSize,
+    results: result.results,
+    diagnostics: {
+      ...result.diagnostics,
+      analysis: {
+        ...result.diagnostics.analysis,
+        resolvedFilename: result.resolvedFilename,
+        resolvedFilenameSource: result.resolvedFilenameSource,
+      },
+    },
   }
 }
 
@@ -283,390 +254,6 @@ const createAuthFailureResponse = (
   )
 }
 
-interface AnalyzerErrorClassification {
-  matches: (error: AnalyzerFailure) => boolean
-  classify: (error: AnalyzerFailure) => ClassifiedAnalyzeError
-}
-
-const internalErrorClassification: ClassifiedAnalyzeError = {
-  status: 500,
-  code: "INTERNAL_ERROR",
-  message: "Internal Server Error",
-  retryable: false,
-  severity: "ERROR",
-  errorClass: "ANALYZER_INTERNAL_ERROR",
-}
-
-const analyzerErrorClassifications: readonly AnalyzerErrorClassification[] = [
-  {
-    matches: (error) => error instanceof CpuBudgetExceededError,
-    classify: () => ({
-      status: 503,
-      code: "CPU_BUDGET_EXCEEDED",
-      message:
-        "Analysis exceeded the configured CPU budget. Retry with a smaller or simpler source.",
-      retryable: true,
-      severity: "ERROR",
-      errorClass: "CPU_LIMIT_EXCEEDED",
-    }),
-  },
-  {
-    matches: (error) => error instanceof RateLimitedError,
-    classify: (error) => ({
-      status: 429,
-      code: "RATE_LIMITED",
-      message: error.message,
-      retryable: true,
-      severity: "WARNING",
-      errorClass: "ANALYZE_RATE_LIMITED",
-    }),
-  },
-  {
-    matches: (error) => error instanceof ValidationFailureError,
-    classify: (error) => ({
-      status: 400,
-      code: "VALIDATION_FAILED",
-      message: error.message,
-      retryable: false,
-      severity: "WARNING",
-      errorClass: "ANALYZE_VALIDATION_FAILED",
-    }),
-  },
-  {
-    matches: (error) => error instanceof UpstreamFetchError,
-    classify: () => ({
-      status: 502,
-      code: "UPSTREAM_FETCH_FAILED",
-      message: "Unable to retrieve the media source.",
-      retryable: true,
-      severity: "ERROR",
-      errorClass: "UPSTREAM_FETCH_FAILED",
-    }),
-  },
-]
-
-export const classifyAnalyzerError = (
-  error: AnalyzerFailure
-): ClassifiedAnalyzeError => {
-  return (
-    analyzerErrorClassifications
-      .find((classification) => classification.matches(error))
-      ?.classify(error) ?? internalErrorClassification
-  )
-}
-
-const classifyAnalyzeError = (
-  cause: unknown,
-  customContext: AnalyzeLogContext
-): ClassifiedAnalyzeError => {
-  const normalizedError = unknownToError(cause)
-  const diagnosticsError = cause instanceof DiagnosticsError ? cause : undefined
-  const analyzerFailure = diagnosticsError?.cause ?? cause
-
-  const classification = isAnalyzerFailure(analyzerFailure)
-    ? classifyAnalyzerError(analyzerFailure)
-    : internalErrorClassification
-
-  if (diagnosticsError) {
-    setLogContextValue(
-      customContext,
-      "diagnostics",
-      diagnosticsError.diagnostics
-    )
-  }
-
-  customContext.errorClass = classification.errorClass
-
-  setLogContextValue(customContext, "error", {
-    code: classification.code,
-    message: classification.message,
-    details: normalizedError.stack ?? "Unknown error",
-  })
-
-  return classification
-}
-
-const runAnalyzeRequest = async (options: {
-  url: string
-  formats: AnalysisExecutionInput["formats"]
-  cpuBudgetMs: number
-  customContext: AnalyzeLogContext
-  reportProgress?: AnalyzeProgressReporter
-  signal: AbortSignal
-  analysisExecutor: AnalyzerAnalysisExecutor
-}): Promise<AnalyzeRequestResult> => {
-  const result = await options.analysisExecutor({
-    url: options.url,
-    formats: options.formats,
-    cpuBudgetMs: options.cpuBudgetMs,
-    reportProgress: options.reportProgress,
-    signal: options.signal,
-  })
-
-  setLogContextValue(options.customContext, "fetch", result.diagnostics.fetch)
-  setLogContextValue(
-    options.customContext,
-    "analysis",
-    result.diagnostics.analysis
-  )
-
-  if (result.fileSize !== undefined) {
-    options.customContext.fileSize = result.fileSize
-  }
-
-  options.customContext.filename = result.resolvedFilename
-  options.customContext.filenameSource = result.resolvedFilenameSource
-  options.customContext.cpuBudgetRemainingMs = result.cpuBudgetRemainingMs
-
-  return {
-    fileSize: result.fileSize,
-    results: result.results,
-    diagnostics: {
-      ...result.diagnostics,
-      analysis: {
-        ...result.diagnostics.analysis,
-        resolvedFilename: result.resolvedFilename,
-        resolvedFilenameSource: result.resolvedFilenameSource,
-      },
-    },
-  }
-}
-
-const createProgressReporter =
-  (state: ProgressStreamState): AnalyzeProgressReporter =>
-  (stage, title, message) => {
-    if (state.finished || state.signal.aborted) {
-      return
-    }
-
-    const { controller } = state
-
-    if (!controller) {
-      return
-    }
-
-    controller.enqueue(
-      state.encoder.encode(
-        encodeAnalyzeStreamEvent({
-          type: "progress",
-          requestId: state.requestId,
-          stage,
-          title,
-          message,
-        })
-      )
-    )
-  }
-
-const closeProgressStream = (state: ProgressStreamState): void => {
-  state.finished = true
-  state.controller?.close()
-}
-
-const writeProgressSuccess = (
-  state: ProgressStreamState,
-  results: Record<string, string>
-): void => {
-  if (state.finished || state.signal.aborted) {
-    return
-  }
-
-  const { controller } = state
-
-  if (!controller) {
-    return
-  }
-
-  controller.enqueue(
-    state.encoder.encode(
-      encodeAnalyzeStreamEvent({
-        type: "success",
-        requestId: state.requestId,
-        results,
-      })
-    )
-  )
-
-  closeProgressStream(state)
-}
-
-const writeProgressError = (
-  state: ProgressStreamState,
-  cause: unknown
-): void => {
-  const classified = classifyAnalyzeError(cause, state.customContext)
-  state.setStatus(classified.status)
-  state.setSeverity(classified.severity)
-
-  state.controller?.enqueue(
-    state.encoder.encode(
-      encodeAnalyzeStreamEvent({
-        type: "error",
-        requestId: state.requestId,
-        error: {
-          code: classified.code,
-          message: classified.message,
-          retryable: classified.retryable,
-        },
-      })
-    )
-  )
-
-  closeProgressStream(state)
-}
-
-const finalizeProgressStream = (state: ProgressStreamState): void => {
-  state.customContext.analysis_status = state.status
-  state.finalize()
-}
-
-const runProgressAnalysis = async (options: {
-  state: ProgressStreamState
-  url: string
-  formats: AnalysisExecutionInput["formats"]
-  cpuBudgetMs: number
-  analysisExecutor: AnalyzerAnalysisExecutor
-}): Promise<void> => {
-  const reportProgress = createProgressReporter(options.state)
-
-  try {
-    const result = await runAnalyzeRequest({
-      url: options.url,
-      formats: options.formats,
-      cpuBudgetMs: options.cpuBudgetMs,
-      customContext: options.state.customContext,
-      reportProgress,
-      signal: options.state.signal,
-      analysisExecutor: options.analysisExecutor,
-    })
-
-    writeProgressSuccess(options.state, result.results)
-  } catch (error) {
-    if (options.state.finished) {
-      return
-    }
-
-    if (options.state.signal.aborted) {
-      options.state.finished = true
-      options.state.controller?.error(options.state.signal.reason)
-
-      return
-    }
-
-    writeProgressError(options.state, error)
-  } finally {
-    finalizeProgressStream(options.state)
-  }
-}
-
-const createProgressResponse = (options: {
-  context: AnalyzerContext
-  requestState: AnalyzeRequestState
-  url: string
-  formats: AnalysisExecutionInput["formats"]
-  cpuBudgetMs: number
-  analysisExecutor: AnalyzerAnalysisExecutor
-}): Response => {
-  const streamAbortController = new AbortController()
-
-  const signal = AbortSignal.any([
-    options.context.req.raw.signal,
-    streamAbortController.signal,
-  ])
-
-  const streamState: ProgressStreamState = {
-    ...options.requestState,
-    get status() {
-      return options.requestState.status
-    },
-    get severity() {
-      return options.requestState.severity
-    },
-    controller: undefined,
-    encoder: new TextEncoder(),
-    signal,
-    finished: false,
-  }
-
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      streamState.controller = controller
-
-      void runProgressAnalysis({
-        state: streamState,
-        url: options.url,
-        formats: options.formats,
-        cpuBudgetMs: options.cpuBudgetMs,
-        analysisExecutor: options.analysisExecutor,
-      })
-    },
-    cancel() {
-      streamState.finished = true
-      streamAbortController.abort(
-        new DOMException("Analysis stream cancelled.", "AbortError")
-      )
-    },
-  })
-
-  return new Response(stream, {
-    headers: {
-      "content-type": ANALYZE_PROGRESS_STREAM_CONTENT_TYPE,
-      "cache-control": "no-store",
-    },
-  })
-}
-
-const createBufferedSuccessResponse = async (options: {
-  context: AnalyzerContext
-  requestState: AnalyzeRequestState
-  url: string
-  formats: AnalysisExecutionInput["formats"]
-  cpuBudgetMs: number
-  analysisExecutor: AnalyzerAnalysisExecutor
-}): Promise<Response> => {
-  const result = await runAnalyzeRequest({
-    url: options.url,
-    formats: options.formats,
-    cpuBudgetMs: options.cpuBudgetMs,
-    customContext: options.requestState.customContext,
-    signal: options.context.req.raw.signal,
-    analysisExecutor: options.analysisExecutor,
-  })
-
-  const responsePayload = {
-    success: true as const,
-    requestId: options.requestState.requestId,
-    fileSize: result.fileSize,
-    results: result.results,
-    diagnostics: result.diagnostics,
-  } satisfies AnalyzerRpcSuccessResponse
-
-  return options.context.json(responsePayload)
-}
-
-const createBufferedErrorResponse = (
-  context: AnalyzerContext,
-  state: AnalyzeRequestState,
-  cause: unknown
-): Response => {
-  const classified = classifyAnalyzeError(cause, state.customContext)
-  state.setStatus(classified.status)
-  state.setSeverity(classified.severity)
-
-  return context.json(
-    {
-      success: false as const,
-      requestId: state.requestId,
-      error: {
-        code: classified.code,
-        message: classified.message,
-        retryable: classified.retryable,
-      },
-    },
-    classified.status
-  )
-}
-
 const handleAnalyzeRequest = async (
   context: AnalyzerContext,
   input: AnalyzeInput,
@@ -698,6 +285,8 @@ const handleAnalyzeRequest = async (
       formats: format,
       cpuBudgetMs,
       analysisExecutor: dependencies.executeAnalysis,
+      runAnalyzeRequest,
+      setLogContextValue,
     })
   }
 
@@ -709,9 +298,15 @@ const handleAnalyzeRequest = async (
       formats: format,
       cpuBudgetMs,
       analysisExecutor: dependencies.executeAnalysis,
+      runAnalyzeRequest,
     })
   } catch (error) {
-    return createBufferedErrorResponse(context, requestState, error)
+    return createBufferedErrorResponse({
+      context,
+      state: requestState,
+      cause: error,
+      setLogContextValue,
+    })
   } finally {
     requestState.finalize()
   }
