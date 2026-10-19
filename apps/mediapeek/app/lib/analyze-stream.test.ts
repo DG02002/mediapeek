@@ -1,3 +1,9 @@
+import {
+  AnalyzeStreamEventSchema,
+  encodeAnalyzeStreamEvent,
+  type AnalyzeStreamEvent,
+} from "@mediapeek/shared/analyze-progress"
+import { Result, Schema } from "effect"
 import { describe, expect, it, vi } from "vitest"
 
 import {
@@ -73,6 +79,41 @@ describe("analyze stream", () => {
       requestId: "request-1",
       results: { json: '{"media":{}}' },
     })
+  })
+
+  it("accepts events defined by the shared stream contract", async () => {
+    const events: readonly AnalyzeStreamEvent[] = [
+      {
+        type: "progress",
+        requestId: "request-shared",
+        stage: "source_range_unsupported",
+        title: "Using a full response",
+        message: "The source does not support byte ranges.",
+      },
+      {
+        type: "success",
+        requestId: "request-shared",
+        results: { json: '{"media":{}}' },
+      },
+    ]
+
+    for (const event of events) {
+      expect(
+        Result.isSuccess(
+          Schema.decodeUnknownResult(AnalyzeStreamEventSchema)(event)
+        )
+      ).toBe(true)
+    }
+
+    const onProgress = vi.fn()
+
+    const result = await readAnalyzeStreamResponse(
+      createStreamResponse(events.map(encodeAnalyzeStreamEvent)),
+      onProgress
+    )
+
+    expect(onProgress).toHaveBeenCalledWith(events[0])
+    expect(result).toEqual(events[1])
   })
 
   it("returns an error terminal event", async () => {
