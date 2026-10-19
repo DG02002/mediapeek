@@ -94,7 +94,7 @@ const isSafeEqual = async (left: string, right: string) => {
     crypto.subtle.digest("SHA-256", encoder.encode(right)),
   ])
 
-  // HACK: SAFETY: Cloudflare Workers adds this method to SubtleCrypto; the guard below fails closed in other runtimes.
+  // SAFETY: Cloudflare Workers adds this method to SubtleCrypto; the guard below fails closed in other runtimes.
   const subtleCrypto = crypto.subtle as CloudflareSubtleCrypto
 
   if (!subtleCrypto.timingSafeEqual) {

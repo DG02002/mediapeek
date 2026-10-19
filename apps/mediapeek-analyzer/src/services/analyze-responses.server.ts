@@ -98,13 +98,10 @@ const internalErrorClassification: ClassifiedAnalyzeError = {
   errorClass: "ANALYZER_INTERNAL_ERROR",
 }
 
-type AnalyzerFailureClassifications = {
-  readonly [Tag in AnalyzerFailure["_tag"]]: (
-    failure: Extract<AnalyzerFailure, { readonly _tag: Tag }>
-  ) => ClassifiedAnalyzeError
-}
-
-const analyzerFailureClassifications = {
+export const classifyAnalyzerFailure = Match.typeTags<
+  AnalyzerFailure,
+  ClassifiedAnalyzeError
+>()({
   CpuBudgetExceededError: () => ({
     status: 503,
     code: "CPU_BUDGET_EXCEEDED",
@@ -138,17 +135,7 @@ const analyzerFailureClassifications = {
     severity: "ERROR",
     errorClass: "UPSTREAM_FETCH_FAILED",
   }),
-} satisfies AnalyzerFailureClassifications
-
-const classifyKnownAnalyzerFailure = Match.typeTags<
-  AnalyzerFailure,
-  ClassifiedAnalyzeError
->()(analyzerFailureClassifications)
-
-export const classifyAnalyzerFailure = (failure: AnalyzerFailure) =>
-  Object.hasOwn(analyzerFailureClassifications, failure._tag)
-    ? classifyKnownAnalyzerFailure(failure)
-    : internalErrorClassification
+})
 
 export const classifyAnalyzeError = (
   cause: unknown,

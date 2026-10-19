@@ -77,23 +77,23 @@ const useLazyTextOutput = (options: {
   requestTurnstileToken?: () => Promise<string | null>
   session: Pick<AnalysisSession, "output">
 }) => {
+  const reportIdentity = useMemo(
+    () => ({ session: options.session, data: options.data }),
+    [options.data, options.session]
+  )
+
   const [textOutputState, setTextOutputState] = useState<{
-    session: Pick<AnalysisSession, "output">
-    data: MediaViewData
+    reportIdentity: typeof reportIdentity
     fetchedText: string | null
     error: string | null
   }>(() => ({
-    session: options.session,
-    data: options.data,
+    reportIdentity,
     fetchedText: null,
     error: null,
   }))
 
   const currentTextOutputState =
-    textOutputState.session === options.session &&
-    textOutputState.data === options.data
-      ? textOutputState
-      : null
+    textOutputState.reportIdentity === reportIdentity ? textOutputState : null
 
   const fetchedText = currentTextOutputState?.fetchedText ?? null
 
@@ -115,15 +115,14 @@ const useLazyTextOutput = (options: {
     let isCurrent = true
     void (async () => {
       try {
-        const text = await options.session.output(
+        const text = await reportIdentity.session.output(
           "text",
           options.requestTurnstileToken
         )
 
         if (isCurrent) {
           setTextOutputState({
-            session: options.session,
-            data: options.data,
+            reportIdentity,
             fetchedText: text,
             error: null,
           })
@@ -135,8 +134,7 @@ const useLazyTextOutput = (options: {
             error: error instanceof Error ? error.message : String(error),
           })
           setTextOutputState({
-            session: options.session,
-            data: options.data,
+            reportIdentity,
             fetchedText: null,
             error: "Unable to load the text output. Try again.",
           })
@@ -149,22 +147,20 @@ const useLazyTextOutput = (options: {
     }
   }, [
     fetchedText,
-    options.data,
     options.enabled,
     options.hasExistingText,
     options.requestTurnstileToken,
-    options.session,
+    reportIdentity,
     textLoadError,
   ])
 
   const retryTextLoad = useCallback(() => {
     setTextOutputState({
-      session: options.session,
-      data: options.data,
+      reportIdentity,
       fetchedText: null,
       error: null,
     })
-  }, [options.data, options.session])
+  }, [reportIdentity])
 
   const isTextLoading =
     options.enabled &&
