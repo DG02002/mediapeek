@@ -36,5 +36,8 @@
   // ],
   "observability": {
     "enabled": true,
+    "traces": {
+      "enabled": true,
+    },
   },
 }

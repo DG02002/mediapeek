@@ -21,5 +21,8 @@
   "upload_source_maps": true,
   "observability": {
     "enabled": true,
+    "traces": {
+      "enabled": true,
+    },
   },
 }
