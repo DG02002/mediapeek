@@ -54,61 +54,21 @@ export const validateUrl = (url: string) => {
   }
 }
 
-const parseIpv4Part = (part: string): bigint | null => {
-  if (/^0[xX][\da-f]+$/i.test(part)) {
-    return BigInt(part)
+const isBlockedIpv4 = (host: string) => {
+  const parts = host.split(".")
+
+  if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part))) {
+    return false
   }
 
-  if (/^0[0-7]*$/.test(part)) {
-    return part === "0" ? 0n : BigInt(`0o${part.slice(1)}`)
+  const octets = parts.map(Number)
+
+  if (octets.some((part) => part > 255)) {
+    return false
   }
 
-  if (/^\d+$/.test(part)) {
-    return BigInt(part)
-  }
+  const value = octets.reduce((result, octet) => (result << 8) + octet, 0) >>> 0
 
-  return null
-}
-
-const parseIpv4Literal = (host: string): number | null => {
-  const normalizedHost = host.endsWith(".") ? host.slice(0, -1) : host
-  const parts = normalizedHost.split(".")
-
-  if (parts.length < 1 || parts.length > 4) {
-    return null
-  }
-
-  const octets: bigint[] = []
-
-  for (const part of parts) {
-    const value = parseIpv4Part(part)
-
-    if (value === null) {
-      return null
-    }
-
-    octets.push(value)
-  }
-
-  if (octets.slice(0, -1).some((value) => value > 255n)) {
-    return null
-  }
-
-  const remainingBits = 8n * BigInt(5 - octets.length)
-  const lastValue = octets.at(-1)
-
-  if (lastValue === undefined || lastValue >= 1n << remainingBits) {
-    return null
-  }
-
-  const value = octets
-    .slice(0, -1)
-    .reduce((result, octet) => (result << 8n) | octet, 0n)
-
-  return Number((value << remainingBits) | lastValue)
-}
-
-const isBlockedIpv4 = (value: number) => {
   const inRange = (network: number, bits: number) =>
     bits === 0 || value >>> (32 - bits) === network >>> (32 - bits)
 
@@ -194,9 +154,7 @@ const parseIpv6 = (host: string): bigint | null => {
 }
 
 const isBlockedIpLiteral = (host: string) => {
-  const ipv4Value = parseIpv4Literal(host)
-
-  if (ipv4Value !== null && isBlockedIpv4(ipv4Value)) {
+  if (isBlockedIpv4(host)) {
     return true
   }
 
