@@ -4,14 +4,18 @@ import {
   Loading03Icon,
 } from "@hugeicons/core-free-icons"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
-import { useState } from "react"
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react"
 
 import { MediaSkeleton } from "~/components/media-skeleton"
 import { MediaView } from "~/components/media-view"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button, buttonVariants } from "~/components/ui/button"
 import { Icon } from "~/components/ui/icon"
-import type { AnalysisResult } from "~/features/analyze/analysis-session"
+import {
+  createBrowserAnalysisSession,
+  type AnalysisResult,
+  type AnalysisSession,
+} from "~/features/analyze/analysis-session"
 import type { AnalysisQueueItem } from "~/features/analyze/queue/analysis-queue"
 import { useAnalysisQueue } from "~/features/analyze/queue/use-analysis-queue"
 import { TurnstileTokenDialog } from "~/features/analyze/turnstile-token-dialog"
@@ -29,6 +33,17 @@ const RecentReportsLink = () => (
   </Link>
 )
 
+const useAnalysisSessionSnapshot = (session: AnalysisSession) => {
+  const subscribe = useCallback(
+    (listener: () => void) => session.subscribe(listener),
+    [session]
+  )
+
+  const getSnapshot = useCallback(() => session.getSnapshot(), [session])
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
 const AnalysisResultPage = ({
   analysis,
 }: {
@@ -36,14 +51,25 @@ const AnalysisResultPage = ({
 }) => {
   const navigate = useNavigate()
   const [turnstileError, setTurnstileError] = useState<string | null>(null)
+
+  const session = useMemo(
+    () => createBrowserAnalysisSession({ initialAnalysis: analysis }),
+    [analysis]
+  )
+
+  const sessionSnapshot = useAnalysisSessionSnapshot(session)
   const turnstile = useTurnstileVerification()
+
+  const currentAnalysis =
+    sessionSnapshot.phase === "ready" ? sessionSnapshot.analysis : analysis
 
   return (
     <section className="flex w-full flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <RecentReportsLink />
         <SaveReportButton
-          analysis={analysis}
+          analysis={currentAnalysis}
+          session={session}
           requestTurnstileToken={turnstile.requestToken}
           onSaved={(report) => {
             void navigate({
@@ -62,8 +88,9 @@ const AnalysisResultPage = ({
         </Alert>
       )}
       <MediaView
-        data={analysis.outputs}
-        url={analysis.url}
+        data={currentAnalysis.outputs}
+        url={currentAnalysis.url}
+        session={session}
         requestTurnstileToken={turnstile.requestToken}
       />
       <TurnstileTokenDialog
@@ -118,7 +145,9 @@ const AnalysisFailurePage = ({
 }: {
   readonly item: AnalysisQueueItem
 }) => {
-  const { queue } = useAnalysisQueue()
+  const { queue, requestTurnstileToken: requestQueueTurnstileToken } =
+    useAnalysisQueue()
+
   const navigate = useNavigate()
   const [retryError, setRetryError] = useState<string | null>(null)
   const turnstile = useTurnstileVerification()
@@ -130,7 +159,11 @@ const AnalysisFailurePage = ({
       return
     }
 
-    const result = queue.retry(item.id, token ?? undefined)
+    const result = queue.retry(
+      item.id,
+      token ?? undefined,
+      turnstile.enabled ? requestQueueTurnstileToken : undefined
+    )
 
     if (result.kind === "error") {
       setRetryError(result.message)

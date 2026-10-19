@@ -2,6 +2,7 @@ import { memo } from "react"
 
 import type { MediaReport } from "~/features/reports/media-report"
 
+import { SectionHeading } from "./section-heading"
 import { TrademarkNotice } from "./trademark-notice"
 
 interface LibrarySectionProps {
@@ -18,11 +19,8 @@ export const LibrarySection = memo(function LibrarySection({
   }
 
   return (
-    <div className="mt-8 space-y-6">
-      <h3 className="text-sm font-semibold tracking-wider uppercase">
-        Metadata Engine
-      </h3>
-
+    <section aria-label="Metadata Engine" className="mt-8 space-y-6">
+      <SectionHeading title="Metadata Engine" />
       <div className="grid gap-6 md:grid-cols-2">
         <div className="flex flex-col items-start gap-2 sm:flex-row sm:gap-4">
           <div className="flex w-20 shrink-0 items-center justify-center">
@@ -30,6 +28,8 @@ export const LibrarySection = memo(function LibrarySection({
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 512 512"
               className="h-16 w-16 opacity-80"
+              role="img"
+              aria-label="MediaInfo logo"
             >
               <g transform="translate(0,-258)">
                 <g
@@ -135,6 +135,6 @@ export const LibrarySection = memo(function LibrarySection({
       </div>
 
       <TrademarkNotice badges={badges} />
-    </div>
+    </section>
   )
 })

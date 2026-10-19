@@ -1,11 +1,17 @@
-import { AnimatePresence, motion } from "motion/react"
+import { motion } from "motion/react"
 import { memo } from "react"
 
 import { AudioStreamStructure } from "~/components/media-view/audio-stream-structure"
 import { AudioTechDetails } from "~/components/media-view/audio-tech-details"
-import { Badge } from "~/components/ui/badge"
 import type { AudioTrackReport } from "~/features/reports/media-report"
-import { cleanMetadataString, formatAudioChannels } from "~/lib/formatters"
+import {
+  cleanMetadataString,
+  formatAudioChannels,
+  getFirstDefinedFormat,
+} from "~/lib/formatters"
+
+import { TrackBadges } from "./track-badges"
+import { TrackTitle } from "./track-title"
 
 interface AudioTrackRowProps {
   track: AudioTrackReport
@@ -27,7 +33,7 @@ export const AudioTrackRow = memo(function AudioTrackRow({
     track.channelsText ||
     track.channels
 
-  let channels = String(channelsStr)
+  let channels = channelsStr ?? ""
 
   if (track.objectCount > 0) {
     channels += ` with ${String(track.objectCount)} Objects`
@@ -39,25 +45,8 @@ export const AudioTrackRow = memo(function AudioTrackRow({
   const { codecInfo } = track
 
   // Prioritize CodecID_Info if available
-  const format = codecInfo ?? commercial ?? info ?? rawFormat
+  const format = getFirstDefinedFormat(codecInfo, commercial, info, rawFormat)
   const subFormat = commercial && info ? info : undefined
-
-  const renderBadges = () => {
-    return (
-      <>
-        {track.isDefault && (
-          <Badge className="border border-emerald-500/20 bg-emerald-500/15 text-[10px] text-emerald-700 hover:bg-emerald-500/25 dark:bg-emerald-500/20 dark:text-emerald-400">
-            Default
-          </Badge>
-        )}
-        {track.isForced && (
-          <Badge className="border border-amber-500/20 bg-amber-500/15 text-[10px] text-amber-700 hover:bg-amber-500/25 dark:bg-amber-500/20 dark:text-amber-400">
-            Forced
-          </Badge>
-        )}
-      </>
-    )
-  }
 
   return (
     <motion.div
@@ -80,7 +69,7 @@ export const AudioTrackRow = memo(function AudioTrackRow({
           </span>
         )}
         <div className="flex flex-wrap justify-end gap-1.5 align-top">
-          {renderBadges()}
+          <TrackBadges isDefault={track.isDefault} isForced={track.isForced} />
         </div>
       </div>
 
@@ -102,7 +91,10 @@ export const AudioTrackRow = memo(function AudioTrackRow({
               </span>
             </div>
             <div className="hidden flex-wrap justify-end gap-1.5 align-top sm:flex">
-              {renderBadges()}
+              <TrackBadges
+                isDefault={track.isDefault}
+                isForced={track.isForced}
+              />
             </div>
           </div>
 
@@ -124,19 +116,7 @@ export const AudioTrackRow = memo(function AudioTrackRow({
             </div>
 
             <div className="text-muted-foreground flex items-center gap-2 text-xs">
-              <AnimatePresence mode="popLayout">
-                {title && (
-                  <motion.span
-                    key={title}
-                    initial={{ opacity: 0, filter: "blur(4px)" }}
-                    animate={{ opacity: 1, filter: "blur(0px)" }}
-                    exit={{ opacity: 0, filter: "blur(4px)" }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    {title}
-                  </motion.span>
-                )}
-              </AnimatePresence>
+              <TrackTitle title={title} />
             </div>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { getRequestId } from "@mediapeek/shared/request-id"
 import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import { evlog, type EvlogHonoOptions, type EvlogVariables } from "evlog/hono"
 import type { MiddlewareHandler } from "hono"
@@ -14,24 +15,6 @@ interface AnalyzerBindings {
 
 export interface AnalyzerRequestLoggingEnvironment extends EvlogVariables {
   Bindings: AnalyzerBindings
-}
-
-const VALID_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/
-
-const getIncomingRequestId = (request: Request): string => {
-  const requestId = request.headers.get("x-request-id")?.trim()
-
-  if (requestId && VALID_REQUEST_ID.test(requestId)) {
-    return requestId
-  }
-
-  const propagated = request.headers.get("x-mediapeek-request-id")?.trim()
-
-  if (propagated && VALID_REQUEST_ID.test(propagated)) {
-    return propagated
-  }
-
-  return request.headers.get("cf-ray") ?? crypto.randomUUID()
 }
 
 export const requestLogging = (
@@ -56,14 +39,14 @@ export const requestLogging = (
 
   return async (context, next) => {
     const request = context.req.raw
-    const requestId = getIncomingRequestId(request)
+    const requestId = getRequestId(request)
     const cloudflareRay = request.headers.get("cf-ray")
     const runtimeConfig = resolveRuntimeConfig(context.env)
 
     try {
       request.headers.set("x-request-id", requestId)
     } catch {
-      // HACK: Incoming Worker request headers can be immutable; the response still carries the request ID.
+      // Incoming Worker request headers can be immutable; the response still carries the request ID.
     }
 
     context.header("x-request-id", requestId)

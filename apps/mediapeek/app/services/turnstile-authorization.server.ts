@@ -3,7 +3,7 @@ import { readStreamBytesWithinLimit } from "@mediapeek/shared/bounded-stream-rea
 import { summarizeSensitiveToken } from "@mediapeek/shared/log-redaction"
 import type { RuntimeConfig } from "@mediapeek/shared/runtime-config"
 import type { TurnstileResponse } from "@mediapeek/shared/schemas"
-import { Schema } from "effect"
+import { Context, Effect, Layer, Schema } from "effect"
 
 import {
   MAX_TURNSTILE_RESPONSE_BYTES,
@@ -238,7 +238,7 @@ const verifyTurnstileToken = async (input: {
   }
 }
 
-export const authorizeTurnstile = async (
+const authorizeTurnstileRequest = async (
   input: TurnstileAuthorizationInput
 ): Promise<TurnstileAuthorizationResult> => {
   if (!input.runtimeConfig.turnstileEnabled) {
@@ -321,4 +321,28 @@ export const authorizeTurnstile = async (
     grantSecret,
     grantOutcome: grantResult.reason,
   })
+}
+
+export class TurnstileAuthorization extends Context.Service<
+  TurnstileAuthorization,
+  {
+    authorize(
+      input: TurnstileAuthorizationInput
+    ): Effect.Effect<TurnstileAuthorizationResult, unknown>
+  }
+>()("mediapeek/TurnstileAuthorization") {
+  static readonly layer: Layer.Layer<TurnstileAuthorization> = Layer.effect(
+    TurnstileAuthorization,
+    Effect.sync(() => {
+      const authorize = Effect.fn("TurnstileAuthorization.authorize")(
+        (input: TurnstileAuthorizationInput) =>
+          Effect.tryPromise({
+            try: () => authorizeTurnstileRequest(input),
+            catch: (cause) => cause,
+          })
+      )
+
+      return { authorize }
+    })
+  )
 }

@@ -1,8 +1,13 @@
-import { AnalyzerError } from "./error-utils"
+import { ValidationFailureError } from "./error-utils"
 
 export { extractFilenameFromUrl } from "@mediapeek/shared/filename-resolution"
 
-const BLOCKED_HOSTS = new Set(["localhost", "metadata.google.internal"])
+const BLOCKED_HOSTS = new Set([
+  "localhost",
+  "localhost.localdomain",
+  "ip6-localhost",
+  "metadata.google.internal",
+])
 
 // Headers are static, so we can reuse the same object or recreate from a static init.
 // However, Headers API is mutable, so returning a fresh instance is safer if callers modify it.
@@ -29,24 +34,24 @@ export const validateUrl = (url: string) => {
   const parsedUrl = new URL(url)
 
   if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-    throw new AnalyzerError(
-      "validation",
+    throw new ValidationFailureError(
       "Invalid URL: Only HTTP and HTTPS sources are supported."
     )
   }
 
   if (parsedUrl.username || parsedUrl.password) {
-    throw new AnalyzerError(
-      "validation",
+    throw new ValidationFailureError(
       "Invalid URL: Embedded credentials are not allowed."
     )
   }
 
-  const host = parsedUrl.hostname.toLowerCase().replaceAll(/^\[|\]$/g, "")
+  const host = parsedUrl.hostname
+    .toLowerCase()
+    .replaceAll(/^\[|\]$/g, "")
+    .replace(/\.+$/, "")
 
   if (BLOCKED_HOSTS.has(host) || isBlockedIpLiteral(host)) {
-    throw new AnalyzerError(
-      "validation",
+    throw new ValidationFailureError(
       "Invalid URL: Access to local, private, or reserved resources is denied."
     )
   }

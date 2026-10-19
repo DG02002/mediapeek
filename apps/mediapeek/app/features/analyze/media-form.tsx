@@ -33,7 +33,10 @@ const getFormString = (formData: FormData, name: string) => {
 
 export function MediaForm() {
   const navigate = useNavigate()
-  const { queue } = useAnalysisQueue()
+
+  const { queue, requestTurnstileToken: requestQueueTurnstileToken } =
+    useAnalysisQueue()
+
   const [formError, setFormError] = useState<string | null>(null)
   const [inputValue, setInputValue] = useState("")
   const [isClipboardDialogOpen, setIsClipboardDialogOpen] = useState(false)
@@ -57,7 +60,13 @@ export function MediaForm() {
   } = useClipboardUrl(undefined)
 
   const enqueueUrl = (url: string, turnstileToken?: string) => {
-    const outcome = queue.add(url, turnstileToken).at(0)
+    const outcome = queue
+      .add(
+        url,
+        turnstileToken,
+        turnstileEnabled ? requestQueueTurnstileToken : undefined
+      )
+      .at(0)
 
     if (outcome?.kind === "queued") {
       setInputValue("")

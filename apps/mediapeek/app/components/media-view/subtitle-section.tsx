@@ -2,6 +2,7 @@ import { memo } from "react"
 
 import type { SubtitleTrackReport } from "~/features/reports/media-report"
 
+import { SectionHeading } from "./section-heading"
 import { SubtitleTrackRow } from "./subtitle-track-row"
 
 export const SubtitleSection = memo(function SubtitleSection({
@@ -17,9 +18,7 @@ export const SubtitleSection = memo(function SubtitleSection({
 
   return (
     <section className="space-y-4">
-      <div className="text-foreground flex items-center gap-2">
-        <h2 className="text-xl font-semibold tracking-tight">Subtitles</h2>
-      </div>
+      <SectionHeading title="Subtitles" />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {textTracks.map((text) => (
           <SubtitleTrackRow

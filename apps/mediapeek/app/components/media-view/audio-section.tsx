@@ -3,6 +3,7 @@ import { memo } from "react"
 import type { AudioTrackReport } from "~/features/reports/media-report"
 
 import { AudioTrackRow } from "./audio-track-row"
+import { SectionHeading } from "./section-heading"
 
 export const AudioSection = memo(function AudioSection({
   audioTracks,
@@ -17,9 +18,7 @@ export const AudioSection = memo(function AudioSection({
 
   return (
     <section className="space-y-4">
-      <div className="text-foreground flex items-center gap-2">
-        <h2 className="text-xl font-semibold tracking-tight">Audio</h2>
-      </div>
+      <SectionHeading title="Audio" />
       <div className="flex flex-col gap-3">
         {audioTracks.map((audio) => (
           <AudioTrackRow

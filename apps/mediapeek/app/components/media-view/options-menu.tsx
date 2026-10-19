@@ -5,6 +5,7 @@ import {
   QuoteDownIcon,
   Share01Icon,
 } from "@hugeicons/core-free-icons"
+import type { AnalysisOutputId } from "@mediapeek/shared/analysis-output-formats"
 import * as React from "react"
 import { useId } from "react"
 import { toast } from "sonner"
@@ -44,6 +45,7 @@ import { Label } from "~/components/ui/label"
 import { Separator } from "~/components/ui/separator"
 import { Switch } from "~/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
+import type { AnalysisSession } from "~/features/analyze/analysis-session"
 import { useMediaActions } from "~/hooks/use-media-actions"
 import { useMediaQuery } from "~/hooks/use-media-query"
 import { cn } from "~/lib/utils"
@@ -54,19 +56,18 @@ interface OptionsMenuProps {
   data: Record<string, string>
   url: string
   filename: string
+  session: Pick<AnalysisSession, "output">
   requestTurnstileToken?: () => Promise<string | null>
   isTextView: boolean
   setIsTextView: (val: boolean) => void
   showOriginalTitles: boolean
   setShowOriginalTitles: (val: boolean) => void
   className?: string
-  onShareSuccess?: (url: string) => void
   onExportPng: (theme: MediaPngExportTheme) => Promise<void>
   isExportingPng: boolean
 }
 
-const formats = [
-  { id: "json", label: "Object" },
+const formats: ReadonlyArray<{ id: AnalysisOutputId; label: string }> = [
   { id: "json", label: "JSON" },
   { id: "text", label: "Text" },
   { id: "xml", label: "XML" },
@@ -85,19 +86,20 @@ export function OptionsMenu({
   data,
   url,
   filename,
+  session,
   requestTurnstileToken,
   isTextView,
   setIsTextView,
   showOriginalTitles,
   setShowOriginalTitles,
   className,
-  onShareSuccess,
   onExportPng,
   isExportingPng,
 }: OptionsMenuProps) {
   const { handleCopy, getShareUrl } = useMediaActions({
     data,
     url,
+    session,
     requestTurnstileToken,
   })
 
@@ -114,24 +116,37 @@ export function OptionsMenu({
     label: string
   } | null>(null)
 
-  const shareClickedRef = React.useRef(false)
+  const shareDialogTimeoutRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null)
 
-  const handleShareClick = async (format: string, label: string) => {
+  React.useEffect(
+    () => () => {
+      if (shareDialogTimeoutRef.current !== null) {
+        clearTimeout(shareDialogTimeoutRef.current)
+      }
+    },
+    []
+  )
+
+  const handleShareClick = async (format: AnalysisOutputId, label: string) => {
     try {
       const shareUrl = await getShareUrl(format, label)
 
       if (shareUrl) {
-        shareClickedRef.current = true
         setShareData({ url: shareUrl, label })
         setOpen(false) // Close the main menu first
 
         // Wait for drawer close animation to finish before opening dialog
         // This prevents layout thrashing and jitter on mobile
-        setTimeout(() => {
+        if (shareDialogTimeoutRef.current !== null) {
+          clearTimeout(shareDialogTimeoutRef.current)
+        }
+
+        shareDialogTimeoutRef.current = setTimeout(() => {
+          shareDialogTimeoutRef.current = null
           blurActiveElement()
           setShareDialogOpen(true)
-          shareClickedRef.current = false
-          onShareSuccess?.(shareUrl)
         }, 300)
       }
     } catch {
@@ -226,16 +241,20 @@ export function OptionsMenu({
               }}
             >
               <div className="flex flex-1 items-center justify-between gap-2">
-                <span className="flex items-center gap-2">
+                <Label
+                  htmlFor={viewTextId}
+                  className="flex items-center gap-2 font-normal"
+                >
                   <Icon
                     icon={File01Icon}
                     size={16}
                     className={isTextView ? undefined : "opacity-50"}
                   />
                   View as Text
-                </span>
+                </Label>
                 {/* Use pointer-events-none to let the parent DropdownMenuItem handle the click/toggle */}
                 <Switch
+                  id={viewTextId}
                   checked={isTextView}
                   className="pointer-events-none"
                   aria-readonly
@@ -249,15 +268,19 @@ export function OptionsMenu({
               }}
             >
               <div className="flex flex-1 items-center justify-between gap-2">
-                <span className="flex items-center gap-2">
+                <Label
+                  htmlFor={showTitlesId}
+                  className="flex items-center gap-2 font-normal"
+                >
                   <Icon
                     icon={QuoteDownIcon}
                     size={16}
                     className={showOriginalTitles ? undefined : "opacity-50"}
                   />
                   Show Original Titles
-                </span>
+                </Label>
                 <Switch
+                  id={showTitlesId}
                   checked={showOriginalTitles}
                   className="pointer-events-none"
                   aria-readonly
@@ -294,9 +317,9 @@ export function OptionsMenu({
                 <span>Copy Metadata</span>
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-48">
-                {formats.map((fmt, i) => (
+                {formats.map((fmt) => (
                   <DropdownMenuItem
-                    key={`${fmt.id}-${String(i)}`}
+                    key={fmt.id}
                     onClick={() => {
                       handleCopy(fmt.id, fmt.label)
                     }}
@@ -313,9 +336,9 @@ export function OptionsMenu({
                 <span>Share Metadata</span>
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-48">
-                {formats.map((fmt, i) => (
+                {formats.map((fmt) => (
                   <DropdownMenuItem
-                    key={`${fmt.id}-${String(i)}`}
+                    key={fmt.id}
                     onClick={() => {
                       void handleShareClick(fmt.id, fmt.label)
                     }}
@@ -413,9 +436,9 @@ export function OptionsMenu({
                     Select a format to copy metadata to the clipboard.
                   </p>
                   <div className="grid grid-cols-3 gap-2">
-                    {formats.map((fmt, i) => (
+                    {formats.map((fmt) => (
                       <Button
-                        key={`copy-${fmt.id}-${String(i)}`}
+                        key={`copy-${fmt.id}`}
                         variant="ghost"
                         size="sm"
                         className="bg-muted/30 hover:bg-muted/50 border"
@@ -434,9 +457,9 @@ export function OptionsMenu({
                     Select a format to create an encrypted PrivateBin link.
                   </p>
                   <div className="grid grid-cols-3 gap-2">
-                    {formats.map((fmt, i) => (
+                    {formats.map((fmt) => (
                       <Button
-                        key={`share-${fmt.id}-${String(i)}`}
+                        key={`share-${fmt.id}`}
                         variant="ghost"
                         size="sm"
                         className="bg-muted/30 hover:bg-muted/50 border"

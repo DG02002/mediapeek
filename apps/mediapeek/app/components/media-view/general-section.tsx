@@ -3,6 +3,7 @@ import { memo } from "react"
 import type { MediaReport } from "~/features/reports/media-report"
 
 import { MediaDetailItem } from "./media-detail-item"
+import { SectionHeading } from "./section-heading"
 
 interface GeneralSectionProps {
   report: MediaReport
@@ -19,9 +20,11 @@ export const GeneralSection = memo(function GeneralSection({
 
   return (
     <section className="space-y-4">
-      <div className="text-foreground mb-2 flex items-center gap-2">
-        <h2 className="mb-3 text-xl font-semibold tracking-tight">Container</h2>
-      </div>
+      <SectionHeading
+        title="Container"
+        className="mb-2"
+        headingClassName="mb-3"
+      />
       <div className="border-border grid gap-x-8 gap-y-6 rounded-lg border p-6 text-sm sm:grid-cols-2 md:grid-cols-4">
         {(container.format.name ?? container.format.profile) && (
           <MediaDetailItem label="Format">

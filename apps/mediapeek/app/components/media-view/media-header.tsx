@@ -2,6 +2,7 @@ import { memo } from "react"
 
 import { OptionsMenu } from "~/components/media-view/options-menu"
 import { Separator } from "~/components/ui/separator"
+import type { AnalysisSession } from "~/features/analyze/analysis-session"
 import type { MediaReport } from "~/features/reports/media-report"
 
 import { ArchiveEstimateTooltip } from "./archive-estimate-tooltip"
@@ -15,6 +16,7 @@ interface MediaHeaderProps {
   setShowOriginalTitles: (val: boolean) => void
   rawData: Record<string, string>
   url: string
+  session: Pick<AnalysisSession, "output">
   requestTurnstileToken?: () => Promise<string | null>
   onExportPng: (theme: "light" | "dark") => Promise<void>
   isExportingPng: boolean
@@ -28,6 +30,7 @@ export const MediaHeader = memo(function MediaHeader({
   setShowOriginalTitles,
   rawData,
   url,
+  session,
   requestTurnstileToken,
   onExportPng,
   isExportingPng,
@@ -53,7 +56,9 @@ export const MediaHeader = memo(function MediaHeader({
           {file.duration && <span>{file.duration}</span>}
           {file.size && (
             <>
-              <span className="opacity-30">|</span>
+              <span aria-hidden="true" className="opacity-30">
+                |
+              </span>
               <span className="inline-flex items-center gap-2">
                 <span>{file.size}</span>
                 <ArchiveEstimateTooltip
@@ -80,6 +85,7 @@ export const MediaHeader = memo(function MediaHeader({
                 data={rawData}
                 url={url}
                 filename={displayFilename}
+                session={session}
                 requestTurnstileToken={requestTurnstileToken}
                 isTextView={isTextView}
                 setIsTextView={setIsTextView}

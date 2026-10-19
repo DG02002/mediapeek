@@ -1,7 +1,7 @@
-import type { AnalyzeErrorCode } from "@mediapeek/shared/analyze-contract"
 import {
+  AnalyzeStreamEventSchema,
   ANALYZE_PROGRESS_STREAM_CONTENT_TYPE,
-  type AnalyzeProgressStage,
+  type AnalyzeStreamEvent,
   type AnalyzeStreamErrorEvent,
   type AnalyzeStreamProgressEvent,
   type AnalyzeStreamSuccessEvent,
@@ -12,57 +12,6 @@ type AnalyzeStreamTerminalEvent =
   | AnalyzeStreamErrorEvent
   | AnalyzeStreamSuccessEvent
 
-const ANALYZE_PROGRESS_STAGES = [
-  "request_received",
-  "source_probe_started",
-  "source_probe_completed",
-  "initial_fetch_started",
-  "waiting_for_first_byte",
-  "first_byte_received",
-  "initial_segment_reading",
-  "no_range_fallback_started",
-  "source_range_unsupported",
-  "remote_seek_fetch_started",
-  "analysis_started",
-  "analysis_completed",
-] as const satisfies readonly AnalyzeProgressStage[]
-
-const ANALYZE_ERROR_CODES = [
-  "AUTH_REQUIRED",
-  "AUTH_INVALID",
-  "RATE_LIMITED",
-  "VALIDATION_FAILED",
-  "CPU_BUDGET_EXCEEDED",
-  "UPSTREAM_FETCH_FAILED",
-  "INTERNAL_ERROR",
-] as const satisfies readonly AnalyzeErrorCode[]
-
-const analyzeStreamEventSchema = Schema.Union([
-  Schema.Struct({
-    type: Schema.Literal("progress"),
-    requestId: Schema.String,
-    stage: Schema.Literals(ANALYZE_PROGRESS_STAGES),
-    title: Schema.String,
-    message: Schema.String,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("success"),
-    requestId: Schema.String,
-    results: Schema.Record(Schema.String, Schema.String),
-  }),
-  Schema.Struct({
-    type: Schema.Literal("error"),
-    requestId: Schema.String,
-    error: Schema.Struct({
-      code: Schema.Literals(ANALYZE_ERROR_CODES),
-      message: Schema.String,
-      retryable: Schema.Boolean,
-    }),
-  }),
-])
-
-type AnalyzeStreamEvent = typeof analyzeStreamEventSchema.Type
-
 const parseAnalyzeStreamEvent = (line: string): AnalyzeStreamEvent => {
   let parsedJson: Schema.Json
 
@@ -72,7 +21,7 @@ const parseAnalyzeStreamEvent = (line: string): AnalyzeStreamEvent => {
     throw new Error("The analysis response stream contains invalid JSON.")
   }
 
-  const parsedEvent = Schema.decodeUnknownResult(analyzeStreamEventSchema)(
+  const parsedEvent = Schema.decodeUnknownResult(AnalyzeStreamEventSchema)(
     parsedJson
   )
 

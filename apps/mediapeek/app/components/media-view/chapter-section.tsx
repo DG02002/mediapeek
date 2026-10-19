@@ -2,6 +2,8 @@ import { memo } from "react"
 
 import type { ChapterReport } from "~/features/reports/media-report"
 
+import { SectionHeading } from "./section-heading"
+
 export const ChapterSection = memo(function ChapterSection({
   chapters,
 }: {
@@ -13,9 +15,7 @@ export const ChapterSection = memo(function ChapterSection({
 
   return (
     <section className="space-y-4">
-      <div className="text-foreground flex items-center gap-2">
-        <h2 className="text-xl font-semibold tracking-tight">Chapters</h2>
-      </div>
+      <SectionHeading title="Chapters" />
       <div className="border-border/40 bg-card/30 max-h-[300px] overflow-y-auto rounded-lg border p-4">
         <div className="grid grid-cols-1 gap-x-8 gap-y-2">
           {chapters.map(({ time, name }) => (

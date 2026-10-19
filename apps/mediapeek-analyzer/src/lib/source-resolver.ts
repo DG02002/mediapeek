@@ -1,4 +1,4 @@
-import { AnalyzerError } from "./error-utils"
+import { ValidationFailureError } from "./error-utils"
 
 type SourceProvider = "direct" | "google-drive" | "onedrive"
 
@@ -87,7 +87,7 @@ export const resolveSource = (sourceUrl: string): SourceResolution => {
   try {
     url = new URL(sourceUrl)
   } catch (cause) {
-    throw new AnalyzerError("validation", "Invalid media URL.", cause)
+    throw new ValidationFailureError("Invalid media URL.", cause)
   }
 
   const hostname = url.hostname.toLowerCase()

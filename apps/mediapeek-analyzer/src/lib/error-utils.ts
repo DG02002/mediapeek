@@ -1,29 +1,65 @@
-export type AnalyzerErrorKind =
-  | "cpu-budget"
-  | "rate-limited"
-  | "validation"
-  | "upstream-fetch"
+import { Schema } from "effect"
 
-export class AnalyzerError extends Error {
-  readonly kind: AnalyzerErrorKind
-
-  constructor(kind: AnalyzerErrorKind, message: string, cause?: unknown) {
-    super(message)
-    this.name = "AnalyzerError"
-    this.kind = kind
-
-    if (cause !== undefined) {
-      this.cause = cause
-    }
-  }
+interface AnalyzerTaggedError<Tag extends string> extends Error {
+  readonly _tag: Tag
 }
 
-export class AnalyzerReadTimeoutError extends AnalyzerError {
+type AnalyzerErrorConstructor<Tag extends string> = new (
+  message: string,
+  cause?: unknown
+) => AnalyzerTaggedError<Tag>
+
+const defineAnalyzerError = <Tag extends string>(
+  tag: Tag
+): AnalyzerErrorConstructor<Tag> => {
+  class AnalyzerError extends Schema.TaggedError<AnalyzerError>()(tag, {
+    message: Schema.String,
+    cause: Schema.optionalKey(Schema.Defect()),
+  }) {
+    constructor(message: string, cause?: unknown) {
+      super(cause === undefined ? { message } : { message, cause })
+    }
+  }
+
+  return AnalyzerError
+}
+
+export class UpstreamFetchError extends defineAnalyzerError(
+  "UpstreamFetchError"
+) {}
+
+export class AnalyzerReadTimeoutError extends UpstreamFetchError {
   constructor(message = "Fetch stream read timed out") {
-    super("upstream-fetch", message)
+    super(message)
     this.name = "AnalyzerReadTimeoutError"
   }
 }
+
+export class ValidationFailureError extends defineAnalyzerError(
+  "ValidationFailureError"
+) {}
+
+export class CpuBudgetExceededError extends defineAnalyzerError(
+  "CpuBudgetExceededError"
+) {
+  constructor(message = "CPU budget exceeded", cause?: unknown) {
+    super(message, cause)
+  }
+}
+
+export class RateLimitedError extends defineAnalyzerError("RateLimitedError") {}
+
+export type AnalyzerFailure =
+  | UpstreamFetchError
+  | ValidationFailureError
+  | CpuBudgetExceededError
+  | RateLimitedError
+
+export const isAnalyzerFailure = (error: unknown): error is AnalyzerFailure =>
+  error instanceof UpstreamFetchError ||
+  error instanceof ValidationFailureError ||
+  error instanceof CpuBudgetExceededError ||
+  error instanceof RateLimitedError
 
 export class DiagnosticsError<T> extends Error {
   public diagnostics: T
@@ -33,7 +69,7 @@ export class DiagnosticsError<T> extends Error {
     this.name = "DiagnosticsError"
     this.diagnostics = diagnostics
 
-    if (cause) {
+    if (cause !== undefined) {
       this.cause = cause
     }
   }

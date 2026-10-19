@@ -7,9 +7,13 @@ import {
   RuntimeEnvironment,
   type RuntimeEnvironmentValue,
 } from "./runtime-environment.server"
+import { TurnstileAuthorization } from "./turnstile-authorization.server"
 
 export interface AppRuntime extends ManagedRuntimeType<
-  RuntimeEnvironment | AnalysisGateway | AnalysisPolicy,
+  | RuntimeEnvironment
+  | AnalysisGateway
+  | AnalysisPolicy
+  | TurnstileAuthorization,
   never
 > {}
 
@@ -19,9 +23,11 @@ export const getAppRuntime = (
   environment: RuntimeEnvironmentValue
 ): AppRuntime =>
   ManagedRuntime.make(
-    Layer.mergeAll(AnalysisGateway.layer, AnalysisPolicy.layer).pipe(
-      Layer.provideMerge(RuntimeEnvironment.layer(environment))
-    )
+    Layer.mergeAll(
+      AnalysisGateway.layer,
+      AnalysisPolicy.layer,
+      TurnstileAuthorization.layer
+    ).pipe(Layer.provideMerge(RuntimeEnvironment.layer(environment)))
   )
 
 export const getWorkerAppRuntime = (environment: Env): AppRuntime => {

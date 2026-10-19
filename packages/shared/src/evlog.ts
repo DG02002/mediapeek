@@ -1,23 +1,21 @@
 import type { LoggerConfig } from "evlog"
 
-import { DEFAULT_RUNTIME_CONFIG } from "./runtime-config"
+import { sensitiveQueryPattern } from "./log-redaction"
+import type { RuntimeConfig } from "./runtime-config"
 
-const sensitiveQueryValuePattern =
-  /\b(token|sig|signature|key|auth|authorization|expires|api_key|apikey|access_token|id_token|refresh_token|x-amz-[\w-]+|x-goog-[\w-]+)=([^&\s]+)/gi
-
-export const createEvlogLoggerConfig = (service: string): LoggerConfig => ({
+export const createEvlogLoggerConfig = (
+  service: string,
+  config: RuntimeConfig
+): LoggerConfig => ({
   env: { service },
   stringify: false,
   sampling: {
     rates: {
-      info: DEFAULT_RUNTIME_CONFIG.logForceAllRequests
+      info: config.logForceAllRequests
         ? 100
-        : Math.round(DEFAULT_RUNTIME_CONFIG.logSampleRate * 100),
+        : Math.round(config.logSampleRate * 100),
     },
-    keep: [
-      { duration: DEFAULT_RUNTIME_CONFIG.logSlowRequestMs },
-      { status: 400 },
-    ],
+    keep: [{ duration: config.logSlowRequestMs }, { status: 400 }],
   },
   redact: {
     paths: [
@@ -31,6 +29,6 @@ export const createEvlogLoggerConfig = (service: string): LoggerConfig => ({
       "**.token",
       "**.turnstileToken",
     ],
-    patterns: [sensitiveQueryValuePattern],
+    patterns: [sensitiveQueryPattern],
   },
 })

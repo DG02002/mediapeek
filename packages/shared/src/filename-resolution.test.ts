@@ -40,6 +40,22 @@ describe("filename-resolution", () => {
     ).toBe("My Movie (2025).mkv")
   })
 
+  it("extracts and decodes complex filenames", () => {
+    expect(
+      extractFilenameFromUrl(
+        "https://example.com/path/to/Complex%20Movie%20Name%20(2000)%20[4K].mkv"
+      )
+    ).toBe("Complex Movie Name (2000) [4K].mkv")
+  })
+
+  it("uses the final folder name for URLs with trailing slashes", () => {
+    expect(extractFilenameFromUrl("https://example.com/folder/")).toBe("folder")
+  })
+
+  it("returns invalid URLs unchanged", () => {
+    expect(extractFilenameFromUrl("not-a-url")).toBe("not-a-url")
+  })
+
   it("prefers Title over Movie from MediaInfo metadata", () => {
     expect(
       getMediaInfoMetadataFilename({

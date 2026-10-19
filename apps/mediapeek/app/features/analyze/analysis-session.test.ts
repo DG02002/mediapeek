@@ -3,11 +3,21 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createBrowserAnalysisSession } from "./analysis-session"
 
-interface AnalysisSessionTestResponse {
-  readonly success: boolean
-  readonly requestId: string
-  readonly results: Record<string, string>
-}
+type AnalysisSessionTestResponse =
+  | {
+      readonly success: true
+      readonly requestId: string
+      readonly results: Record<string, string>
+    }
+  | {
+      readonly success: false
+      readonly requestId: string
+      readonly error: {
+        readonly code: "AUTH_REQUIRED" | "AUTH_INVALID"
+        readonly message: string
+        readonly retryable: boolean
+      }
+    }
 
 const jsonResponse = (payload: AnalysisSessionTestResponse, status = 200) =>
   new Response(JSON.stringify(payload), {
@@ -111,6 +121,62 @@ describe("browser Analysis session", () => {
     const requestHeaders = new Headers(fetchMock.mock.calls[0]?.[1]?.headers)
 
     expect(requestHeaders.get("CF-Turnstile-Response")).toBe("turnstile-token")
+  })
+
+  it("retries a streamed analysis once with a requested Turnstile token", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            success: false,
+            requestId: "request-blocked",
+            error: {
+              code: "AUTH_REQUIRED",
+              message: "Security verification is required.",
+              retryable: false,
+            },
+          },
+          403
+        )
+      )
+      .mockResolvedValueOnce(
+        streamResponse(
+          encodeAnalyzeStreamEvent({
+            type: "success",
+            requestId: "request-verified",
+            results: { json: '{"media":{}}' },
+          })
+        )
+      )
+
+    const requestTurnstileToken = vi
+      .fn<() => Promise<string | null>>()
+      .mockResolvedValue("fresh-token")
+
+    const session = createBrowserAnalysisSession()
+
+    await expect(
+      session.analyze(
+        "https://example.com/video.mp4",
+        undefined,
+        requestTurnstileToken
+      )
+    ).resolves.toMatchObject({ requestId: "request-verified" })
+
+    expect(requestTurnstileToken).toHaveBeenCalledOnce()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(
+      new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get(
+        "CF-Turnstile-Response"
+      )
+    ).toBe("fresh-token")
+    expect(
+      new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get("Accept")
+    ).toBe("application/x-ndjson")
+    expect(fetchMock.mock.calls[1]?.[1]?.body).toBe(
+      fetchMock.mock.calls[0]?.[1]?.body
+    )
   })
 
   it("fails closed when the JSON fallback is malformed", async () => {
@@ -248,5 +314,70 @@ describe("browser Analysis session", () => {
       '{"url":"https://example.com/video.mp4","format":["text"]'
     )
     expect(followUpBody).toMatch(/"operationId":"[^"]+"/)
+  })
+
+  it("retries a follow-up output once after requesting a Turnstile token", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse({
+          success: true,
+          requestId: "request-initial",
+          results: { json: '{"media":{}}' },
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            success: false,
+            requestId: "request-blocked",
+            error: {
+              code: "AUTH_INVALID",
+              message: "Security verification is required.",
+              retryable: false,
+            },
+          },
+          403
+        )
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          success: true,
+          requestId: "request-text",
+          results: { text: "General\\nComplete name : video.mp4" },
+        })
+      )
+
+    const requestTurnstileToken = vi
+      .fn<() => Promise<string | null>>()
+      .mockResolvedValue("fresh-token")
+
+    const session = createBrowserAnalysisSession()
+
+    await session.analyze("https://example.com/video.mp4")
+
+    await expect(
+      session.output("text", requestTurnstileToken)
+    ).resolves.toContain("Complete name")
+
+    expect(requestTurnstileToken).toHaveBeenCalledOnce()
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(
+      new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get(
+        "CF-Turnstile-Response"
+      )
+    ).toBe("fresh-token")
+
+    const firstOutputBody = await new Response(
+      fetchMock.mock.calls[1]?.[1]?.body
+    ).text()
+
+    const retriedOutputBody = await new Response(
+      fetchMock.mock.calls[2]?.[1]?.body
+    ).text()
+
+    expect(JSON.parse(retriedOutputBody).operationId).toBe(
+      JSON.parse(firstOutputBody).operationId
+    )
   })
 })

@@ -1,13 +1,23 @@
 import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
 import { createEvlogLoggerConfig } from "@mediapeek/shared/evlog"
+import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import type { AnalyzeInput } from "@mediapeek/shared/schemas"
 import type { WideEvent } from "evlog"
 import { initWorkersLogger } from "evlog/workers"
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { createAnalyzerApp, type AnalyzerAnalysisExecutor } from "./index"
-import { AnalyzerError, DiagnosticsError } from "./lib/error-utils"
-import { CpuBudgetExceededError } from "./services/mediainfo.server"
+import {
+  classifyAnalyzerFailure,
+  createAnalyzerApp,
+  type AnalyzerAnalysisExecutor,
+} from "./index"
+import {
+  CpuBudgetExceededError,
+  DiagnosticsError,
+  RateLimitedError,
+  UpstreamFetchError,
+  ValidationFailureError,
+} from "./lib/error-utils"
 
 const executeAnalysisMock = vi.fn<AnalyzerAnalysisExecutor>()
 const app = createAnalyzerApp({ executeAnalysis: executeAnalysisMock })
@@ -84,7 +94,12 @@ describe("analyzer Worker boundary", () => {
   })
 
   afterAll(() => {
-    initWorkersLogger(createEvlogLoggerConfig("mediapeek-analyzer"))
+    initWorkersLogger(
+      createEvlogLoggerConfig(
+        "mediapeek-analyzer",
+        resolveRuntimeConfig(process.env)
+      )
+    )
   })
 
   it("rejects invalid input before fetching media", async () => {
@@ -143,7 +158,7 @@ describe("analyzer Worker boundary", () => {
 
   it("classifies media fetch failures", async () => {
     executeAnalysisMock.mockRejectedValue(
-      new AnalyzerError("upstream-fetch", "Unable to access file stream")
+      new UpstreamFetchError("Unable to access file stream")
     )
     const response = await invoke(request())
     expect(response.status).toBe(502)
@@ -156,6 +171,47 @@ describe("analyzer Worker boundary", () => {
         retryable: true,
       },
     })
+  })
+
+  it.each([
+    {
+      error: new CpuBudgetExceededError(),
+      expected: {
+        status: 503,
+        code: "CPU_BUDGET_EXCEEDED",
+        retryable: true,
+        severity: "ERROR",
+      },
+    },
+    {
+      error: new RateLimitedError("Source is temporarily rate-limited."),
+      expected: {
+        status: 429,
+        code: "RATE_LIMITED",
+        retryable: true,
+        severity: "WARNING",
+      },
+    },
+    {
+      error: new ValidationFailureError("Invalid media URL."),
+      expected: {
+        status: 400,
+        code: "VALIDATION_FAILED",
+        retryable: false,
+        severity: "WARNING",
+      },
+    },
+    {
+      error: new UpstreamFetchError("Unable to fetch source."),
+      expected: {
+        status: 502,
+        code: "UPSTREAM_FETCH_FAILED",
+        retryable: true,
+        severity: "ERROR",
+      },
+    },
+  ])("classifies tagged analyzer errors", ({ error, expected }) => {
+    expect(classifyAnalyzerFailure(error)).toMatchObject(expected)
   })
 
   it("does not expose unknown internal error details", async () => {
@@ -209,7 +265,7 @@ describe("analyzer Worker boundary", () => {
 
   it("streams a classified terminal error event", async () => {
     executeAnalysisMock.mockRejectedValue(
-      new AnalyzerError("validation", "media file not found")
+      new ValidationFailureError("media file not found")
     )
 
     const response = await invoke(

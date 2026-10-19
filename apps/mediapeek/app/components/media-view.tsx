@@ -15,31 +15,29 @@ import {
 import { Button } from "~/components/ui/button"
 import { Icon } from "~/components/ui/icon"
 import { Skeleton } from "~/components/ui/skeleton"
+import {
+  createBrowserAnalysisSessionForOutputs,
+  type AnalysisSession,
+} from "~/features/analyze/analysis-session"
 import { parseMediaReport } from "~/features/reports/media-report"
-import { fetchAnalyzeFormat } from "~/lib/analyze-client"
 import { SmoothTransition } from "~/lib/animation"
 import { clientLog } from "~/lib/client-logger"
 import { cn } from "~/lib/utils"
 import { startNativeViewTransition } from "~/lib/view-transition"
 
-import { AccessibilitySection } from "./media-view/accessibility-section"
-import { AudioSection } from "./media-view/audio-section"
-import { ChapterSection } from "./media-view/chapter-section"
-import { GeneralSection } from "./media-view/general-section"
-import { LibrarySection } from "./media-view/library-section"
 import { MediaHeader } from "./media-view/media-header"
 import { MediaReportExport } from "./media-view/media-report-export"
-import { SubtitleSection } from "./media-view/subtitle-section"
+import { MediaReportSections } from "./media-view/media-report-sections"
 import { useMediaPngExport } from "./media-view/use-media-png-export"
-import { VideoSection } from "./media-view/video-section"
 
 export type MediaViewData = Record<string, string>
 
 interface MediaViewProps {
   data: MediaViewData
   url: string
+  session?: Pick<AnalysisSession, "output">
   requestTurnstileToken?: () => Promise<string | null>
-  fetchFormat?: typeof fetchAnalyzeFormat
+  allowLazyTextOutput?: boolean
 }
 
 const useParsedMediaReport = (data: MediaViewData, url: string) => {
@@ -60,35 +58,244 @@ const useParsedMediaReport = (data: MediaViewData, url: string) => {
   return parsedReport
 }
 
+const useTextViewMode = () => {
+  const [isTextView, setIsTextView] = useState(false)
+  const viewModeRef = useRef<"text" | "structured">("structured")
+
+  const updateTextView = useCallback((value: boolean) => {
+    viewModeRef.current = value ? "text" : "structured"
+    setIsTextView(value)
+  }, [])
+
+  return { isTextView, updateTextView, viewModeRef }
+}
+
+const useLazyTextOutput = (options: {
+  enabled: boolean
+  hasExistingText: boolean
+  data: MediaViewData
+  requestTurnstileToken?: () => Promise<string | null>
+  session: Pick<AnalysisSession, "output">
+}) => {
+  const reportIdentity = useMemo(
+    () => ({ session: options.session, data: options.data }),
+    [options.data, options.session]
+  )
+
+  const [textOutputState, setTextOutputState] = useState<{
+    reportIdentity: typeof reportIdentity
+    fetchedText: string | null
+    error: string | null
+  }>(() => ({
+    reportIdentity,
+    fetchedText: null,
+    error: null,
+  }))
+
+  const currentTextOutputState =
+    textOutputState.reportIdentity === reportIdentity ? textOutputState : null
+
+  const fetchedText = currentTextOutputState?.fetchedText ?? null
+
+  const textLoadError =
+    options.enabled && !options.hasExistingText && fetchedText === null
+      ? (currentTextOutputState?.error ?? null)
+      : null
+
+  useEffect(() => {
+    if (
+      !options.enabled ||
+      options.hasExistingText ||
+      fetchedText !== null ||
+      textLoadError !== null
+    ) {
+      return undefined
+    }
+
+    let isCurrent = true
+    void (async () => {
+      try {
+        const text = await reportIdentity.session.output(
+          "text",
+          options.requestTurnstileToken
+        )
+
+        if (isCurrent) {
+          setTextOutputState({
+            reportIdentity,
+            fetchedText: text,
+            error: null,
+          })
+        }
+      } catch (error) {
+        if (isCurrent) {
+          clientLog.error({
+            event: "media_text_output_load_failed",
+            error: error instanceof Error ? error.message : String(error),
+          })
+          setTextOutputState({
+            reportIdentity,
+            fetchedText: null,
+            error: "Unable to load the text output. Try again.",
+          })
+        }
+      }
+    })()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [
+    fetchedText,
+    options.enabled,
+    options.hasExistingText,
+    options.requestTurnstileToken,
+    reportIdentity,
+    textLoadError,
+  ])
+
+  const retryTextLoad = useCallback(() => {
+    setTextOutputState({
+      reportIdentity,
+      fetchedText: null,
+      error: null,
+    })
+  }, [reportIdentity])
+
+  const isTextLoading =
+    options.enabled &&
+    !options.hasExistingText &&
+    fetchedText === null &&
+    textLoadError === null
+
+  return { fetchedText, isTextLoading, retryTextLoad, textLoadError }
+}
+
+const renderTextOutput = (options: {
+  text: string
+  isLoading: boolean
+  error: string | null
+  isFullScreen: boolean
+  onRetry: () => void
+}) => {
+  if (options.isLoading) {
+    return (
+      <motion.div
+        key="loading"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={SmoothTransition}
+        className="absolute inset-0 z-10 p-4"
+      >
+        <div className="space-y-3">
+          <Skeleton className="h-4 w-32 bg-zinc-200 dark:bg-zinc-800" />
+          <Skeleton className="h-4 w-48 bg-zinc-200 dark:bg-zinc-800" />
+          <div className="space-y-2 pt-4">
+            <Skeleton className="h-3 w-3/4 bg-zinc-200 dark:bg-zinc-800" />
+            <Skeleton className="h-3 w-1/2 bg-zinc-200 dark:bg-zinc-800" />
+            <Skeleton className="h-3 w-full bg-zinc-200 dark:bg-zinc-800" />
+            <Skeleton className="h-3 w-5/6 bg-zinc-200 dark:bg-zinc-800" />
+            <Skeleton className="h-3 w-2/3 bg-zinc-200 dark:bg-zinc-800" />
+          </div>
+          <div className="space-y-2 pt-4">
+            <Skeleton className="h-3 w-full bg-zinc-200 dark:bg-zinc-800" />
+            <Skeleton className="h-3 w-4/5 bg-zinc-200 dark:bg-zinc-800" />
+            <Skeleton className="h-3 w-3/4 bg-zinc-200 dark:bg-zinc-800" />
+          </div>
+        </div>
+      </motion.div>
+    )
+  }
+
+  if (options.error) {
+    return (
+      <motion.div
+        key="text-error"
+        role="alert"
+        className="flex min-h-[200px] flex-col items-start justify-center gap-3 p-4"
+      >
+        <p className="text-destructive text-sm">{options.error}</p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={options.onRetry}
+        >
+          Retry
+        </Button>
+      </motion.div>
+    )
+  }
+
+  return (
+    <motion.pre
+      key={`text-content-${options.isFullScreen ? "full" : "normal"}`}
+      initial={{ opacity: 0, filter: "blur(5px)" }}
+      animate={{
+        opacity: 1,
+        filter: "blur(0px)",
+        transition: {
+          duration: 0.3,
+          ease: "easeOut",
+          delay: 0.2,
+        },
+      }}
+      exit={{
+        opacity: 0,
+        filter: "blur(5px)",
+        transition: { duration: 0.15, ease: "easeIn" },
+      }}
+      className={cn(
+        "overflow-x-auto p-4 font-mono text-xs leading-relaxed whitespace-pre sm:text-base sm:whitespace-pre-wrap",
+        options.isFullScreen
+          ? "h-[calc(100vh-42px)] max-w-none"
+          : "max-w-[calc(100vw-3rem)] sm:max-w-none"
+      )}
+    >
+      {options.text || "No text data available."}
+    </motion.pre>
+  )
+}
+
 export const MediaView = memo(function MediaView({
   data,
   url,
+  session: providedSession,
   requestTurnstileToken,
-  fetchFormat = fetchAnalyzeFormat,
+  allowLazyTextOutput = true,
 }: MediaViewProps) {
-  const [isTextView, setIsTextView] = useState(false)
+  const { isTextView, updateTextView, viewModeRef } = useTextViewMode()
   const [showOriginalTitles, setShowOriginalTitles] = useState(false)
   const [isFullScreen, setIsFullScreen] = useState(false)
-  const [fetchedText, setFetchedText] = useState<string | null>(null)
-  const [isTextLoading, setIsTextLoading] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const [_isPending, startTransition] = useTransition()
+
+  const session = useMemo(
+    () =>
+      providedSession ??
+      createBrowserAnalysisSessionForOutputs({ url, outputs: data }),
+    [data, providedSession, url]
+  )
+
+  const { fetchedText, isTextLoading, retryTextLoad, textLoadError } =
+    useLazyTextOutput({
+      enabled: allowLazyTextOutput && isTextView,
+      hasExistingText: Boolean(data.text),
+      data,
+      requestTurnstileToken,
+      session,
+    })
 
   // Stable handlers for View Switching to ensure responsiveness
   const handleSetIsTextView = useCallback(
     (val: boolean) => {
       startNativeViewTransition(
-        () => {
-          setIsTextView(val)
-        },
-        () => {
-          startTransition(() => {
-            setIsTextView(val)
-          })
-        }
+        () => updateTextView(val),
+        () => startTransition(() => updateTextView(val))
       )
     },
-    [startTransition]
+    [startTransition, updateTextView]
   )
 
   const handleSetShowOriginalTitles = useCallback(
@@ -106,54 +313,6 @@ export const MediaView = memo(function MediaView({
     },
     [startTransition]
   )
-
-  // Lazy-load text output on demand using POST to avoid exposing URLs in query strings.
-  useEffect(() => {
-    if (isTextView && !data.text && !fetchedText) {
-      let cancelled = false
-
-      const loadText = async () => {
-        setIsTextLoading(true)
-
-        try {
-          const result = await fetchFormat({
-            url,
-            format: "text",
-            requestTurnstileToken,
-          })
-
-          if (!result.ok) {
-            throw new Error(result.message)
-          }
-
-          if (!cancelled) {
-            setFetchedText(result.content)
-          }
-        } catch (error) {
-          console.error("Failed to lazy-load text output", error)
-        } finally {
-          if (!cancelled) {
-            setIsTextLoading(false)
-          }
-        }
-      }
-
-      void loadText()
-
-      return () => {
-        cancelled = true
-      }
-    }
-
-    return undefined
-  }, [
-    data.text,
-    fetchFormat,
-    fetchedText,
-    isTextView,
-    requestTurnstileToken,
-    url,
-  ])
 
   // Handle Escape key to exit full screen
   useEffect(() => {
@@ -178,7 +337,7 @@ export const MediaView = memo(function MediaView({
 
     const activeViewMode = isTextView ? "text" : "structured"
 
-    if (containerRef.current.dataset.viewMode !== activeViewMode) {
+    if (viewModeRef.current !== activeViewMode) {
       return
     }
 
@@ -189,7 +348,7 @@ export const MediaView = memo(function MediaView({
     if (scrollTop > absoluteTop) {
       window.scrollTo({ top: absoluteTop, behavior: "instant" })
     }
-  }, [isTextView])
+  }, [isTextView, viewModeRef])
 
   const parsedReport = useParsedMediaReport(data, url)
 
@@ -197,19 +356,14 @@ export const MediaView = memo(function MediaView({
   const fullData = useMemo(() => {
     return {
       ...data,
-      text:
-        (data.text !== "" ? data.text : undefined) ??
-        fetchedText ??
-        (isTextLoading ? "" : ""),
+      text: (data.text !== "" ? data.text : undefined) ?? fetchedText ?? "",
     }
-  }, [data, fetchedText, isTextLoading])
-
-  const exportFilename = parsedReport.ok
-    ? parsedReport.report.file.displayName
-    : "Unknown"
+  }, [data, fetchedText])
 
   const { handleExportPng, isExportingPng, mediaReportExportRef } =
-    useMediaPngExport(exportFilename)
+    useMediaPngExport(
+      parsedReport.ok ? parsedReport.report.file.displayName : "Unknown"
+    )
 
   if (!parsedReport.ok) {
     return (
@@ -223,7 +377,7 @@ export const MediaView = memo(function MediaView({
         </p>
         <p className="mt-1 text-sm">{parsedReport.error.message}</p>
         <pre className="mt-2 overflow-x-auto text-xs whitespace-pre-wrap opacity-70">
-          {(data["@ref"] ?? "").endsWith(".json") && "No JSON data"}
+          {!(data["@ref"] ?? "").endsWith(".json") && "No JSON data"}
         </pre>
       </div>
     )
@@ -234,7 +388,6 @@ export const MediaView = memo(function MediaView({
   return (
     <div
       ref={containerRef}
-      data-view-mode={isTextView ? "text" : "structured"}
       className="animate-in fade-in mx-auto w-full max-w-5xl space-y-6 pb-20"
     >
       {report.container && (
@@ -246,6 +399,7 @@ export const MediaView = memo(function MediaView({
           showOriginalTitles={showOriginalTitles}
           setShowOriginalTitles={handleSetShowOriginalTitles}
           rawData={fullData}
+          session={session}
           requestTurnstileToken={requestTurnstileToken}
           onExportPng={handleExportPng}
           isExportingPng={isExportingPng}
@@ -293,83 +447,23 @@ export const MediaView = memo(function MediaView({
             </motion.div>
             <div className="relative min-h-[200px]">
               <AnimatePresence mode="wait">
-                {isTextLoading ? (
-                  <motion.div
-                    key="loading"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={SmoothTransition}
-                    className="absolute inset-0 z-10 p-4"
-                  >
-                    <div className="space-y-3">
-                      <Skeleton className="h-4 w-32 bg-zinc-200 dark:bg-zinc-800" />
-                      <Skeleton className="h-4 w-48 bg-zinc-200 dark:bg-zinc-800" />
-                      <div className="space-y-2 pt-4">
-                        <Skeleton className="h-3 w-3/4 bg-zinc-200 dark:bg-zinc-800" />
-                        <Skeleton className="h-3 w-1/2 bg-zinc-200 dark:bg-zinc-800" />
-                        <Skeleton className="h-3 w-full bg-zinc-200 dark:bg-zinc-800" />
-                        <Skeleton className="h-3 w-5/6 bg-zinc-200 dark:bg-zinc-800" />
-                        <Skeleton className="h-3 w-2/3 bg-zinc-200 dark:bg-zinc-800" />
-                      </div>
-                      <div className="space-y-2 pt-4">
-                        <Skeleton className="h-3 w-full bg-zinc-200 dark:bg-zinc-800" />
-                        <Skeleton className="h-3 w-4/5 bg-zinc-200 dark:bg-zinc-800" />
-                        <Skeleton className="h-3 w-3/4 bg-zinc-200 dark:bg-zinc-800" />
-                      </div>
-                    </div>
-                  </motion.div>
-                ) : (
-                  <motion.pre
-                    key={`text-content-${isFullScreen ? "full" : "normal"}`}
-                    initial={{ opacity: 0, filter: "blur(5px)" }}
-                    animate={{
-                      opacity: 1,
-                      filter: "blur(0px)",
-                      transition: {
-                        duration: 0.3,
-                        ease: "easeOut",
-                        delay: 0.2,
-                      },
-                    }}
-                    exit={{
-                      opacity: 0,
-                      filter: "blur(5px)",
-                      transition: { duration: 0.15, ease: "easeIn" },
-                    }}
-                    className={cn(
-                      "overflow-x-auto p-4 font-mono text-xs leading-relaxed whitespace-pre sm:text-base sm:whitespace-pre-wrap",
-                      isFullScreen
-                        ? "h-[calc(100vh-42px)] max-w-none"
-                        : "max-w-[calc(100vw-3rem)] sm:max-w-none"
-                    )}
-                  >
-                    {fullData.text || "No text data available."}
-                  </motion.pre>
-                )}
+                {renderTextOutput({
+                  text: fullData.text,
+                  isLoading: isTextLoading,
+                  error: textLoadError,
+                  isFullScreen,
+                  onRetry: retryTextLoad,
+                })}
               </AnimatePresence>
             </div>
           </motion.div>
         </div>
       ) : (
-        <div className="animate-in fade-in space-y-6 duration-300">
-          <GeneralSection report={report} />
-          <VideoSection
-            videoTracks={report.videos}
-            archiveSizingWarning={report.file.archive?.sizing.warning}
-          />
-          <AudioSection
-            audioTracks={report.audios}
-            showOriginalTitles={showOriginalTitles}
-          />
-          <SubtitleSection
-            textTracks={report.subtitles}
-            showOriginalTitles={showOriginalTitles}
-          />
-          <ChapterSection chapters={report.chapters} />
-          <AccessibilitySection accessibility={report.accessibility} />
-          <LibrarySection library={report.engine} badges={report.badges} />
-        </div>
+        <MediaReportSections
+          report={report}
+          showOriginalTitles={showOriginalTitles}
+          className="animate-in fade-in space-y-6 duration-300"
+        />
       )}
 
       {report.container && (

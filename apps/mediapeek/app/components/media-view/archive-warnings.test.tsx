@@ -45,6 +45,7 @@ describe("archive warning UI", () => {
         setShowOriginalTitles={() => {}}
         rawData={{}}
         url="https://example.com/archive"
+        session={{ output: async () => "" }}
         onExportPng={async () => {}}
         isExportingPng={false}
       />

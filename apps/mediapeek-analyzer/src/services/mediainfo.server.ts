@@ -14,25 +14,22 @@ import {
 } from "@mediapeek/shared/filename-resolution"
 import { Schema } from "effect"
 
-import { AnalyzerError, DiagnosticsError } from "../lib/error-utils"
+import {
+  CpuBudgetExceededError,
+  DiagnosticsError,
+  isAnalyzerFailure,
+} from "../lib/error-utils"
 import {
   MediaInfoResultSchema,
   normalizeMediaInfo,
   type JsonMediaInfo,
   type MediaInfoTrack,
-} from "../lib/media-utils"
+} from "../lib/mediainfo-json"
 import { isArchiveExtension } from "../lib/server-utils"
 import {
   createMediaInfo,
   type MediaInfoInstance,
 } from "./mediainfo-factory.server"
-
-export class CpuBudgetExceededError extends AnalyzerError {
-  constructor(message = "CPU budget exceeded") {
-    super("cpu-budget", message)
-    this.name = "CpuBudgetExceededError"
-  }
-}
 
 export const DEFAULT_ANALYSIS_CPU_BUDGET_MS = 25_000
 
@@ -361,7 +358,7 @@ const generateFormat = async (options: {
   } catch (error) {
     options.signal?.throwIfAborted()
 
-    if (error instanceof AnalyzerError) {
+    if (isAnalyzerFailure(error)) {
       throw error
     }
 

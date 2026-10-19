@@ -2,7 +2,11 @@ import { Match } from "effect"
 import { memo } from "react"
 
 import type { VideoTrackReport } from "~/features/reports/media-report"
-import { cleanBitrateString, mapDolbyProfile } from "~/lib/formatters"
+import {
+  cleanBitrateString,
+  getFirstDefinedFormat,
+  mapDolbyProfile,
+} from "~/lib/formatters"
 
 import { ArchiveEstimateTooltip } from "./archive-estimate-tooltip"
 import { MediaDetailItem } from "./media-detail-item"
@@ -16,12 +20,12 @@ export const VideoTrackItem = memo(function VideoTrackItem({
   video,
   archiveSizingWarning,
 }: VideoTrackItemProps) {
-  let codec = video.formatName
   const { formatInfo } = video
 
-  if (formatInfo) {
-    codec = `${codec ?? ""} (${formatInfo})`
-  }
+  const codec = getFirstDefinedFormat(
+    formatInfo ? `${video.formatName ?? ""} (${formatInfo})` : undefined,
+    video.formatName
+  )
 
   const profile = video.formatProfile
   const level = video.formatLevel
@@ -131,7 +135,7 @@ export const VideoTrackItem = memo(function VideoTrackItem({
       )}
 
       {video.hdrFormat && (
-        <MediaDetailItem label="High Dynamic Range" value={video.hdrFormat}>
+        <MediaDetailItem label="High Dynamic Range">
           <div className="flex flex-col gap-0.5">
             <span className="text-foreground/85 font-semibold break-all">
               {video.hdrFormat}
@@ -280,10 +284,7 @@ export const VideoTrackItem = memo(function VideoTrackItem({
       })()}
 
       {video.codecConfigurationBox && (
-        <MediaDetailItem
-          label="Codec Configuration Box"
-          value={video.codecConfigurationBox}
-        >
+        <MediaDetailItem label="Codec Configuration Box">
           <span className="text-foreground/85 text-sm font-medium break-all">
             {video.codecConfigurationBox}
           </span>

@@ -1,4 +1,5 @@
 import { DEFAULT_RUNTIME_CONFIG } from "@mediapeek/shared/runtime-config"
+import { Effect, ManagedRuntime } from "effect"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
@@ -7,13 +8,23 @@ import {
 } from "~/constants"
 
 import {
-  authorizeTurnstile,
+  TurnstileAuthorization,
   type TurnstileAuthorizationFailure,
   type TurnstileAuthorizationInput,
 } from "./turnstile-authorization.server"
 
 const analyzeUrl = "https://example.com/video.mp4"
 const grantSecret = "test-grant-secret"
+const turnstileRuntime = ManagedRuntime.make(TurnstileAuthorization.layer)
+
+const authorizeTurnstile = (input: TurnstileAuthorizationInput) =>
+  turnstileRuntime.runPromise(
+    Effect.gen(function* () {
+      const authorization = yield* TurnstileAuthorization
+
+      return yield* authorization.authorize(input)
+    })
+  )
 
 const createInput = (
   headers: HeadersInit = {}

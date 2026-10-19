@@ -1,7 +1,7 @@
 import { Schema } from "effect"
 
-import type { JsonMediaInfo } from "../lib/media-utils"
 import { mediaInfoFactory } from "../lib/mediainfo-bundle.js"
+import type { JsonMediaInfo } from "../lib/mediainfo-json"
 
 type MediaInfoOptions = Awaited<ReturnType<typeof mediaInfoFactory>>["options"]
 
