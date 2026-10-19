@@ -1,4 +1,4 @@
-import { AnalyzerError } from "./error-utils"
+import { ValidationFailureError } from "./error-utils"
 
 export { extractFilenameFromUrl } from "@mediapeek/shared/filename-resolution"
 
@@ -29,15 +29,13 @@ export const validateUrl = (url: string) => {
   const parsedUrl = new URL(url)
 
   if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-    throw new AnalyzerError(
-      "validation",
+    throw new ValidationFailureError(
       "Invalid URL: Only HTTP and HTTPS sources are supported."
     )
   }
 
   if (parsedUrl.username || parsedUrl.password) {
-    throw new AnalyzerError(
-      "validation",
+    throw new ValidationFailureError(
       "Invalid URL: Embedded credentials are not allowed."
     )
   }
@@ -45,8 +43,7 @@ export const validateUrl = (url: string) => {
   const host = parsedUrl.hostname.toLowerCase().replaceAll(/^\[|\]$/g, "")
 
   if (BLOCKED_HOSTS.has(host) || isBlockedIpLiteral(host)) {
-    throw new AnalyzerError(
-      "validation",
+    throw new ValidationFailureError(
       "Invalid URL: Access to local, private, or reserved resources is denied."
     )
   }

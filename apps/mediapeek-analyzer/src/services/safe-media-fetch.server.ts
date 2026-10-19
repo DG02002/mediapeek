@@ -1,4 +1,4 @@
-import { AnalyzerError } from "../lib/error-utils"
+import { UpstreamFetchError } from "../lib/error-utils"
 import { validateUrl } from "../lib/server-utils"
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
@@ -17,21 +17,13 @@ const getFetchError = (cause: unknown, signal?: AbortSignal) => {
       signal.reason instanceof Error &&
       signal.reason.name === "TimeoutError"
     ) {
-      return new AnalyzerError(
-        "upstream-fetch",
-        "Media source request timed out.",
-        cause
-      )
+      return new UpstreamFetchError("Media source request timed out.", cause)
     }
 
     return signal.reason ?? cause
   }
 
-  return new AnalyzerError(
-    "upstream-fetch",
-    "Unable to retrieve media source.",
-    cause
-  )
+  return new UpstreamFetchError("Unable to retrieve media source.", cause)
 }
 
 const followSafeMediaRedirects = async (
@@ -56,14 +48,13 @@ const followSafeMediaRedirects = async (
   }
 
   if (options.redirectCount >= MAX_REDIRECTS) {
-    throw new AnalyzerError("upstream-fetch", "Too many media redirects.")
+    throw new UpstreamFetchError("Too many media redirects.")
   }
 
   const location = response.headers.get("location")
 
   if (!location) {
-    throw new AnalyzerError(
-      "upstream-fetch",
+    throw new UpstreamFetchError(
       "Invalid media redirect: Missing Location header."
     )
   }
@@ -73,8 +64,7 @@ const followSafeMediaRedirects = async (
   try {
     nextUrl = new URL(location, options.currentUrl)
   } catch {
-    throw new AnalyzerError(
-      "upstream-fetch",
+    throw new UpstreamFetchError(
       "Invalid media redirect: Invalid Location header."
     )
   }

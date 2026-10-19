@@ -22,7 +22,15 @@ import { initWorkersLogger } from "evlog/workers"
 import { Hono, type Context } from "hono"
 
 import { unknownToError } from "./lib/error"
-import { AnalyzerError, DiagnosticsError } from "./lib/error-utils"
+import {
+  CpuBudgetExceededError,
+  DiagnosticsError,
+  RateLimitedError,
+  UpstreamFetchError,
+  ValidationFailureError,
+  isAnalyzerFailure,
+  type AnalyzerFailure,
+} from "./lib/error-utils"
 import { analyzeSchema, type AnalyzeInput } from "./lib/schemas"
 import {
   executeAnalysis,
@@ -59,6 +67,7 @@ interface ClassifiedAnalyzeError {
   message: string
   retryable: boolean
   severity: RequestSeverity
+  errorClass: string
 }
 
 interface AnalyzeLogActions {
@@ -274,93 +283,76 @@ const createAuthFailureResponse = (
   )
 }
 
-const findAnalyzerError = (cause: unknown): AnalyzerError | undefined => {
-  let current = cause
-
-  while (current instanceof Error) {
-    if (current instanceof AnalyzerError) {
-      return current
-    }
-
-    current = current.cause
-  }
-
-  return undefined
+interface AnalyzerErrorClassification {
+  matches: (error: AnalyzerFailure) => boolean
+  classify: (error: AnalyzerFailure) => ClassifiedAnalyzeError
 }
 
-const findDiagnosticsError = (
-  cause: unknown
-): DiagnosticsError<unknown> | undefined => {
-  let current = cause
-
-  while (current instanceof Error) {
-    if (current instanceof DiagnosticsError) {
-      return current
-    }
-
-    current = current.cause
-  }
-
-  return undefined
+const internalErrorClassification: ClassifiedAnalyzeError = {
+  status: 500,
+  code: "INTERNAL_ERROR",
+  message: "Internal Server Error",
+  retryable: false,
+  severity: "ERROR",
+  errorClass: "ANALYZER_INTERNAL_ERROR",
 }
 
-const classifyAnalyzerError = (
-  error: AnalyzerError,
-  customContext: AnalyzeLogContext
+const analyzerErrorClassifications: readonly AnalyzerErrorClassification[] = [
+  {
+    matches: (error) => error instanceof CpuBudgetExceededError,
+    classify: () => ({
+      status: 503,
+      code: "CPU_BUDGET_EXCEEDED",
+      message:
+        "Analysis exceeded the configured CPU budget. Retry with a smaller or simpler source.",
+      retryable: true,
+      severity: "ERROR",
+      errorClass: "CPU_LIMIT_EXCEEDED",
+    }),
+  },
+  {
+    matches: (error) => error instanceof RateLimitedError,
+    classify: (error) => ({
+      status: 429,
+      code: "RATE_LIMITED",
+      message: error.message,
+      retryable: true,
+      severity: "WARNING",
+      errorClass: "ANALYZE_RATE_LIMITED",
+    }),
+  },
+  {
+    matches: (error) => error instanceof ValidationFailureError,
+    classify: (error) => ({
+      status: 400,
+      code: "VALIDATION_FAILED",
+      message: error.message,
+      retryable: false,
+      severity: "WARNING",
+      errorClass: "ANALYZE_VALIDATION_FAILED",
+    }),
+  },
+  {
+    matches: (error) => error instanceof UpstreamFetchError,
+    classify: () => ({
+      status: 502,
+      code: "UPSTREAM_FETCH_FAILED",
+      message: "Unable to retrieve the media source.",
+      retryable: true,
+      severity: "ERROR",
+      errorClass: "UPSTREAM_FETCH_FAILED",
+    }),
+  },
+]
+
+export const classifyAnalyzerError = (
+  error: AnalyzerFailure
 ): ClassifiedAnalyzeError => {
-  switch (error.kind) {
-    case "cpu-budget":
-      customContext.errorClass = "CPU_LIMIT_EXCEEDED"
-
-      return {
-        status: 503,
-        code: "CPU_BUDGET_EXCEEDED",
-        message:
-          "Analysis exceeded the configured CPU budget. Retry with a smaller or simpler source.",
-        retryable: true,
-        severity: "ERROR",
-      }
-    case "rate-limited":
-      customContext.errorClass = "ANALYZE_RATE_LIMITED"
-
-      return {
-        status: 429,
-        code: "RATE_LIMITED",
-        message: error.message,
-        retryable: true,
-        severity: "WARNING",
-      }
-    case "validation":
-      customContext.errorClass = "ANALYZE_VALIDATION_FAILED"
-
-      return {
-        status: 400,
-        code: "VALIDATION_FAILED",
-        message: error.message,
-        retryable: false,
-        severity: "WARNING",
-      }
-    case "upstream-fetch":
-      customContext.errorClass = "UPSTREAM_FETCH_FAILED"
-
-      return {
-        status: 502,
-        code: "UPSTREAM_FETCH_FAILED",
-        message: "Unable to retrieve the media source.",
-        retryable: true,
-        severity: "ERROR",
-      }
-    default:
-      customContext.errorClass = "ANALYZER_INTERNAL_ERROR"
-
-      return {
-        status: 500,
-        code: "INTERNAL_ERROR",
-        message: "Internal Server Error",
-        retryable: false,
-        severity: "ERROR",
-      }
-  }
+  return (
+    analyzerErrorClassifications
+      .find((classification) => classification.matches(error))
+      ?.classify(error) ?? internalErrorClassification
+  )
 }
 
 const classifyAnalyzeError = (
@@ -368,23 +360,12 @@ const classifyAnalyzeError = (
   customContext: AnalyzeLogContext
 ): ClassifiedAnalyzeError => {
   const normalizedError = unknownToError(cause)
-  const analyzerError = findAnalyzerError(cause)
+  const diagnosticsError = cause instanceof DiagnosticsError ? cause : undefined
+  const analyzerFailure = diagnosticsError?.cause ?? cause
 
-  let classification: ClassifiedAnalyzeError
-
-  if (analyzerError) {
-    classification = classifyAnalyzerError(analyzerError, customContext)
-  } else {
-    classification = {
-      status: 500,
-      code: "INTERNAL_ERROR",
-      message: "Internal Server Error",
-      retryable: false,
-      severity: "ERROR",
-    }
-  }
-
-  const diagnosticsError = findDiagnosticsError(cause)
+  const classification = isAnalyzerFailure(analyzerFailure)
+    ? classifyAnalyzerError(analyzerFailure)
+    : internalErrorClassification
 
   if (diagnosticsError) {
     setLogContextValue(
@@ -393,6 +374,8 @@ const classifyAnalyzeError = (
       diagnosticsError.diagnostics
     )
   }
+
+  customContext.errorClass = classification.errorClass
 
   setLogContextValue(customContext, "error", {
     code: classification.code,

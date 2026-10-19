@@ -10,8 +10,10 @@ import {
 } from "@mediapeek/shared/filename-resolution"
 
 import {
-  AnalyzerError,
   AnalyzerReadTimeoutError,
+  RateLimitedError,
+  UpstreamFetchError,
+  ValidationFailureError,
   DiagnosticsError,
 } from "../lib/error-utils"
 import {
@@ -86,11 +88,7 @@ const getExternalReadError = (cause: unknown, signal?: AbortSignal) => {
   }
 
   if (signal.reason instanceof Error && signal.reason.name === "TimeoutError") {
-    return new AnalyzerError(
-      "upstream-fetch",
-      "Media source read timed out.",
-      cause
-    )
+    return new UpstreamFetchError("Media source read timed out.", cause)
   }
 
   return signal.reason ?? cause
@@ -133,21 +131,16 @@ const assertByteFetchStatus = (res: Response) => {
   }
 
   if (res.status === 404) {
-    throw new AnalyzerError(
-      "validation",
-      "Media file not found. Check the URL."
-    )
+    throw new ValidationFailureError("Media file not found. Check the URL.")
   }
 
   if (res.status === 403) {
-    throw new AnalyzerError(
-      "validation",
+    throw new ValidationFailureError(
       "Access denied while fetching media bytes. The link may have expired or may block server-side requests."
     )
   }
 
-  throw new AnalyzerError(
-    "upstream-fetch",
+  throw new UpstreamFetchError(
     `Unable to retrieve media bytes (HTTP ${String(res.status)}).`
   )
 }
@@ -235,8 +228,7 @@ const readRemoteSpanBody = async (
   )
 
   if (body === null) {
-    throw new AnalyzerError(
-      "upstream-fetch",
+    throw new UpstreamFetchError(
       "Remote media response exceeded the maximum read size."
     )
   }
@@ -561,10 +553,7 @@ const createRemoteByteSource = ({
 
     if (response.status === 200 && spanStart > 0) {
       if (body.byteLength <= spanStart) {
-        throw new AnalyzerError(
-          "upstream-fetch",
-          "Origin ignored byte-range seek request."
-        )
+        throw new UpstreamFetchError("Origin ignored byte-range seek request.")
       }
 
       responseStart = 0
@@ -766,21 +755,16 @@ const assertProbeStatus = (response: Response) => {
   }
 
   if (response.status === 404) {
-    throw new AnalyzerError(
-      "validation",
-      "Media file not found. Check the URL."
-    )
+    throw new ValidationFailureError("Media file not found. Check the URL.")
   }
 
   if (response.status === 403) {
-    throw new AnalyzerError(
-      "validation",
+    throw new ValidationFailureError(
       "Access denied. The link may have expired or requires authentication."
     )
   }
 
-  throw new AnalyzerError(
-    "upstream-fetch",
+  throw new UpstreamFetchError(
     "Unable to access file (HTTP " + String(response.status) + ")."
   )
 }
@@ -793,7 +777,7 @@ const probeRemoteSource = async (
   const source = resolveSource(initialUrl)
 
   if (source.status === "unsupported") {
-    throw new AnalyzerError("validation", source.message)
+    throw new ValidationFailureError(source.message)
   }
 
   const url = source.targetUrl
@@ -852,10 +836,7 @@ const createInitialResponseRead = async (options: {
   const reader = response.body?.getReader()
 
   if (!reader) {
-    throw new AnalyzerError(
-      "upstream-fetch",
-      "Failed to retrieve response body stream."
-    )
+    throw new UpstreamFetchError("Failed to retrieve response body stream.")
   }
 
   let firstChunk: Uint8Array | null
@@ -977,7 +958,7 @@ const fetchNoRangeFallback = async (options: {
         " range attempt(s) and no-range fallback"
       : "Fetch stream read timed out during no-range fallback"
 
-    throw new AnalyzerError("upstream-fetch", message, error)
+    throw new UpstreamFetchError(message, error)
   }
 }
 
@@ -1042,7 +1023,9 @@ const assertMediaResponse = (options: {
 
   void options.reader.cancel()
 
-  throw new AnalyzerError(options.htmlResponseKind, options.htmlResponseMessage)
+  throw options.htmlResponseKind === "rate-limited"
+    ? new RateLimitedError(options.htmlResponseMessage)
+    : new ValidationFailureError(options.htmlResponseMessage)
 }
 
 const resolveInitialMetadata = (options: {

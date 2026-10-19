@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { AnalyzerError } from "../lib/error-utils"
+import { UpstreamFetchError } from "../lib/error-utils"
 import { fetchMediaChunk } from "./media-fetch.server"
 
 const makeResponse = (
@@ -381,9 +381,9 @@ describe("fetchMediaChunk", () => {
       initialUrl: "https://example.com/media",
     })
 
-    await expect(result.byteSource?.readChunk(4, 20)).rejects.toMatchObject({
-      kind: "upstream-fetch",
-    } satisfies Partial<AnalyzerError>)
+    await expect(result.byteSource?.readChunk(4, 20)).rejects.toBeInstanceOf(
+      UpstreamFetchError
+    )
     expect(timeoutCall).toBe(3)
 
     expect(fetchSpy).toHaveBeenCalledTimes(3)

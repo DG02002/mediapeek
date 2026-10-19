@@ -2,6 +2,7 @@ import type { ArchiveEntryInspection } from "@mediapeek/shared/archive-inspectio
 import { Schema } from "effect"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { CpuBudgetExceededError } from "../lib/error-utils"
 import {
   MediaInfoResultSchema,
   type JsonMediaInfo,
@@ -11,7 +12,6 @@ import { fetchMediaChunk } from "./media-fetch.server"
 import type { MediaInfoInstance } from "./mediainfo-factory.server"
 import {
   analyzeMediaBuffer,
-  CpuBudgetExceededError,
   type AnalyzeMediaBufferOptions,
 } from "./mediainfo.server"
 
