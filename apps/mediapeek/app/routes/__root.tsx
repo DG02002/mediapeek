@@ -19,7 +19,7 @@ import { ThemeProvider, useTheme } from "~/components/theme-provider"
 import { Toaster } from "~/components/ui/sonner"
 import { TooltipProvider } from "~/components/ui/tooltip"
 import { useMediaQuery } from "~/hooks/use-media-query"
-import type { MediaPeekRequestContext } from "~/lib/server-request-context"
+import type { MediaPeekRequestContext } from "~/lib/start-context-types"
 
 import appCss from "../app.css?url"
 

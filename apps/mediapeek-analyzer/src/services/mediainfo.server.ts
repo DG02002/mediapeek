@@ -20,7 +20,7 @@ import {
   normalizeMediaInfo,
   type JsonMediaInfo,
   type MediaInfoTrack,
-} from "../lib/media-utils"
+} from "../lib/mediainfo-json"
 import { isArchiveExtension } from "../lib/server-utils"
 import {
   createMediaInfo,

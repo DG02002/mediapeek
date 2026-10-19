@@ -4,7 +4,7 @@ import { Schema } from "effect"
 import { MediaView } from "~/components/media-view"
 import { homeDemoFixture } from "~/lib/home-demo-fixture"
 import { MediaInfoJSONSchema } from "~/lib/media-info-schema"
-import type { MediaPeekRequestContext } from "~/lib/server-request-context"
+import type { MediaPeekRequestContext } from "~/lib/start-context-types"
 import type { MediaInfoJSON, MediaTrackJSON } from "~/types/media"
 
 const getOrCreateTrack = (tracks: MediaTrackJSON[], type: string) => {

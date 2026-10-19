@@ -6,7 +6,7 @@ import {
   MediaInfoResultSchema,
   type JsonMediaInfo,
   type MediaInfoResult,
-} from "../lib/media-utils"
+} from "../lib/mediainfo-json"
 import { fetchMediaChunk } from "./media-fetch.server"
 import type { MediaInfoInstance } from "./mediainfo-factory.server"
 import {
@@ -98,7 +98,7 @@ const createMockZipWithDirectory = (): Uint8Array => {
   return concatenateBuffers([directory, file])
 }
 
-describe("fetchMediaChunk filename fallback", () => {
+describe("fetchMediaChunk filename resolution", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
   })
@@ -350,7 +350,7 @@ describe("MediaInfo diagnostics and CPU budget", () => {
   })
 })
 
-describe("analyzeMediaBuffer filename fallback", () => {
+describe("analyzeMediaBuffer filename resolution", () => {
   it("uses General.Title when the incoming filename only came from the URL", async () => {
     mockAnalyzeDataResult = {
       media: {
