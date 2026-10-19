@@ -25,16 +25,10 @@ import { clientLog } from "~/lib/client-logger"
 import { cn } from "~/lib/utils"
 import { startNativeViewTransition } from "~/lib/view-transition"
 
-import { AccessibilitySection } from "./media-view/accessibility-section"
-import { AudioSection } from "./media-view/audio-section"
-import { ChapterSection } from "./media-view/chapter-section"
-import { GeneralSection } from "./media-view/general-section"
-import { LibrarySection } from "./media-view/library-section"
 import { MediaHeader } from "./media-view/media-header"
 import { MediaReportExport } from "./media-view/media-report-export"
-import { SubtitleSection } from "./media-view/subtitle-section"
+import { MediaReportSections } from "./media-view/media-report-sections"
 import { useMediaPngExport } from "./media-view/use-media-png-export"
-import { VideoSection } from "./media-view/video-section"
 
 export type MediaViewData = Record<string, string>
 
@@ -348,24 +342,11 @@ export const MediaView = memo(function MediaView({
           </motion.div>
         </div>
       ) : (
-        <div className="animate-in fade-in space-y-6 duration-300">
-          <GeneralSection report={report} />
-          <VideoSection
-            videoTracks={report.videos}
-            archiveSizingWarning={report.file.archive?.sizing.warning}
-          />
-          <AudioSection
-            audioTracks={report.audios}
-            showOriginalTitles={showOriginalTitles}
-          />
-          <SubtitleSection
-            textTracks={report.subtitles}
-            showOriginalTitles={showOriginalTitles}
-          />
-          <ChapterSection chapters={report.chapters} />
-          <AccessibilitySection accessibility={report.accessibility} />
-          <LibrarySection library={report.engine} badges={report.badges} />
-        </div>
+        <MediaReportSections
+          report={report}
+          showOriginalTitles={showOriginalTitles}
+          className="animate-in fade-in space-y-6 duration-300"
+        />
       )}
 
       {report.container && (

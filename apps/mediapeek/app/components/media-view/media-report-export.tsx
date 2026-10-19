@@ -6,14 +6,8 @@ import {
 } from "~/constants"
 import type { MediaReport } from "~/features/reports/media-report"
 
-import { AccessibilitySection } from "./accessibility-section"
-import { AudioSection } from "./audio-section"
-import { ChapterSection } from "./chapter-section"
-import { GeneralSection } from "./general-section"
-import { LibrarySection } from "./library-section"
 import { MediaIcon } from "./media-icon"
-import { SubtitleSection } from "./subtitle-section"
-import { VideoSection } from "./video-section"
+import { MediaReportSections } from "./media-report-sections"
 
 interface MediaReportExportProps {
   report: MediaReport
@@ -66,24 +60,11 @@ export const MediaReportExport = memo(
             </div>
           </header>
 
-          <div className="space-y-8">
-            <GeneralSection report={report} />
-            <VideoSection
-              videoTracks={report.videos}
-              archiveSizingWarning={file.archive?.sizing.warning}
-            />
-            <AudioSection
-              audioTracks={report.audios}
-              showOriginalTitles={showOriginalTitles}
-            />
-            <SubtitleSection
-              textTracks={report.subtitles}
-              showOriginalTitles={showOriginalTitles}
-            />
-            <ChapterSection chapters={report.chapters} />
-            <AccessibilitySection accessibility={report.accessibility} />
-            <LibrarySection library={report.engine} badges={report.badges} />
-          </div>
+          <MediaReportSections
+            report={report}
+            showOriginalTitles={showOriginalTitles}
+            className="space-y-8"
+          />
         </div>
       )
     }

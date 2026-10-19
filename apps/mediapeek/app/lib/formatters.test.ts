@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest"
 
-import { cleanAudioTrackTitle, cleanSubtitleTrackTitle } from "./formatters"
+import {
+  cleanAudioTrackTitle,
+  cleanSubtitleTrackTitle,
+  getFirstDefinedFormat,
+} from "./formatters"
+
+describe("first defined track format", () => {
+  it("selects the first defined value and preserves empty strings", () => {
+    expect(getFirstDefinedFormat(undefined, "AAC", "fallback")).toBe("AAC")
+    expect(getFirstDefinedFormat(undefined, "", "fallback")).toBe("")
+    expect(getFirstDefinedFormat(undefined)).toBeUndefined()
+  })
+})
 
 describe("track title cleanup", () => {
   it("removes punctuation-heavy audio codec labels from titles", () => {

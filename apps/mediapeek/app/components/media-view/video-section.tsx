@@ -3,6 +3,8 @@ import { memo } from "react"
 import { VideoTrackItem } from "~/components/media-view/video-track-item"
 import type { VideoTrackReport } from "~/features/reports/media-report"
 
+import { SectionHeading } from "./section-heading"
+
 export const VideoSection = memo(function VideoSection({
   videoTracks,
   archiveSizingWarning,
@@ -16,9 +18,7 @@ export const VideoSection = memo(function VideoSection({
 
   return (
     <section className="space-y-4">
-      <div className="text-foreground mb-2 flex items-center gap-2">
-        <h2 className="mb-3 text-xl font-semibold tracking-tight">Video</h2>
-      </div>
+      <SectionHeading title="Video" className="mb-2" headingClassName="mb-3" />
       <div className="grid gap-4">
         {videoTracks.map((video) => (
           <VideoTrackItem

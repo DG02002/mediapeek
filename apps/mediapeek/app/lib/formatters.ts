@@ -1,4 +1,4 @@
-import { Schema } from "effect"
+import { Match, Schema } from "effect"
 
 import { getString } from "~/lib/type-guards"
 import type { MediaTrackJSON } from "~/types/media"
@@ -112,6 +112,23 @@ export const cleanMetadataString = (
   const trimmed = s.trim()
 
   return trimmed === "" ? undefined : trimmed
+}
+
+export const getFirstDefinedFormat = (
+  ...formats: ReadonlyArray<string | undefined>
+): string | undefined => {
+  for (const format of formats) {
+    const selectedFormat = Match.value(format).pipe(
+      Match.when(Match.defined, (value) => value),
+      Match.orElse(() => undefined)
+    )
+
+    if (selectedFormat !== undefined) {
+      return selectedFormat
+    }
+  }
+
+  return undefined
 }
 
 export const cleanBitrateString = (s: string | undefined): string => {
