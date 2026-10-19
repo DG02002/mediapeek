@@ -106,20 +106,20 @@ const runAnalyzeRequest: RunAnalyzeRequest = async (options) => {
     signal: options.signal,
   })
 
-  setLogContextValue(options.customContext, "fetch", result.diagnostics.fetch)
+  setLogContextValue(options.logContext, "fetch", result.diagnostics.fetch)
   setLogContextValue(
-    options.customContext,
+    options.logContext,
     "analysis",
     result.diagnostics.analysis
   )
 
   if (result.fileSize !== undefined) {
-    options.customContext.fileSize = result.fileSize
+    options.logContext.fileSize = result.fileSize
   }
 
-  options.customContext.filename = result.resolvedFilename
-  options.customContext.filenameSource = result.resolvedFilenameSource
-  options.customContext.cpuBudgetRemainingMs = result.cpuBudgetRemainingMs
+  options.logContext.filename = result.resolvedFilename
+  options.logContext.filenameSource = result.resolvedFilenameSource
+  options.logContext.cpuBudgetRemainingMs = result.cpuBudgetRemainingMs
 
   return {
     fileSize: result.fileSize,
@@ -170,7 +170,6 @@ const createAnalyzeRequestState = (
 
   return {
     ...requestLogState,
-    customContext: requestLogState.context,
     log,
     get status() {
       return requestLogState.status
@@ -237,7 +236,7 @@ const createAuthFailureResponse = (
 ): Response => {
   state.setStatus(failure.status)
   state.setSeverity("WARNING")
-  state.customContext.errorClass = failure.errorClass
+  state.context.errorClass = failure.errorClass
   state.finalize()
 
   return context.json(
@@ -272,10 +271,10 @@ const handleAnalyzeRequest = async (
   }
 
   const cpuBudgetMs = resolveCpuBudgetMs(context.env.ANALYZE_CPU_BUDGET_MS)
-  requestState.customContext.cpuBudgetMs = cpuBudgetMs
+  requestState.context.cpuBudgetMs = cpuBudgetMs
 
   const { url, format } = input
-  requestState.customContext.target_url = redactSensitiveUrl(url)
+  requestState.context.target_url = redactSensitiveUrl(url)
 
   if (wantsProgressStream(context.req.raw)) {
     return createProgressResponse({

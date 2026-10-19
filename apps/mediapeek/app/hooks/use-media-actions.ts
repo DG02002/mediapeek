@@ -3,7 +3,7 @@ import { useCallback, useMemo, useRef } from "react"
 import { toast } from "sonner"
 
 import {
-  createBrowserAnalysisSession,
+  createBrowserAnalysisSessionForOutputs,
   type AnalysisSession,
 } from "../features/analyze/analysis-session"
 import { clientLog } from "../lib/client-logger"
@@ -53,10 +53,7 @@ export function useMediaActions({
   services = defaultServices,
 }: UseMediaActionsProps) {
   const fallbackSession = useMemo(
-    () =>
-      createBrowserAnalysisSession({
-        initialAnalysis: { url, outputs: data, durationMs: 0 },
-      }),
+    () => createBrowserAnalysisSessionForOutputs({ url, outputs: data }),
     [data, url]
   )
 

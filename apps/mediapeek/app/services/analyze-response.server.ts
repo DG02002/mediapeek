@@ -3,7 +3,7 @@ import {
   type AnalyzerRpcResponse,
   type AnalyzeErrorCode,
 } from "@mediapeek/shared/analyze-contract"
-import { Match, Schema } from "effect"
+import { Schema } from "effect"
 
 import type { AnalyzeExecution } from "~/lib/analyze-request-log.server"
 import type {
@@ -16,6 +16,28 @@ type AnalyzerSuccessResponse = Extract<AnalyzerRpcResponse, { success: true }>
 
 const LEGACY_GET_WARNING =
   '299 - "GET /resource/analyze is deprecated. Use POST /resource/analyze with JSON body."'
+
+const POLICY_ERROR_CLASSES = {
+  "invalid-json": "ANALYZE_VALIDATION_FAILED",
+  "validation-failed": "ANALYZE_VALIDATION_FAILED",
+  "rate-limited": "ANALYZE_RATE_LIMITED",
+  "rate-limit-unavailable": "ANALYZE_RATE_LIMIT_UNAVAILABLE",
+  "rate-limit-missing": "ANALYZE_RATE_LIMIT_MISSING",
+} satisfies Record<AnalysisPolicyError["reason"], string>
+
+const ANALYZER_ERROR_CLASSES: Partial<Record<AnalyzeErrorCode, string>> = {
+  VALIDATION_FAILED: "ANALYZE_VALIDATION_FAILED",
+  RATE_LIMITED: "ANALYZE_RATE_LIMITED",
+}
+
+const GATEWAY_ERROR_CLASSES: Record<AnalysisGatewayError["reason"], string> = {
+  "binding-missing": "ANALYZER_BINDING_MISSING",
+  aborted: "ANALYZER_TIMEOUT",
+  network: "ANALYZER_NETWORK_ERROR",
+  "invalid-response": "ANALYZER_INVALID_RESPONSE",
+  "invalid-json": "ANALYZER_INVALID_RESPONSE",
+  "invalid-contract": "ANALYZER_INVALID_RESPONSE",
+}
 
 interface AnalyzeErrorPayload {
   success: false
@@ -153,15 +175,7 @@ export const createPolicyErrorResponse = (
     })
   }
 
-  const errorClass = Match.value(error.reason).pipe(
-    Match.when("rate-limited", () => "ANALYZE_RATE_LIMITED"),
-    Match.when(
-      "rate-limit-unavailable",
-      () => "ANALYZE_RATE_LIMIT_UNAVAILABLE"
-    ),
-    Match.when("rate-limit-missing", () => "ANALYZE_RATE_LIMIT_MISSING"),
-    Match.orElse(() => "ANALYZE_VALIDATION_FAILED")
-  )
+  const errorClass = POLICY_ERROR_CLASSES[error.reason]
 
   return failRequest(state, {
     status: error.status,
@@ -194,11 +208,7 @@ const handleAnalyzerError = (
 
   const { code, message, retryable } = errorData
 
-  const errorClass = Match.value(code).pipe(
-    Match.when("VALIDATION_FAILED", () => "ANALYZE_VALIDATION_FAILED"),
-    Match.when("RATE_LIMITED", () => "ANALYZE_RATE_LIMITED"),
-    Match.orElse((value) => "ANALYZE_" + value)
-  )
+  const errorClass = ANALYZER_ERROR_CLASSES[code] ?? `ANALYZE_${code}`
 
   return failRequest(state, {
     status: responseStatus,
@@ -257,12 +267,7 @@ const getAnalysisGatewayErrorDetails = (error: AnalysisGatewayError) => {
     status = 503
   }
 
-  const errorClass = Match.value(error.reason).pipe(
-    Match.when("binding-missing", () => "ANALYZER_BINDING_MISSING"),
-    Match.when("aborted", () => "ANALYZER_TIMEOUT"),
-    Match.when("network", () => "ANALYZER_NETWORK_ERROR"),
-    Match.orElse(() => "ANALYZER_INVALID_RESPONSE")
-  )
+  const errorClass = GATEWAY_ERROR_CLASSES[error.reason]
 
   return { status, code, errorClass }
 }

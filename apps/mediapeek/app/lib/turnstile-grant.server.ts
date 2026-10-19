@@ -13,10 +13,10 @@ type GrantPayload = {
 }
 
 interface CloudflareSubtleCrypto extends SubtleCrypto {
-  timingSafeEqual(
+  timingSafeEqual?: (
     left: ArrayBuffer | ArrayBufferView,
     right: ArrayBuffer | ArrayBufferView
-  ): boolean
+  ) => boolean
 }
 
 const grantPayloadSchema = Schema.Struct({
@@ -94,8 +94,12 @@ const isSafeEqual = async (left: string, right: string) => {
     crypto.subtle.digest("SHA-256", encoder.encode(right)),
   ])
 
-  // HACK: SAFETY: This Worker runtime provides timingSafeEqual; Node's global types omit it.
+  // HACK: SAFETY: Cloudflare Workers adds this method to SubtleCrypto; the guard below fails closed in other runtimes.
   const subtleCrypto = crypto.subtle as CloudflareSubtleCrypto
+
+  if (!subtleCrypto.timingSafeEqual) {
+    throw new Error("Constant-time comparison is unavailable in this runtime.")
+  }
 
   return subtleCrypto.timingSafeEqual(leftDigest, rightDigest)
 }

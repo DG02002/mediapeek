@@ -130,7 +130,9 @@ which entries applied. Fixing one path is not fixing the feature.
    Never run `wrangler deploy` or any `--remote` command from a development
    shell; stable tags deploy the analyzer Worker first, then the web Worker,
    and verify `/healthz`.
-2. **Killing processes by pattern.** Never `pkill -f`, pipe `pgrep` to
+2. **Committing secrets.** `.env` and `.dev.vars` contain local values. Keep
+   secrets in per-app `.dev.vars`; commit only the example files.
+3. **Killing processes by pattern.** Never `pkill -f`, pipe `pgrep` to
    `kill`, or kill a PID found by matching a name, path, or worktree
    string; the pattern can match your own session or an unrelated dev
    server. Stop only a process you captured at spawn, or the owner of your
@@ -148,8 +150,8 @@ which entries applied. Fixing one path is not fixing the feature.
 ## Linting and formatting
 
 While iterating, apply the touched package's `fmt` script and its
-`lint:fix`-style scripts where provided. Every workspace package and the root
-workspace expose `fmt`/`fmt:check` for their checked files. Warnings fail
+`lint:fix`-style scripts where provided. Run root `fmt`/`fmt:check` for root
+files and the touched package's scripts when it defines them. Warnings fail
 every lint run through `denyWarnings` in the root `.oxlintrc.json`, so a
 warning is a failure everywhere. When feeding lint output back into an agent
 loop, run `oxlint --format=agent <paths>` for one compact line per finding.
@@ -340,6 +342,14 @@ reports in IndexedDB on the device.
 - When the developer asks for browser verification, drive the
   chrome-devtools MCP server (dedicated persistent profile) against
   `pnpm dev` instead of automating a personal browser session.
+
+## Code style
+
+Use interfaces for object contracts, arrow functions, and kebab-case file
+names with descriptive names. Use `Boolean(value)` instead of `!!value`. Put
+shared constants in `constants.ts` as `SCREAMING_SNAKE_CASE` names with unit
+suffixes where the value has a unit. Avoid comments; add a `// HACK:` comment
+only when a workaround needs its reason recorded.
 
 ## Agent skills
 

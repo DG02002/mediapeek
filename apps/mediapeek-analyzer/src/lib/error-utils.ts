@@ -1,31 +1,32 @@
 import { Schema } from "effect"
 
-interface AnalyzerTaggedErrorFields {
-  message: string
+interface AnalyzerTaggedError<Tag extends string> extends Error {
+  readonly _tag: Tag
+}
+
+type AnalyzerErrorConstructor<Tag extends string> = new (
+  message: string,
   cause?: unknown
-}
+) => AnalyzerTaggedError<Tag>
 
-const createErrorFields = (message: string, cause?: unknown) => {
-  const fields: AnalyzerTaggedErrorFields = { message }
-
-  if (cause !== undefined) {
-    fields.cause = cause
-  }
-
-  return fields
-}
-
-export class UpstreamFetchError extends Schema.TaggedError<UpstreamFetchError>()(
-  "UpstreamFetchError",
-  {
+const defineAnalyzerError = <Tag extends string>(
+  tag: Tag
+): AnalyzerErrorConstructor<Tag> => {
+  class AnalyzerError extends Schema.TaggedError<AnalyzerError>()(tag, {
     message: Schema.String,
     cause: Schema.optionalKey(Schema.Defect()),
+  }) {
+    constructor(message: string, cause?: unknown) {
+      super(cause === undefined ? { message } : { message, cause })
+    }
   }
-) {
-  constructor(message: string, cause?: unknown) {
-    super(createErrorFields(message, cause))
-  }
+
+  return AnalyzerError
 }
+
+export class UpstreamFetchError extends defineAnalyzerError(
+  "UpstreamFetchError"
+) {}
 
 export class AnalyzerReadTimeoutError extends UpstreamFetchError {
   constructor(message = "Fetch stream read timed out") {
@@ -34,41 +35,19 @@ export class AnalyzerReadTimeoutError extends UpstreamFetchError {
   }
 }
 
-export class ValidationFailureError extends Schema.TaggedError<ValidationFailureError>()(
-  "ValidationFailureError",
-  {
-    message: Schema.String,
-    cause: Schema.optionalKey(Schema.Defect()),
-  }
-) {
-  constructor(message: string, cause?: unknown) {
-    super(createErrorFields(message, cause))
-  }
-}
+export class ValidationFailureError extends defineAnalyzerError(
+  "ValidationFailureError"
+) {}
 
-export class CpuBudgetExceededError extends Schema.TaggedError<CpuBudgetExceededError>()(
-  "CpuBudgetExceededError",
-  {
-    message: Schema.String,
-    cause: Schema.optionalKey(Schema.Defect()),
-  }
+export class CpuBudgetExceededError extends defineAnalyzerError(
+  "CpuBudgetExceededError"
 ) {
   constructor(message = "CPU budget exceeded", cause?: unknown) {
-    super(createErrorFields(message, cause))
+    super(message, cause)
   }
 }
 
-export class RateLimitedError extends Schema.TaggedError<RateLimitedError>()(
-  "RateLimitedError",
-  {
-    message: Schema.String,
-    cause: Schema.optionalKey(Schema.Defect()),
-  }
-) {
-  constructor(message: string, cause?: unknown) {
-    super(createErrorFields(message, cause))
-  }
-}
+export class RateLimitedError extends defineAnalyzerError("RateLimitedError") {}
 
 export type AnalyzerFailure =
   | UpstreamFetchError

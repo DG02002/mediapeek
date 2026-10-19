@@ -2,16 +2,12 @@ import type {
   AnalyzeErrorCode,
   AnalyzerRpcSuccessResponse,
 } from "@mediapeek/shared/analyze-contract"
-import type { Schema } from "effect"
+import { Match, type Schema } from "effect"
 import type { Context } from "hono"
 
 import { unknownToError } from "../lib/error"
 import {
-  CpuBudgetExceededError,
   DiagnosticsError,
-  RateLimitedError,
-  UpstreamFetchError,
-  ValidationFailureError,
   isAnalyzerFailure,
   type AnalyzerFailure,
 } from "../lib/error-utils"
@@ -64,7 +60,6 @@ export interface AnalyzeRequestState {
   annotate: (values: Partial<AnalyzeLogContext>) => void
   setStatus: (status: number) => void
   setSeverity: (severity: RequestSeverity) => void
-  customContext: AnalyzeLogContext
   log: AnalyzeLogActions
   finalize: () => void
 }
@@ -84,7 +79,7 @@ interface RunAnalyzeRequestInput {
   readonly url: string
   readonly formats: AnalysisExecutionInput["formats"]
   readonly cpuBudgetMs: number
-  readonly customContext: AnalyzeLogContext
+  readonly logContext: AnalyzeLogContext
   readonly reportProgress?: AnalysisExecutionInput["reportProgress"]
   readonly signal: AbortSignal
   readonly analysisExecutor: AnalyzerAnalysisExecutor
@@ -94,10 +89,47 @@ export type RunAnalyzeRequest = (
   options: RunAnalyzeRequestInput
 ) => Promise<AnalyzeRequestResult>
 
-interface AnalyzerErrorClassification {
-  matches: (error: AnalyzerFailure) => boolean
-  classify: (error: AnalyzerFailure) => ClassifiedAnalyzeError
-}
+const classifyAnalyzerFailure = Match.typeTags<
+  AnalyzerFailure,
+  ClassifiedAnalyzeError
+>()({
+  CpuBudgetExceededError: () => ({
+    status: 503,
+    code: "CPU_BUDGET_EXCEEDED",
+    message:
+      "Analysis exceeded the configured CPU budget. Retry with a smaller or simpler source.",
+    retryable: true,
+    severity: "ERROR",
+    errorClass: "CPU_LIMIT_EXCEEDED",
+  }),
+  RateLimitedError: (failure) => ({
+    status: 429,
+    code: "RATE_LIMITED",
+    message: failure.message,
+    retryable: true,
+    severity: "WARNING",
+    errorClass: "ANALYZE_RATE_LIMITED",
+  }),
+  ValidationFailureError: (failure) => ({
+    status: 400,
+    code: "VALIDATION_FAILED",
+    message: failure.message,
+    retryable: false,
+    severity: "WARNING",
+    errorClass: "ANALYZE_VALIDATION_FAILED",
+  }),
+  UpstreamFetchError: () => ({
+    status: 502,
+    code: "UPSTREAM_FETCH_FAILED",
+    message: "Unable to retrieve the media source.",
+    retryable: true,
+    severity: "ERROR",
+    errorClass: "UPSTREAM_FETCH_FAILED",
+  }),
+})
+
+export const classifyAnalyzerError = (error: AnalyzerFailure) =>
+  classifyAnalyzerFailure(error)
 
 const internalErrorClassification: ClassifiedAnalyzeError = {
   status: 500,
@@ -108,67 +140,9 @@ const internalErrorClassification: ClassifiedAnalyzeError = {
   errorClass: "ANALYZER_INTERNAL_ERROR",
 }
 
-const analyzerErrorClassifications: readonly AnalyzerErrorClassification[] = [
-  {
-    matches: (error) => error instanceof CpuBudgetExceededError,
-    classify: () => ({
-      status: 503,
-      code: "CPU_BUDGET_EXCEEDED",
-      message:
-        "Analysis exceeded the configured CPU budget. Retry with a smaller or simpler source.",
-      retryable: true,
-      severity: "ERROR",
-      errorClass: "CPU_LIMIT_EXCEEDED",
-    }),
-  },
-  {
-    matches: (error) => error instanceof RateLimitedError,
-    classify: (error) => ({
-      status: 429,
-      code: "RATE_LIMITED",
-      message: error.message,
-      retryable: true,
-      severity: "WARNING",
-      errorClass: "ANALYZE_RATE_LIMITED",
-    }),
-  },
-  {
-    matches: (error) => error instanceof ValidationFailureError,
-    classify: (error) => ({
-      status: 400,
-      code: "VALIDATION_FAILED",
-      message: error.message,
-      retryable: false,
-      severity: "WARNING",
-      errorClass: "ANALYZE_VALIDATION_FAILED",
-    }),
-  },
-  {
-    matches: (error) => error instanceof UpstreamFetchError,
-    classify: () => ({
-      status: 502,
-      code: "UPSTREAM_FETCH_FAILED",
-      message: "Unable to retrieve the media source.",
-      retryable: true,
-      severity: "ERROR",
-      errorClass: "UPSTREAM_FETCH_FAILED",
-    }),
-  },
-]
-
-export const classifyAnalyzerError = (
-  error: AnalyzerFailure
-): ClassifiedAnalyzeError => {
-  return (
-    analyzerErrorClassifications
-      .find((classification) => classification.matches(error))
-      ?.classify(error) ?? internalErrorClassification
-  )
-}
-
 export const classifyAnalyzeError = (
   cause: unknown,
-  customContext: AnalyzeLogContext,
+  logContext: AnalyzeLogContext,
   setLogContextValue: SetLogContextValue
 ): ClassifiedAnalyzeError => {
   const normalizedError = unknownToError(cause)
@@ -180,16 +154,12 @@ export const classifyAnalyzeError = (
     : internalErrorClassification
 
   if (diagnosticsError) {
-    setLogContextValue(
-      customContext,
-      "diagnostics",
-      diagnosticsError.diagnostics
-    )
+    setLogContextValue(logContext, "diagnostics", diagnosticsError.diagnostics)
   }
 
-  customContext.errorClass = classification.errorClass
+  logContext.errorClass = classification.errorClass
 
-  setLogContextValue(customContext, "error", {
+  setLogContextValue(logContext, "error", {
     code: classification.code,
     message: classification.message,
     details: normalizedError.stack ?? "Unknown error",
@@ -211,7 +181,7 @@ export const createBufferedSuccessResponse = async (options: {
     url: options.url,
     formats: options.formats,
     cpuBudgetMs: options.cpuBudgetMs,
-    customContext: options.requestState.customContext,
+    logContext: options.requestState.context,
     signal: options.context.req.raw.signal,
     analysisExecutor: options.analysisExecutor,
   })
@@ -235,7 +205,7 @@ export const createBufferedErrorResponse = (options: {
 }): Response => {
   const classified = classifyAnalyzeError(
     options.cause,
-    options.state.customContext,
+    options.state.context,
     options.setLogContextValue
   )
 

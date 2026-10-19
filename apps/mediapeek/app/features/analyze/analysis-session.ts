@@ -58,7 +58,7 @@ export interface AnalysisResult {
   readonly url: string
   readonly requestId?: string
   readonly outputs: Readonly<AnalysisOutputResults>
-  readonly durationMs: number
+  readonly durationMs?: number
 }
 
 export interface AnalysisProgress {
@@ -498,3 +498,16 @@ export const createBrowserAnalysisSession = (
     },
   }
 }
+
+export const createBrowserAnalysisSessionForOutputs = (options: {
+  readonly url: string
+  readonly outputs: Readonly<AnalysisOutputResults>
+  readonly allowMissingOutputs?: boolean
+}): AnalysisSession =>
+  createBrowserAnalysisSession({
+    initialAnalysis: {
+      url: options.url,
+      outputs: options.outputs,
+    },
+    allowMissingOutputs: options.allowMissingOutputs,
+  })

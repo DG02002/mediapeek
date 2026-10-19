@@ -16,7 +16,7 @@ import { Button } from "~/components/ui/button"
 import { Icon } from "~/components/ui/icon"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
-  createBrowserAnalysisSession,
+  createBrowserAnalysisSessionForOutputs,
   type AnalysisSession,
 } from "~/features/analyze/analysis-session"
 import { parseMediaReport } from "~/features/reports/media-report"
@@ -37,6 +37,7 @@ interface MediaViewProps {
   url: string
   session?: Pick<AnalysisSession, "output">
   requestTurnstileToken?: () => Promise<string | null>
+  allowLazyTextOutput?: boolean
 }
 
 const useParsedMediaReport = (data: MediaViewData, url: string) => {
@@ -69,28 +70,194 @@ const useTextViewMode = () => {
   return { isTextView, updateTextView, viewModeRef }
 }
 
+const useLazyTextOutput = (options: {
+  enabled: boolean
+  hasExistingText: boolean
+  requestTurnstileToken?: () => Promise<string | null>
+  session: Pick<AnalysisSession, "output">
+}) => {
+  const [fetchedText, setFetchedText] = useState<string | null>(null)
+  const [textLoadError, setTextLoadError] = useState<string | null>(null)
+
+  const loadText = useCallback(
+    async (isCurrent: () => boolean = () => true) => {
+      try {
+        const text = await options.session.output(
+          "text",
+          options.requestTurnstileToken
+        )
+
+        if (isCurrent()) {
+          setFetchedText(text)
+        }
+      } catch (error) {
+        if (isCurrent()) {
+          clientLog.error({
+            event: "media_text_output_load_failed",
+            error: error instanceof Error ? error.message : String(error),
+          })
+          setTextLoadError("Unable to load the text output. Try again.")
+        }
+      }
+    },
+    [options.requestTurnstileToken, options.session]
+  )
+
+  useEffect(() => {
+    if (
+      !options.enabled ||
+      options.hasExistingText ||
+      fetchedText !== null ||
+      textLoadError !== null
+    ) {
+      return undefined
+    }
+
+    let isCurrent = true
+    queueMicrotask(() => {
+      if (isCurrent) {
+        void loadText(() => isCurrent)
+      }
+    })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [
+    fetchedText,
+    loadText,
+    options.enabled,
+    options.hasExistingText,
+    textLoadError,
+  ])
+
+  const retryTextLoad = useCallback(() => {
+    setTextLoadError(null)
+  }, [])
+
+  const isTextLoading =
+    options.enabled &&
+    !options.hasExistingText &&
+    fetchedText === null &&
+    textLoadError === null
+
+  return { fetchedText, isTextLoading, retryTextLoad, textLoadError }
+}
+
+const renderTextOutput = (options: {
+  text: string
+  isLoading: boolean
+  error: string | null
+  isFullScreen: boolean
+  onRetry: () => void
+}) => {
+  if (options.isLoading) {
+    return (
+      <motion.div
+        key="loading"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={SmoothTransition}
+        className="absolute inset-0 z-10 p-4"
+      >
+        <div className="space-y-3">
+          <Skeleton className="h-4 w-32 bg-zinc-200 dark:bg-zinc-800" />
+          <Skeleton className="h-4 w-48 bg-zinc-200 dark:bg-zinc-800" />
+          <div className="space-y-2 pt-4">
+            <Skeleton className="h-3 w-3/4 bg-zinc-200 dark:bg-zinc-800" />
+            <Skeleton className="h-3 w-1/2 bg-zinc-200 dark:bg-zinc-800" />
+            <Skeleton className="h-3 w-full bg-zinc-200 dark:bg-zinc-800" />
+            <Skeleton className="h-3 w-5/6 bg-zinc-200 dark:bg-zinc-800" />
+            <Skeleton className="h-3 w-2/3 bg-zinc-200 dark:bg-zinc-800" />
+          </div>
+          <div className="space-y-2 pt-4">
+            <Skeleton className="h-3 w-full bg-zinc-200 dark:bg-zinc-800" />
+            <Skeleton className="h-3 w-4/5 bg-zinc-200 dark:bg-zinc-800" />
+            <Skeleton className="h-3 w-3/4 bg-zinc-200 dark:bg-zinc-800" />
+          </div>
+        </div>
+      </motion.div>
+    )
+  }
+
+  if (options.error) {
+    return (
+      <motion.div
+        key="text-error"
+        role="alert"
+        className="flex min-h-[200px] flex-col items-start justify-center gap-3 p-4"
+      >
+        <p className="text-destructive text-sm">{options.error}</p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={options.onRetry}
+        >
+          Retry
+        </Button>
+      </motion.div>
+    )
+  }
+
+  return (
+    <motion.pre
+      key={`text-content-${options.isFullScreen ? "full" : "normal"}`}
+      initial={{ opacity: 0, filter: "blur(5px)" }}
+      animate={{
+        opacity: 1,
+        filter: "blur(0px)",
+        transition: {
+          duration: 0.3,
+          ease: "easeOut",
+          delay: 0.2,
+        },
+      }}
+      exit={{
+        opacity: 0,
+        filter: "blur(5px)",
+        transition: { duration: 0.15, ease: "easeIn" },
+      }}
+      className={cn(
+        "overflow-x-auto p-4 font-mono text-xs leading-relaxed whitespace-pre sm:text-base sm:whitespace-pre-wrap",
+        options.isFullScreen
+          ? "h-[calc(100vh-42px)] max-w-none"
+          : "max-w-[calc(100vw-3rem)] sm:max-w-none"
+      )}
+    >
+      {options.text || "No text data available."}
+    </motion.pre>
+  )
+}
+
 export const MediaView = memo(function MediaView({
   data,
   url,
   session: providedSession,
   requestTurnstileToken,
+  allowLazyTextOutput = true,
 }: MediaViewProps) {
   const { isTextView, updateTextView, viewModeRef } = useTextViewMode()
   const [showOriginalTitles, setShowOriginalTitles] = useState(false)
   const [isFullScreen, setIsFullScreen] = useState(false)
-  const [fetchedText, setFetchedText] = useState<string | null>(null)
-  const [isTextLoading, setIsTextLoading] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const [_isPending, startTransition] = useTransition()
 
   const session = useMemo(
     () =>
       providedSession ??
-      createBrowserAnalysisSession({
-        initialAnalysis: { url, outputs: data, durationMs: 0 },
-      }),
+      createBrowserAnalysisSessionForOutputs({ url, outputs: data }),
     [data, providedSession, url]
   )
+
+  const { fetchedText, isTextLoading, retryTextLoad, textLoadError } =
+    useLazyTextOutput({
+      enabled: allowLazyTextOutput && isTextView,
+      hasExistingText: Boolean(data.text),
+      requestTurnstileToken,
+      session,
+    })
 
   // Stable handlers for View Switching to ensure responsiveness
   const handleSetIsTextView = useCallback(
@@ -118,39 +285,6 @@ export const MediaView = memo(function MediaView({
     },
     [startTransition]
   )
-
-  // Lazy-load text output on demand using POST to avoid exposing URLs in query strings.
-  useEffect(() => {
-    if (isTextView && !data.text && !fetchedText) {
-      let cancelled = false
-
-      const loadText = async () => {
-        setIsTextLoading(true)
-
-        try {
-          const text = await session.output("text", requestTurnstileToken)
-
-          if (!cancelled) {
-            setFetchedText(text)
-          }
-        } catch (error) {
-          console.error("Failed to lazy-load text output", error)
-        } finally {
-          if (!cancelled) {
-            setIsTextLoading(false)
-          }
-        }
-      }
-
-      void loadText()
-
-      return () => {
-        cancelled = true
-      }
-    }
-
-    return undefined
-  }, [data.text, fetchedText, isTextView, requestTurnstileToken, session])
 
   // Handle Escape key to exit full screen
   useEffect(() => {
@@ -285,60 +419,19 @@ export const MediaView = memo(function MediaView({
             </motion.div>
             <div className="relative min-h-[200px]">
               <AnimatePresence mode="wait">
-                {isTextLoading ? (
-                  <motion.div
-                    key="loading"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={SmoothTransition}
-                    className="absolute inset-0 z-10 p-4"
-                  >
-                    <div className="space-y-3">
-                      <Skeleton className="h-4 w-32 bg-zinc-200 dark:bg-zinc-800" />
-                      <Skeleton className="h-4 w-48 bg-zinc-200 dark:bg-zinc-800" />
-                      <div className="space-y-2 pt-4">
-                        <Skeleton className="h-3 w-3/4 bg-zinc-200 dark:bg-zinc-800" />
-                        <Skeleton className="h-3 w-1/2 bg-zinc-200 dark:bg-zinc-800" />
-                        <Skeleton className="h-3 w-full bg-zinc-200 dark:bg-zinc-800" />
-                        <Skeleton className="h-3 w-5/6 bg-zinc-200 dark:bg-zinc-800" />
-                        <Skeleton className="h-3 w-2/3 bg-zinc-200 dark:bg-zinc-800" />
-                      </div>
-                      <div className="space-y-2 pt-4">
-                        <Skeleton className="h-3 w-full bg-zinc-200 dark:bg-zinc-800" />
-                        <Skeleton className="h-3 w-4/5 bg-zinc-200 dark:bg-zinc-800" />
-                        <Skeleton className="h-3 w-3/4 bg-zinc-200 dark:bg-zinc-800" />
-                      </div>
-                    </div>
-                  </motion.div>
-                ) : (
-                  <motion.pre
-                    key={`text-content-${isFullScreen ? "full" : "normal"}`}
-                    initial={{ opacity: 0, filter: "blur(5px)" }}
-                    animate={{
-                      opacity: 1,
-                      filter: "blur(0px)",
-                      transition: {
-                        duration: 0.3,
-                        ease: "easeOut",
-                        delay: 0.2,
-                      },
-                    }}
-                    exit={{
-                      opacity: 0,
-                      filter: "blur(5px)",
-                      transition: { duration: 0.15, ease: "easeIn" },
-                    }}
-                    className={cn(
-                      "overflow-x-auto p-4 font-mono text-xs leading-relaxed whitespace-pre sm:text-base sm:whitespace-pre-wrap",
-                      isFullScreen
-                        ? "h-[calc(100vh-42px)] max-w-none"
-                        : "max-w-[calc(100vw-3rem)] sm:max-w-none"
-                    )}
-                  >
-                    {fullData.text || "No text data available."}
-                  </motion.pre>
-                )}
+                {renderTextOutput({
+                  text: fullData.text,
+                  isLoading: isTextLoading,
+                  error:
+                    allowLazyTextOutput &&
+                    textLoadError &&
+                    !data.text &&
+                    fetchedText === null
+                      ? textLoadError
+                      : null,
+                  isFullScreen,
+                  onRetry: retryTextLoad,
+                })}
               </AnimatePresence>
             </div>
           </motion.div>

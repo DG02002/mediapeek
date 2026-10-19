@@ -45,7 +45,10 @@ export const validateUrl = (url: string) => {
     )
   }
 
-  const host = parsedUrl.hostname.toLowerCase().replaceAll(/^\[|\]$/g, "")
+  const host = parsedUrl.hostname
+    .toLowerCase()
+    .replaceAll(/^\[|\]$/g, "")
+    .replace(/\.+$/, "")
 
   if (BLOCKED_HOSTS.has(host) || isBlockedIpLiteral(host)) {
     throw new ValidationFailureError(

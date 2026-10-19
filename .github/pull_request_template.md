@@ -1,10 +1,10 @@
-## What Changed
+## Summary
 
-<!-- Describe one focused change clearly. -->
+<!-- State the problem and how this PR fixes it in one or two sentences. -->
 
-## Why
+## Evidence
 
-<!-- Explain the problem being solved and why this approach belongs in MediaPeek. -->
+<!-- Include the exact verification commands and their results. -->
 
 ## UI Changes
 
@@ -12,13 +12,9 @@
      motion, timing, or interaction behavior, include a short video. Delete
      this section when it is not applicable. -->
 
-## Checklist
+## Model and harness
 
-- [ ] This PR is small and focused.
-- [ ] I explained what changed and why.
-- [ ] I included before/after screenshots for UI changes.
-- [ ] I included a short video for motion, timing, or interaction changes.
-- [ ] I included the exact verification commands in the PR body.
+<!-- Close with the model and harness used for the work. -->
 
 Release Notes:
 

@@ -1,7 +1,7 @@
 import { useMemo } from "react"
 
 import { MediaView, type MediaViewData } from "~/components/media-view"
-import { createBrowserAnalysisSession } from "~/features/analyze/analysis-session"
+import { createBrowserAnalysisSessionForOutputs } from "~/features/analyze/analysis-session"
 
 import type { StoredReport } from "./report-storage"
 
@@ -20,12 +20,9 @@ const toMediaViewData = (report: StoredReport): MediaViewData => {
 export function StoredReportView({ report }: { report: StoredReport }) {
   const session = useMemo(
     () =>
-      createBrowserAnalysisSession({
-        initialAnalysis: {
-          url: report.sourceUrl,
-          outputs: report.outputs,
-          durationMs: 0,
-        },
+      createBrowserAnalysisSessionForOutputs({
+        url: report.sourceUrl,
+        outputs: report.outputs,
         allowMissingOutputs: false,
       }),
     [report]
@@ -36,6 +33,7 @@ export function StoredReportView({ report }: { report: StoredReport }) {
       data={toMediaViewData(report)}
       url={report.sourceUrl}
       session={session}
+      allowLazyTextOutput={false}
     />
   )
 }

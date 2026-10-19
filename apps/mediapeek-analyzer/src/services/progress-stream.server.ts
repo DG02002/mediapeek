@@ -14,7 +14,8 @@ import {
   type SetLogContextValue,
 } from "./analyze-responses.server"
 
-interface ProgressStreamState extends AnalyzeRequestState {
+interface ProgressStreamState {
+  requestState: AnalyzeRequestState
   controller?: ReadableStreamDefaultController<Uint8Array>
   encoder: TextEncoder
   signal: AbortSignal
@@ -38,7 +39,7 @@ const createProgressReporter =
       state.encoder.encode(
         encodeAnalyzeStreamEvent({
           type: "progress",
-          requestId: state.requestId,
+          requestId: state.requestState.requestId,
           stage,
           title,
           message,
@@ -70,7 +71,7 @@ const writeProgressSuccess = (
     state.encoder.encode(
       encodeAnalyzeStreamEvent({
         type: "success",
-        requestId: state.requestId,
+        requestId: state.requestState.requestId,
         results,
       })
     )
@@ -86,18 +87,18 @@ const writeProgressError = (
 ): void => {
   const classified = classifyAnalyzeError(
     cause,
-    state.customContext,
+    state.requestState.context,
     setLogContextValue
   )
 
-  state.setStatus(classified.status)
-  state.setSeverity(classified.severity)
+  state.requestState.setStatus(classified.status)
+  state.requestState.setSeverity(classified.severity)
 
   state.controller?.enqueue(
     state.encoder.encode(
       encodeAnalyzeStreamEvent({
         type: "error",
-        requestId: state.requestId,
+        requestId: state.requestState.requestId,
         error: {
           code: classified.code,
           message: classified.message,
@@ -111,8 +112,8 @@ const writeProgressError = (
 }
 
 const finalizeProgressStream = (state: ProgressStreamState): void => {
-  state.customContext.analysis_status = state.status
-  state.finalize()
+  state.requestState.context.analysis_status = state.requestState.status
+  state.requestState.finalize()
 }
 
 const runProgressAnalysis = async (options: {
@@ -131,7 +132,7 @@ const runProgressAnalysis = async (options: {
       url: options.url,
       formats: options.formats,
       cpuBudgetMs: options.cpuBudgetMs,
-      customContext: options.state.customContext,
+      logContext: options.state.requestState.context,
       reportProgress,
       signal: options.state.signal,
       analysisExecutor: options.analysisExecutor,
@@ -174,13 +175,7 @@ export const createProgressResponse = (options: {
   ])
 
   const streamState: ProgressStreamState = {
-    ...options.requestState,
-    get status() {
-      return options.requestState.status
-    },
-    get severity() {
-      return options.requestState.severity
-    },
+    requestState: options.requestState,
     controller: undefined,
     encoder: new TextEncoder(),
     signal,

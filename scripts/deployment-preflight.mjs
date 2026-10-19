@@ -45,7 +45,6 @@ const config = JSON.parse(
 
 const failures = []
 const warnings = []
-const temporaryWarningAllowlist = new Set(["missing ANALYZE_RATE_LIMITER"])
 
 if (
   Object.prototype.toString.call(config.main) !== "[object String]" ||
@@ -96,7 +95,8 @@ if (analyzerMode) {
   )
 
   if (analyzeRateLimiters.length === 0) {
-    failures.push("missing ANALYZE_RATE_LIMITER")
+    // T2 leaves this namespace ID to deployment configuration.
+    warnings.push("missing ANALYZE_RATE_LIMITER")
   } else if (analyzeRateLimiters.length > 1) {
     failures.push(
       `ANALYZE_RATE_LIMITER appears ${analyzeRateLimiters.length} times; expected 1`
@@ -112,25 +112,15 @@ if (
   failures.push("contains a placeholder production value")
 }
 
-const remainingFailures = []
-
-for (const failure of failures) {
-  if (temporaryWarningAllowlist.has(failure)) {
-    warnings.push(failure)
-  } else {
-    remainingFailures.push(failure)
-  }
-}
-
 for (const warning of warnings) {
   console.warn(`Deployment configuration preflight warning: ${warning}`)
 }
 
-if (remainingFailures.length > 0) {
+if (failures.length > 0) {
   throw new Error(
     [
       "Deployment configuration preflight failed:",
-      ...remainingFailures.map((failure) => `- ${failure}`),
+      ...failures.map((failure) => `- ${failure}`),
     ].join("\n")
   )
 }
