@@ -1,5 +1,6 @@
 import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
 import { createEvlogLoggerConfig } from "@mediapeek/shared/evlog"
+import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import type { AnalyzeInput } from "@mediapeek/shared/schemas"
 import type { WideEvent } from "evlog"
 import { initWorkersLogger } from "evlog/workers"
@@ -84,7 +85,12 @@ describe("analyzer Worker boundary", () => {
   })
 
   afterAll(() => {
-    initWorkersLogger(createEvlogLoggerConfig("mediapeek-analyzer"))
+    initWorkersLogger(
+      createEvlogLoggerConfig(
+        "mediapeek-analyzer",
+        resolveRuntimeConfig(process.env)
+      )
+    )
   })
 
   it("rejects invalid input before fetching media", async () => {

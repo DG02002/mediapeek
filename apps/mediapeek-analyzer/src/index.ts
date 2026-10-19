@@ -10,6 +10,7 @@ import {
 } from "@mediapeek/shared/analyze-progress"
 import { createEvlogLoggerConfig } from "@mediapeek/shared/evlog"
 import { redactSensitiveUrl } from "@mediapeek/shared/log-redaction"
+import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import { Result, Schema } from "effect"
 import { initWorkersLogger } from "evlog/workers"
 import { Hono, type Context } from "hono"
@@ -738,7 +739,12 @@ const handleAnalyzeRequest = async (
   }
 }
 
-initWorkersLogger(createEvlogLoggerConfig("mediapeek-analyzer"))
+initWorkersLogger(
+  createEvlogLoggerConfig(
+    "mediapeek-analyzer",
+    resolveRuntimeConfig(process.env)
+  )
+)
 
 export const createAnalyzerApp = (
   dependencies: AnalyzerDependencies = defaultAnalyzerDependencies

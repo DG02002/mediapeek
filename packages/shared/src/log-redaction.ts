@@ -19,6 +19,14 @@ const SENSITIVE_QUERY_KEYS = {
   refresh_token: true,
 }
 
+export const sensitiveQueryPattern = new RegExp(
+  `\\b(${[
+    ...Object.keys(SENSITIVE_QUERY_KEYS),
+    ...SENSITIVE_QUERY_PREFIXES.map((prefix) => `${prefix}[\\w-]+`),
+  ].join("|")})=([^&\\s]+)`,
+  "gi"
+)
+
 export interface SensitiveLogObject {
   [key: string]: SensitiveLogValue
 }
@@ -123,7 +131,7 @@ const isSensitiveFieldName = (key: string) =>
 
 const redactString = (value: string) =>
   (isLikelyAbsoluteUrl(value) ? redactSensitiveUrl(value) : value).replaceAll(
-    /\b(token|sig|signature|key|auth|authorization|expires|api_key|apikey|access_token|id_token|refresh_token|x-amz-[\w-]+|x-goog-[\w-]+)=([^&\s]+)/gi,
+    sensitiveQueryPattern,
     (_, name: string) => `${name}=${REDACTED}`
   )
 

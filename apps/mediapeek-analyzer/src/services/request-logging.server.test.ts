@@ -1,4 +1,5 @@
 import { createEvlogLoggerConfig } from "@mediapeek/shared/evlog"
+import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import type { WideEvent } from "evlog"
 import { initWorkersLogger } from "evlog/workers"
 import { Hono } from "hono"
@@ -34,7 +35,12 @@ describe("analyzer request logging", () => {
   })
 
   afterAll(() => {
-    initWorkersLogger(createEvlogLoggerConfig("mediapeek-analyzer"))
+    initWorkersLogger(
+      createEvlogLoggerConfig(
+        "mediapeek-analyzer",
+        resolveRuntimeConfig(process.env)
+      )
+    )
   })
 
   it("normalizes propagated IDs and emits one wide event", async () => {

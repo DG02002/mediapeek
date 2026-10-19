@@ -1,4 +1,5 @@
 import { createEvlogLoggerConfig } from "@mediapeek/shared/evlog"
+import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import { Schema } from "effect"
 import { createRequestLogger, initLogger, type AuditableLogger } from "evlog"
 import { withEvlog, type WorkerExecutionContext } from "evlog/workers"
@@ -9,7 +10,9 @@ export interface RequestLoggerHandle {
   readonly logger: AuditableLogger
 }
 
-initLogger(createEvlogLoggerConfig("mediapeek"))
+initLogger(
+  createEvlogLoggerConfig("mediapeek", resolveRuntimeConfig(process.env))
+)
 
 // The analyze route emits richer diagnostics through finalizeAnalyzeRequest.
 const UNLOGGED_PATH_PATTERNS = [
