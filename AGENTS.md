@@ -86,7 +86,7 @@ Use the product terms in `CONTEXT.md` instead of inventing synonyms.
 - **visitor** means a person using MediaPeek to analyze a media URL.
 - **Media Report** means one completed analysis and every output format it
   produced.
-- **web app** means the React Router application and its Cloudflare Worker.
+- **web app** means the TanStack Start application and its Cloudflare Worker.
 - **analyzer Worker** means the Worker that fetches remote media and runs
   MediaInfo.
 
@@ -284,7 +284,7 @@ reports in IndexedDB on the device.
 
 ## Where code lives
 
-- `apps/mediapeek` - React Router UI, web Worker, analysis queue, reports,
+- `apps/mediapeek` - TanStack Start UI, web Worker, analysis queue, reports,
   comparison, and exports.
 - `apps/mediapeek-analyzer` - analyzer Worker, MediaInfo integration, and
   safe outbound fetching.
