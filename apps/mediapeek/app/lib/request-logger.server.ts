@@ -1,4 +1,5 @@
 import { createEvlogLoggerConfig } from "@mediapeek/shared/evlog"
+import { getRequestId } from "@mediapeek/shared/request-id"
 import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import { Schema } from "effect"
 import { createRequestLogger, initLogger, type AuditableLogger } from "evlog"
@@ -41,16 +42,11 @@ export const withRequestLogging = <TEnvironment>(
   ) => Response | Promise<Response>
 ) => withEvlog(handler, { exclude: UNLOGGED_PATH_PATTERNS })
 
-const getFallbackRequestId = (request: Request) =>
-  request.headers.get("x-request-id")?.trim() ||
-  request.headers.get("cf-ray") ||
-  crypto.randomUUID()
-
 export const getRequestLogger = (request: Request): RequestLoggerHandle => ({
   logger: createRequestLogger({
     method: request.method,
     path: new URL(request.url).pathname,
-    requestId: getFallbackRequestId(request),
+    requestId: getRequestId(request),
   }),
 })
 
@@ -64,7 +60,7 @@ export const getRequestIdFromLogger = (
     return requestId
   }
 
-  return getFallbackRequestId(request)
+  return getRequestId(request)
 }
 
 export const finishFallbackRequestLogger = (
