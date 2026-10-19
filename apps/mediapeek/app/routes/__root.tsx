@@ -8,6 +8,7 @@ import {
   Link,
   Scripts,
 } from "@tanstack/react-router"
+import { TanStackRouterDevtools } from "@tanstack/react-router-devtools"
 import { Match } from "effect"
 import type { ReactNode } from "react"
 
@@ -183,6 +184,7 @@ const RootDocumentContent = ({ children }: { children: ReactNode }) => {
         </div>
         <RouteAnnouncer />
         <Scripts />
+        {import.meta.env.DEV ? <TanStackRouterDevtools /> : null}
       </body>
     </html>
   )

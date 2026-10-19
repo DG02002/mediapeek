@@ -45,6 +45,7 @@
     "@cloudflare/workers-types": "catalog:",
     "@mediapeek/config-typescript": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
+    "@tanstack/react-router-devtools": "1.167.2",
     "@tanstack/router-cli": "^1.167.41",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
