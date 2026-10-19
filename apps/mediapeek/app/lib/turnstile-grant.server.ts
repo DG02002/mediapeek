@@ -12,6 +12,13 @@ type GrantPayload = {
   u: string
 }
 
+interface CloudflareSubtleCrypto extends SubtleCrypto {
+  timingSafeEqual(
+    left: ArrayBuffer | ArrayBufferView,
+    right: ArrayBuffer | ArrayBufferView
+  ): boolean
+}
+
 const grantPayloadSchema = Schema.Struct({
   e: Schema.Number,
   u: Schema.String,
@@ -81,18 +88,16 @@ const fromBase64Url = (input: string) => {
   return decodeBase64(padded)
 }
 
-const isSafeEqual = (left: string, right: string) => {
-  if (left.length !== right.length) {
-    return false
-  }
+const isSafeEqual = async (left: string, right: string) => {
+  const [leftDigest, rightDigest] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(left)),
+    crypto.subtle.digest("SHA-256", encoder.encode(right)),
+  ])
 
-  let mismatch = 0
+  // HACK: SAFETY: This Worker runtime provides timingSafeEqual; Node's global types omit it.
+  const subtleCrypto = crypto.subtle as CloudflareSubtleCrypto
 
-  for (let index = 0; index < left.length; index += 1) {
-    mismatch |= left.charCodeAt(index) ^ right.charCodeAt(index)
-  }
-
-  return mismatch === 0
+  return subtleCrypto.timingSafeEqual(leftDigest, rightDigest)
 }
 
 const importHmacKey = (secret: string) =>
@@ -222,7 +227,7 @@ export const verifyTurnstileGrantToken = async ({
 
   const expectedSignature = await signHmacSha256(secret, encodedPayload)
 
-  if (!isSafeEqual(expectedSignature, signature)) {
+  if (!(await isSafeEqual(expectedSignature, signature))) {
     return { valid: false, reason: "GRANT_INVALID_SIGNATURE" }
   }
 
@@ -234,7 +239,7 @@ export const verifyTurnstileGrantToken = async ({
 
   const expectedUrlHash = await hashAnalyzeUrl(url)
 
-  if (!isSafeEqual(payload.u, expectedUrlHash)) {
+  if (!(await isSafeEqual(payload.u, expectedUrlHash))) {
     return { valid: false, reason: "GRANT_URL_MISMATCH" }
   }
 

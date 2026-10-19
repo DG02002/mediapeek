@@ -242,20 +242,18 @@ export class AnalysisGateway extends Context.Service<
             const isMissingLocalDevSession =
               /couldn't find a local dev session/i.test(responseBody)
 
-            return yield* Effect.fail(
-              makeTransportError({
-                requestContext,
-                reason: "invalid-response",
-                message: isMissingLocalDevSession
-                  ? "Analyzer local dev worker is unavailable. Restart `pnpm dev` and retry."
-                  : ANALYZER_UNEXPECTED_RESPONSE_MESSAGE,
-                cause: responseBody,
-                responsePreview: responseBody.slice(
-                  0,
-                  ANALYZER_RESPONSE_PREVIEW_MAX_CHARS
-                ),
-              })
-            )
+            return yield* makeTransportError({
+              requestContext,
+              reason: "invalid-response",
+              message: isMissingLocalDevSession
+                ? "Analyzer local dev worker is unavailable. Restart `pnpm dev` and retry."
+                : ANALYZER_UNEXPECTED_RESPONSE_MESSAGE,
+              cause: responseBody,
+              responsePreview: responseBody.slice(
+                0,
+                ANALYZER_RESPONSE_PREVIEW_MAX_CHARS
+              ),
+            })
           }
 
           let responseJson: unknown
@@ -263,18 +261,16 @@ export class AnalysisGateway extends Context.Service<
           try {
             responseJson = JSON.parse(responseBody)
           } catch (cause) {
-            return yield* Effect.fail(
-              makeTransportError({
-                requestContext,
-                reason: "invalid-json",
-                message: ANALYZER_MALFORMED_RESPONSE_MESSAGE,
-                cause,
-                responsePreview: responseBody.slice(
-                  0,
-                  ANALYZER_RESPONSE_PREVIEW_MAX_CHARS
-                ),
-              })
-            )
+            return yield* makeTransportError({
+              requestContext,
+              reason: "invalid-json",
+              message: ANALYZER_MALFORMED_RESPONSE_MESSAGE,
+              cause,
+              responsePreview: responseBody.slice(
+                0,
+                ANALYZER_RESPONSE_PREVIEW_MAX_CHARS
+              ),
+            })
           }
 
           const decodedResponse = Schema.decodeUnknownResult(
@@ -282,18 +278,16 @@ export class AnalysisGateway extends Context.Service<
           )(responseJson)
 
           if (Result.isFailure(decodedResponse)) {
-            return yield* Effect.fail(
-              makeTransportError({
-                requestContext,
-                reason: "invalid-contract",
-                message: ANALYZER_MALFORMED_RESPONSE_MESSAGE,
-                cause: decodedResponse.failure,
-                responsePreview: responseBody.slice(
-                  0,
-                  ANALYZER_RESPONSE_PREVIEW_MAX_CHARS
-                ),
-              })
-            )
+            return yield* makeTransportError({
+              requestContext,
+              reason: "invalid-contract",
+              message: ANALYZER_MALFORMED_RESPONSE_MESSAGE,
+              cause: decodedResponse.failure,
+              responsePreview: responseBody.slice(
+                0,
+                ANALYZER_RESPONSE_PREVIEW_MAX_CHARS
+              ),
+            })
           }
 
           return {
