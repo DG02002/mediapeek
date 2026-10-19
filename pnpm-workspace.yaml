@@ -30,6 +30,8 @@ catalog:
 
 minimumReleaseAge: 10080
 
+minimumReleaseAgeIgnoreMissingTime: false
+
 minimumReleaseAgeStrict: true
 
 saveWorkspaceProtocol: rolling
