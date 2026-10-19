@@ -2,7 +2,10 @@ import type {
   AnalysisOutputId,
   AnalysisOutputResults,
 } from "@mediapeek/shared/analysis-output-formats"
-import { AnalyzeResponseSchema } from "@mediapeek/shared/analyze-contract"
+import {
+  AnalyzeResponseSchema,
+  type AnalyzeResponse,
+} from "@mediapeek/shared/analyze-contract"
 import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
 import { Result, Schema } from "effect"
 
@@ -20,10 +23,18 @@ const RETRYABLE_HTTP_STATUSES = new Set([502, 503, 504])
 
 class AnalysisRequestError extends Error {
   readonly retryable: boolean
+  readonly status?: number
+  readonly code?: string
 
-  constructor(message: string, retryable = false) {
+  constructor(
+    message: string,
+    retryable = false,
+    options: { readonly status?: number; readonly code?: string } = {}
+  ) {
     super(message)
     this.retryable = retryable
+    this.status = options.status
+    this.code = options.code
   }
 }
 
@@ -72,54 +83,27 @@ export type AnalysisSessionSnapshot =
 export interface AnalysisSession {
   getSnapshot(): AnalysisSessionSnapshot
   subscribe(listener: () => void): () => void
-  analyze(url: string, turnstileToken?: string): Promise<AnalysisResult>
-  output(format: AnalysisOutputId): Promise<string>
+  analyze(
+    url: string,
+    turnstileToken?: string,
+    requestTurnstileToken?: () => Promise<string | null>
+  ): Promise<AnalysisResult>
+  output(
+    format: AnalysisOutputId,
+    requestTurnstileToken?: () => Promise<string | null>
+  ): Promise<string>
   cancel(): void
   dispose(): void
 }
 
-const requestInitialAnalysis = async (input: {
-  readonly url: string
-  readonly operationId: string
-  readonly turnstileToken?: string
-  readonly controller: AbortController
-  readonly onProgress: (progress: AnalysisProgress) => void
-}) => {
-  const headers = new Headers({
-    "Content-Type": "application/json",
-    Accept: ANALYZE_PROGRESS_STREAM_CONTENT_TYPE,
-  })
+interface AnalysisSessionOptions {
+  readonly initialAnalysis?: AnalysisResult
+  readonly allowMissingOutputs?: boolean
+}
 
-  if (input.turnstileToken) {
-    headers.set("CF-Turnstile-Response", input.turnstileToken)
-  }
-
-  const response = await fetch("/resource/analyze", {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      url: input.url,
-      format: ["json"],
-      operationId: input.operationId,
-    }),
-    signal: input.controller.signal,
-  })
-
-  if (isAnalyzeProgressStreamResponse(response)) {
-    const terminal = await readAnalyzeStreamResponse(response, (event) =>
-      input.onProgress({ title: event.title, message: event.message })
-    )
-
-    if (terminal.type === "error") {
-      throw new AnalysisRequestError(
-        terminal.error.message,
-        terminal.error.retryable
-      )
-    }
-
-    return { requestId: terminal.requestId, outputs: terminal.results }
-  }
-
+const readAnalyzeResponse = async (
+  response: Response
+): Promise<AnalyzeResponse> => {
   let payload: unknown
 
   try {
@@ -140,19 +124,74 @@ const requestInitialAnalysis = async (input: {
     )
   }
 
-  if (!response.ok || !parsed.success.success) {
+  return parsed.success
+}
+
+const requestInitialAnalysis = async (input: {
+  readonly url: string
+  readonly operationId: string
+  readonly formats: ReadonlyArray<AnalysisOutputId>
+  readonly useProgressStream: boolean
+  readonly turnstileToken?: string
+  readonly controller: AbortController
+  readonly onProgress: (progress: AnalysisProgress) => void
+}) => {
+  const headers = new Headers({ "Content-Type": "application/json" })
+
+  if (input.useProgressStream) {
+    headers.set("Accept", ANALYZE_PROGRESS_STREAM_CONTENT_TYPE)
+  }
+
+  if (input.turnstileToken) {
+    headers.set("CF-Turnstile-Response", input.turnstileToken)
+  }
+
+  const response = await fetch("/resource/analyze", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      url: input.url,
+      format: input.formats,
+      operationId: input.operationId,
+    }),
+    signal: input.controller.signal,
+  })
+
+  if (isAnalyzeProgressStreamResponse(response)) {
+    const terminal = await readAnalyzeStreamResponse(response, (event) =>
+      input.onProgress({ title: event.title, message: event.message })
+    )
+
+    if (terminal.type === "error") {
+      throw new AnalysisRequestError(
+        terminal.error.message,
+        terminal.error.retryable,
+        { status: response.status, code: terminal.error.code }
+      )
+    }
+
+    return { requestId: terminal.requestId, outputs: terminal.results }
+  }
+
+  const data = await readAnalyzeResponse(response)
+
+  if (!response.ok || !data.success) {
     throw new AnalysisRequestError(
-      parsed.success.success
+      data.success
         ? "Unable to analyze the URL. Verify the link and try again."
-        : parsed.success.error.message,
+        : data.error.message,
       RETRYABLE_HTTP_STATUSES.has(response.status) ||
-        (!parsed.success.success && parsed.success.error.retryable)
+        (!data.success && data.error.retryable),
+      {
+        status: response.status,
+        code: data.success ? undefined : data.error.code,
+      }
     )
   }
 
   return {
-    requestId: parsed.success.requestId,
-    outputs: parsed.success.results,
+    requestId: data.requestId,
+    outputs: data.results,
   }
 }
 
@@ -163,14 +202,23 @@ interface AnalysisOutcome {
 
 interface AnalysisRetryInput {
   readonly url: string
+  readonly formats: ReadonlyArray<AnalysisOutputId>
+  readonly useProgressStream: boolean
   readonly turnstileToken?: string
+  readonly requestTurnstileToken?: () => Promise<string | null>
+  readonly turnstileRetryAttempted?: boolean
   readonly operationId: string
   readonly attempt: number
   readonly onProgress: (progress: AnalysisProgress) => void
   readonly onRetry: (attempt: number) => void
   readonly onController: (controller: AbortController) => void
-  readonly onAttemptFinished: () => void
+  readonly onAttemptFinished: (controller: AbortController) => void
 }
+
+const isTurnstileChallenge = (error: unknown): error is AnalysisRequestError =>
+  error instanceof AnalysisRequestError &&
+  error.status === 403 &&
+  (error.code === "AUTH_REQUIRED" || error.code === "AUTH_INVALID")
 
 const requestAnalysisWithRetries = async (
   input: AnalysisRetryInput
@@ -188,11 +236,38 @@ const requestAnalysisWithRetries = async (
     return await requestInitialAnalysis({
       url: input.url,
       operationId: input.operationId,
+      formats: input.formats,
+      useProgressStream: input.useProgressStream,
       turnstileToken: input.turnstileToken,
       controller,
       onProgress: input.onProgress,
     })
   } catch (error) {
+    if (
+      isTurnstileChallenge(error) &&
+      input.requestTurnstileToken &&
+      !input.turnstileRetryAttempted
+    ) {
+      const turnstileToken = await input.requestTurnstileToken()
+
+      if (!turnstileToken) {
+        throw new AnalysisRequestError("Verification was cancelled.", false, {
+          status: 403,
+          code: error.code,
+        })
+      }
+
+      if (controller.signal.aborted) {
+        throw controller.signal.reason
+      }
+
+      return requestAnalysisWithRetries({
+        ...input,
+        turnstileToken,
+        turnstileRetryAttempted: true,
+      })
+    }
+
     const retryable =
       error instanceof TypeError ||
       (error instanceof AnalysisRequestError && error.retryable)
@@ -213,13 +288,18 @@ const requestAnalysisWithRetries = async (
     })
   } finally {
     clearTimeout(timeoutId)
-    input.onAttemptFinished()
+    input.onAttemptFinished(controller)
   }
 }
 
-export const createBrowserAnalysisSession = (): AnalysisSession => {
-  let snapshot: AnalysisSessionSnapshot = { phase: "idle" }
-  let activeController: AbortController | null = null
+export const createBrowserAnalysisSession = (
+  options: AnalysisSessionOptions = {}
+): AnalysisSession => {
+  let snapshot: AnalysisSessionSnapshot = options.initialAnalysis
+    ? { phase: "ready", analysis: options.initialAnalysis }
+    : { phase: "idle" }
+
+  const activeControllers = new Set<AbortController>()
   let isDisposed = false
   let analysisGeneration = 0
   const listeners = new Set<() => void>()
@@ -237,8 +317,15 @@ export const createBrowserAnalysisSession = (): AnalysisSession => {
     }
   }
 
-  const analyze = async (url: string, turnstileToken?: string) => {
-    activeController?.abort()
+  const analyze = async (
+    url: string,
+    turnstileToken?: string,
+    requestTurnstileToken?: () => Promise<string | null>
+  ) => {
+    for (const controller of activeControllers) {
+      controller.abort()
+    }
+
     analysisGeneration += 1
     const generation = analysisGeneration
     pendingOutputs.clear()
@@ -248,7 +335,10 @@ export const createBrowserAnalysisSession = (): AnalysisSession => {
     try {
       const outcome = await requestAnalysisWithRetries({
         url,
+        formats: ["json"],
+        useProgressStream: true,
         turnstileToken,
+        requestTurnstileToken,
         operationId: crypto.randomUUID(),
         attempt: 0,
         onProgress: (progress) => {
@@ -269,12 +359,10 @@ export const createBrowserAnalysisSession = (): AnalysisSession => {
           }
         },
         onController: (controller) => {
-          activeController = controller
+          activeControllers.add(controller)
         },
-        onAttemptFinished: () => {
-          if (generation === analysisGeneration) {
-            activeController = null
-          }
+        onAttemptFinished: (controller) => {
+          activeControllers.delete(controller)
         },
       })
 
@@ -302,15 +390,24 @@ export const createBrowserAnalysisSession = (): AnalysisSession => {
     }
   }
 
-  const output = async (format: AnalysisOutputId): Promise<string> => {
+  const output = async (
+    format: AnalysisOutputId,
+    requestTurnstileToken?: () => Promise<string | null>
+  ): Promise<string> => {
     if (snapshot.phase !== "ready") {
       throw new Error("Analyze a URL before requesting another format.")
     }
 
     const cached = snapshot.analysis.outputs[format]
 
-    if (cached) {
+    if (cached !== undefined) {
       return cached
+    }
+
+    if (options.allowMissingOutputs === false) {
+      throw new Error(
+        `${format.toUpperCase()} output was not included in this saved report.`
+      )
     }
 
     const pending = pendingOutputs.get(format)
@@ -321,70 +418,51 @@ export const createBrowserAnalysisSession = (): AnalysisSession => {
 
     const { analysis } = snapshot
 
-    const request = (async () => {
-      const operationId = crypto.randomUUID()
+    const generation = analysisGeneration
 
-      const requestOnce = async () => {
-        const response = await fetch("/resource/analyze", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            url: analysis.url,
-            format: [format],
-            operationId,
-          }),
-        })
-
-        let payload: unknown
-
-        try {
-          payload = await response.json()
-        } catch {
-          throw new Error("Analyzer service returned malformed data.")
-        }
-
-        const parsed = Schema.decodeUnknownResult(AnalyzeResponseSchema)(
-          payload
-        )
-
-        if (Result.isFailure(parsed)) {
-          throw new Error("Analyzer service returned malformed data.")
-        }
-
-        return { response, data: parsed.success }
-      }
-
-      const outcome = await requestOnce()
-
-      if (!outcome.response.ok || !outcome.data.success) {
-        throw new Error(
-          outcome.data.success
-            ? `No ${format.toUpperCase()} content returned.`
-            : outcome.data.error.message
-        )
-      }
-
-      const content = outcome.data.results[format]
-
-      if (!content) {
-        throw new Error(`No ${format.toUpperCase()} content returned.`)
-      }
-
-      const nextAnalysis: AnalysisResult = {
-        ...analysis,
-        outputs: { ...analysis.outputs, [format]: content },
-      }
-
-      if (snapshot.phase === "ready" && snapshot.analysis === analysis) {
-        publish({ phase: "ready", analysis: nextAnalysis })
-      }
-
-      return content
-    })().finally(() => {
-      pendingOutputs.delete(format)
+    const request = requestAnalysisWithRetries({
+      url: analysis.url,
+      formats: [format],
+      useProgressStream: false,
+      requestTurnstileToken,
+      operationId: crypto.randomUUID(),
+      attempt: 0,
+      onProgress: () => {},
+      onRetry: () => {},
+      onController: (controller) => {
+        activeControllers.add(controller)
+      },
+      onAttemptFinished: (controller) => {
+        activeControllers.delete(controller)
+      },
     })
+      .then((outcome) => {
+        const content = outcome.outputs[format]
+
+        if (!content) {
+          throw new Error(`No ${format.toUpperCase()} content returned.`)
+        }
+
+        const nextAnalysis: AnalysisResult = {
+          ...analysis,
+          outputs: { ...analysis.outputs, [format]: content },
+        }
+
+        if (
+          generation === analysisGeneration &&
+          snapshot.phase === "ready" &&
+          snapshot.analysis === analysis
+        ) {
+          publish({ phase: "ready", analysis: nextAnalysis })
+        }
+
+        return content
+      })
+      .finally(() => {
+        if (pendingOutputs.get(format) === request) {
+          pendingOutputs.delete(format)
+        }
+      })
 
     pendingOutputs.set(format, request)
 
@@ -401,15 +479,21 @@ export const createBrowserAnalysisSession = (): AnalysisSession => {
     analyze,
     output,
     cancel() {
-      activeController?.abort(
-        new DOMException("Analysis request cancelled.", "AbortError")
-      )
+      for (const controller of activeControllers) {
+        controller.abort(
+          new DOMException("Analysis request cancelled.", "AbortError")
+        )
+      }
     },
     dispose() {
       isDisposed = true
-      activeController?.abort(
-        new DOMException("Analysis request cancelled.", "AbortError")
-      )
+
+      for (const controller of activeControllers) {
+        controller.abort(
+          new DOMException("Analysis request cancelled.", "AbortError")
+        )
+      }
+
       listeners.clear()
     },
   }

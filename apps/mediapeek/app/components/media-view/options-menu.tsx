@@ -5,6 +5,7 @@ import {
   QuoteDownIcon,
   Share01Icon,
 } from "@hugeicons/core-free-icons"
+import type { AnalysisOutputId } from "@mediapeek/shared/analysis-output-formats"
 import * as React from "react"
 import { useId } from "react"
 import { toast } from "sonner"
@@ -44,6 +45,7 @@ import { Label } from "~/components/ui/label"
 import { Separator } from "~/components/ui/separator"
 import { Switch } from "~/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
+import type { AnalysisSession } from "~/features/analyze/analysis-session"
 import { useMediaActions } from "~/hooks/use-media-actions"
 import { useMediaQuery } from "~/hooks/use-media-query"
 import { cn } from "~/lib/utils"
@@ -54,6 +56,7 @@ interface OptionsMenuProps {
   data: Record<string, string>
   url: string
   filename: string
+  session: Pick<AnalysisSession, "output">
   requestTurnstileToken?: () => Promise<string | null>
   isTextView: boolean
   setIsTextView: (val: boolean) => void
@@ -65,7 +68,7 @@ interface OptionsMenuProps {
   isExportingPng: boolean
 }
 
-const formats = [
+const formats: ReadonlyArray<{ id: AnalysisOutputId; label: string }> = [
   { id: "json", label: "Object" },
   { id: "json", label: "JSON" },
   { id: "text", label: "Text" },
@@ -85,6 +88,7 @@ export function OptionsMenu({
   data,
   url,
   filename,
+  session,
   requestTurnstileToken,
   isTextView,
   setIsTextView,
@@ -98,6 +102,7 @@ export function OptionsMenu({
   const { handleCopy, getShareUrl } = useMediaActions({
     data,
     url,
+    session,
     requestTurnstileToken,
   })
 
@@ -116,7 +121,7 @@ export function OptionsMenu({
 
   const shareClickedRef = React.useRef(false)
 
-  const handleShareClick = async (format: string, label: string) => {
+  const handleShareClick = async (format: AnalysisOutputId, label: string) => {
     try {
       const shareUrl = await getShareUrl(format, label)
 

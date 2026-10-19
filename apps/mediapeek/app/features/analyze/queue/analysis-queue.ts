@@ -40,9 +40,14 @@ export interface AnalysisQueue {
   subscribe: (listener: () => void) => () => void
   add(
     rawUrls: string,
-    turnstileToken?: string
+    turnstileToken?: string,
+    requestTurnstileToken?: () => Promise<string | null>
   ): ReadonlyArray<AnalysisQueueResult>
-  retry(itemId: string, turnstileToken?: string): AnalysisQueueResult
+  retry(
+    itemId: string,
+    turnstileToken?: string,
+    requestTurnstileToken?: () => Promise<string | null>
+  ): AnalysisQueueResult
   remove(itemId: string): boolean
   activate(): void
   dispose(): void
@@ -64,6 +69,15 @@ const normalizeUrl = (value: string): string | undefined => {
 
 const errorMessage = (error: Error) => error.message
 const noop = () => {}
+
+const clearTurnstileAuthorization = (
+  itemId: string,
+  turnstileTokens: Map<string, string>,
+  turnstileTokenRequests: Map<string, () => Promise<string | null>>
+) => {
+  turnstileTokens.delete(itemId)
+  turnstileTokenRequests.delete(itemId)
+}
 
 interface PreparedQueueEntry {
   readonly item?: AnalysisQueueItem
@@ -113,6 +127,24 @@ export const createAnalysisQueue = (
   const listeners = new Set<() => void>()
   const canceledItems = new Set<string>()
   const turnstileTokens = new Map<string, string>()
+  const turnstileTokenRequests = new Map<string, () => Promise<string | null>>()
+
+  const storeTurnstileAuthorization = (input: {
+    readonly itemId: string
+    readonly turnstileToken?: string
+    readonly requestTurnstileToken?: () => Promise<string | null>
+    readonly assignToken: boolean
+  }) => {
+    if (input.assignToken && input.turnstileToken) {
+      turnstileTokens.set(input.itemId, input.turnstileToken)
+    }
+
+    if (input.requestTurnstileToken) {
+      turnstileTokenRequests.set(input.itemId, input.requestTurnstileToken)
+    }
+
+    return input.assignToken && Boolean(input.turnstileToken)
+  }
 
   const publish = (next: AnalysisQueueSnapshot) => {
     if (isDisposed) {
@@ -176,10 +208,15 @@ export const createAnalysisQueue = (
     try {
       const analysis = await session.analyze(
         item.url,
-        turnstileTokens.get(item.id)
+        turnstileTokens.get(item.id),
+        turnstileTokenRequests.get(item.id)
       )
 
-      turnstileTokens.delete(item.id)
+      clearTurnstileAuthorization(
+        item.id,
+        turnstileTokens,
+        turnstileTokenRequests
+      )
 
       if (canceledItems.delete(item.id)) {
         return undefined
@@ -194,7 +231,11 @@ export const createAnalysisQueue = (
 
       return { kind: "done", itemId: item.id, analysis }
     } catch (error) {
-      turnstileTokens.delete(item.id)
+      clearTurnstileAuthorization(
+        item.id,
+        turnstileTokens,
+        turnstileTokenRequests
+      )
 
       if (canceledItems.delete(item.id)) {
         return undefined
@@ -250,7 +291,11 @@ export const createAnalysisQueue = (
     }
   }
 
-  const add = (rawUrls: string, turnstileToken?: string) => {
+  const add = (
+    rawUrls: string,
+    turnstileToken?: string,
+    requestTurnstileToken?: () => Promise<string | null>
+  ) => {
     const urls = rawUrls
       .split(/\r?\n/u)
       .map((url) => url.trim())
@@ -279,10 +324,13 @@ export const createAnalysisQueue = (
 
       items.push(entry.item)
 
-      if (turnstileToken && !tokenAssigned) {
-        turnstileTokens.set(entry.item.id, turnstileToken)
-        tokenAssigned = true
-      }
+      tokenAssigned =
+        storeTurnstileAuthorization({
+          itemId: entry.item.id,
+          turnstileToken,
+          requestTurnstileToken,
+          assignToken: !tokenAssigned,
+        }) || tokenAssigned
     }
 
     if (items.length !== snapshot.items.length) {
@@ -293,7 +341,11 @@ export const createAnalysisQueue = (
     return results
   }
 
-  const retry = (itemId: string, turnstileToken?: string) => {
+  const retry = (
+    itemId: string,
+    turnstileToken?: string,
+    requestTurnstileToken?: () => Promise<string | null>
+  ) => {
     const item = snapshot.items.find((candidate) => candidate.id === itemId)
 
     if (!item || item.status !== "error") {
@@ -313,6 +365,10 @@ export const createAnalysisQueue = (
 
     if (turnstileToken) {
       turnstileTokens.set(itemId, turnstileToken)
+    }
+
+    if (requestTurnstileToken) {
+      turnstileTokenRequests.set(itemId, requestTurnstileToken)
     }
 
     publish({ ...snapshot, items })
@@ -336,6 +392,7 @@ export const createAnalysisQueue = (
 
     const isActive = snapshot.activeItemId === itemId
     turnstileTokens.delete(itemId)
+    turnstileTokenRequests.delete(itemId)
 
     if (isActive) {
       canceledItems.add(itemId)
@@ -378,6 +435,7 @@ export const createAnalysisQueue = (
       session.cancel()
       listeners.clear()
       turnstileTokens.clear()
+      turnstileTokenRequests.clear()
       canceledItems.clear()
     },
   }

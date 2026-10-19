@@ -2,22 +2,26 @@ import { extractFilenameFromUrl } from "@mediapeek/shared/filename-resolution"
 import { useState } from "react"
 
 import { Button } from "~/components/ui/button"
-import type { AnalysisResult } from "~/features/analyze/analysis-session"
+import type {
+  AnalysisResult,
+  AnalysisSession,
+} from "~/features/analyze/analysis-session"
 import { parseMediaReport } from "~/features/reports/media-report"
 import {
   reportStorageStore,
   type StoredReport,
 } from "~/features/reports/report-storage"
-import { fetchAnalyzeFormat } from "~/lib/analyze-client"
 
 interface SaveReportButtonProps {
   analysis: AnalysisResult
+  session: Pick<AnalysisSession, "output">
   requestTurnstileToken?: () => Promise<string | null>
   onSaved?: (report: StoredReport) => void
 }
 
 export function SaveReportButton({
   analysis,
+  session,
   requestTurnstileToken,
   onSaved,
 }: SaveReportButtonProps) {
@@ -32,15 +36,9 @@ export function SaveReportButton({
       let textUnavailable = false
 
       if (outputs.text === undefined) {
-        const textResult = await fetchAnalyzeFormat({
-          url: analysis.url,
-          format: "text",
-          requestTurnstileToken,
-        })
-
-        if (textResult.ok) {
-          outputs.text = textResult.content
-        } else {
+        try {
+          outputs.text = await session.output("text", requestTurnstileToken)
+        } catch {
           textUnavailable = true
         }
       }

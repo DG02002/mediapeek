@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from "react"
 
+import { TurnstileTokenDialog } from "~/features/analyze/turnstile-token-dialog"
+import { useTurnstileVerification } from "~/features/analyze/use-turnstile-verification"
 import { useHapticFeedback } from "~/hooks/use-haptic"
 
 import { createBrowserAnalysisSession } from "../analysis-session"
@@ -26,6 +28,7 @@ const getServerQueueSnapshot = () => EMPTY_QUEUE_SNAPSHOT
 interface AnalysisQueueContextValue {
   readonly queue: ReturnType<typeof createAnalysisQueue>
   readonly snapshot: AnalysisQueueSnapshot
+  readonly requestTurnstileToken: () => Promise<string | null>
 }
 
 const AnalysisQueueContext = createContext<AnalysisQueueContextValue | null>(
@@ -56,6 +59,8 @@ export const AnalysisQueueProvider = ({
 }: {
   readonly children: ReactNode
 }) => {
+  const turnstile = useTurnstileVerification()
+
   const queue = useMemo(
     () => createAnalysisQueue(createBrowserAnalysisSession()),
     []
@@ -73,13 +78,17 @@ export const AnalysisQueueProvider = ({
     getServerQueueSnapshot
   )
 
-  const contextValue = useMemo(() => ({ queue, snapshot }), [queue, snapshot])
+  const contextValue = useMemo(
+    () => ({ queue, snapshot, requestTurnstileToken: turnstile.requestToken }),
+    [queue, snapshot, turnstile.requestToken]
+  )
 
   useAnalysisQueueFeedback(snapshot)
 
   return (
     <AnalysisQueueContext.Provider value={contextValue}>
       {children}
+      <TurnstileTokenDialog verification={turnstile} />
     </AnalysisQueueContext.Provider>
   )
 }

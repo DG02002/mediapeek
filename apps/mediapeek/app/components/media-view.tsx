@@ -15,8 +15,11 @@ import {
 import { Button } from "~/components/ui/button"
 import { Icon } from "~/components/ui/icon"
 import { Skeleton } from "~/components/ui/skeleton"
+import {
+  createBrowserAnalysisSession,
+  type AnalysisSession,
+} from "~/features/analyze/analysis-session"
 import { parseMediaReport } from "~/features/reports/media-report"
-import { fetchAnalyzeFormat } from "~/lib/analyze-client"
 import { SmoothTransition } from "~/lib/animation"
 import { clientLog } from "~/lib/client-logger"
 import { cn } from "~/lib/utils"
@@ -38,8 +41,8 @@ export type MediaViewData = Record<string, string>
 interface MediaViewProps {
   data: MediaViewData
   url: string
+  session?: Pick<AnalysisSession, "output">
   requestTurnstileToken?: () => Promise<string | null>
-  fetchFormat?: typeof fetchAnalyzeFormat
 }
 
 const useParsedMediaReport = (data: MediaViewData, url: string) => {
@@ -63,8 +66,8 @@ const useParsedMediaReport = (data: MediaViewData, url: string) => {
 export const MediaView = memo(function MediaView({
   data,
   url,
+  session: providedSession,
   requestTurnstileToken,
-  fetchFormat = fetchAnalyzeFormat,
 }: MediaViewProps) {
   const [isTextView, setIsTextView] = useState(false)
   const [showOriginalTitles, setShowOriginalTitles] = useState(false)
@@ -73,6 +76,15 @@ export const MediaView = memo(function MediaView({
   const [isTextLoading, setIsTextLoading] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const [_isPending, startTransition] = useTransition()
+
+  const session = useMemo(
+    () =>
+      providedSession ??
+      createBrowserAnalysisSession({
+        initialAnalysis: { url, outputs: data, durationMs: 0 },
+      }),
+    [data, providedSession, url]
+  )
 
   // Stable handlers for View Switching to ensure responsiveness
   const handleSetIsTextView = useCallback(
@@ -116,18 +128,10 @@ export const MediaView = memo(function MediaView({
         setIsTextLoading(true)
 
         try {
-          const result = await fetchFormat({
-            url,
-            format: "text",
-            requestTurnstileToken,
-          })
-
-          if (!result.ok) {
-            throw new Error(result.message)
-          }
+          const text = await session.output("text", requestTurnstileToken)
 
           if (!cancelled) {
-            setFetchedText(result.content)
+            setFetchedText(text)
           }
         } catch (error) {
           console.error("Failed to lazy-load text output", error)
@@ -146,14 +150,7 @@ export const MediaView = memo(function MediaView({
     }
 
     return undefined
-  }, [
-    data.text,
-    fetchFormat,
-    fetchedText,
-    isTextView,
-    requestTurnstileToken,
-    url,
-  ])
+  }, [data.text, fetchedText, isTextView, requestTurnstileToken, session])
 
   // Handle Escape key to exit full screen
   useEffect(() => {
@@ -204,12 +201,10 @@ export const MediaView = memo(function MediaView({
     }
   }, [data, fetchedText, isTextLoading])
 
-  const exportFilename = parsedReport.ok
-    ? parsedReport.report.file.displayName
-    : "Unknown"
-
   const { handleExportPng, isExportingPng, mediaReportExportRef } =
-    useMediaPngExport(exportFilename)
+    useMediaPngExport(
+      parsedReport.ok ? parsedReport.report.file.displayName : "Unknown"
+    )
 
   if (!parsedReport.ok) {
     return (
@@ -246,6 +241,7 @@ export const MediaView = memo(function MediaView({
           showOriginalTitles={showOriginalTitles}
           setShowOriginalTitles={handleSetShowOriginalTitles}
           rawData={fullData}
+          session={session}
           requestTurnstileToken={requestTurnstileToken}
           onExportPng={handleExportPng}
           isExportingPng={isExportingPng}

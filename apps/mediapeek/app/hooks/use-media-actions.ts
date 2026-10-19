@@ -1,21 +1,17 @@
-import { useCallback, useRef, useState } from "react"
+import type { AnalysisOutputId } from "@mediapeek/shared/analysis-output-formats"
+import { useCallback, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import {
-  fetchAnalyzeFormat,
-  type AnalyzeClientResult,
-} from "../lib/analyze-client"
+  createBrowserAnalysisSession,
+  type AnalysisSession,
+} from "../features/analyze/analysis-session"
 import { clientLog } from "../lib/client-logger"
 import { safeClipboardWrite } from "../lib/clipboard"
 import { uploadToPrivateBin } from "../lib/privatebin"
 import { useHapticFeedback } from "./use-haptic"
 
 export interface MediaActionsServices {
-  fetchAnalyzeFormat: (options: {
-    url: string
-    format: string
-    requestTurnstileToken?: () => Promise<string | null>
-  }) => Promise<AnalyzeClientResult>
   safeClipboardWrite: typeof safeClipboardWrite
   uploadToPrivateBin: typeof uploadToPrivateBin
   toastLoading: (message: string) => string | number
@@ -32,7 +28,6 @@ export interface MediaActionsServices {
 }
 
 const defaultServices: MediaActionsServices = {
-  fetchAnalyzeFormat,
   safeClipboardWrite,
   uploadToPrivateBin,
   toastLoading: (message) => toast.loading(message),
@@ -45,6 +40,7 @@ const defaultServices: MediaActionsServices = {
 interface UseMediaActionsProps {
   data: Record<string, string>
   url: string
+  session?: Pick<AnalysisSession, "output">
   requestTurnstileToken?: () => Promise<string | null>
   services?: MediaActionsServices
 }
@@ -52,39 +48,35 @@ interface UseMediaActionsProps {
 export function useMediaActions({
   data,
   url,
+  session: providedSession,
   requestTurnstileToken,
   services = defaultServices,
 }: UseMediaActionsProps) {
-  const fetchedData = useRef<Record<string, string>>({})
+  const fallbackSession = useMemo(
+    () =>
+      createBrowserAnalysisSession({
+        initialAnalysis: { url, outputs: data, durationMs: 0 },
+      }),
+    [data, url]
+  )
+
+  const session = providedSession ?? fallbackSession
   const sharedUrls = useRef<Record<string, string>>({})
   const { triggerSuccess } = useHapticFeedback()
   const [isSharing, setIsSharing] = useState(false)
 
   const fetchContent = useCallback(
-    async (format: string, label: string) => {
+    async (format: AnalysisOutputId, label: string) => {
       const { [format]: initialContent } = data
 
-      let content: string | undefined =
-        initialContent ?? fetchedData.current[format]
+      let content: string | undefined = initialContent
 
       if (!content) {
         const toastId = services.toastLoading(`Generating ${label}...`)
 
         try {
-          const result = await services.fetchAnalyzeFormat({
-            url,
-            format,
-            requestTurnstileToken,
-          })
+          content = await session.output(format, requestTurnstileToken)
 
-          if (!result.ok) {
-            throw new Error(result.message)
-          }
-
-          const { content: resultContent } = result
-          content = resultContent
-
-          fetchedData.current[format] = content
           services.toastDismiss(toastId)
         } catch (err) {
           services.logError({
@@ -113,11 +105,11 @@ export function useMediaActions({
 
       return content
     },
-    [data, requestTurnstileToken, services, url]
+    [data, requestTurnstileToken, services, session]
   )
 
   const handleCopy = useCallback(
-    (format: string, label: string) => {
+    (format: AnalysisOutputId, label: string) => {
       const contentPromise = fetchContent(format, label).then(
         (content: string | null | undefined) => {
           if (!content) {
@@ -154,7 +146,7 @@ export function useMediaActions({
   )
 
   const getShareUrl = useCallback(
-    async (format: string, label: string) => {
+    async (format: AnalysisOutputId, label: string) => {
       // Return cached URL if available
       if (sharedUrls.current[format]) {
         return sharedUrls.current[format]

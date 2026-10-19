@@ -55,15 +55,21 @@ const createFakeSession = (
     }
   }
 
-  const analyzeMock = vi.fn(async (url: string, token?: string) => {
-    publish({ phase: "analyzing", url })
+  const analyzeMock = vi.fn(
+    async (
+      url: string,
+      token?: string,
+      requestTurnstileToken?: () => Promise<string | null>
+    ) => {
+      publish({ phase: "analyzing", url })
 
-    try {
-      return await analyze(url, token)
-    } finally {
-      publish({ phase: "idle" })
+      try {
+        return await analyze(url, token, requestTurnstileToken)
+      } finally {
+        publish({ phase: "idle" })
+      }
     }
-  })
+  )
 
   const cancelMock = vi.fn()
 
@@ -74,7 +80,8 @@ const createFakeSession = (
 
       return () => listeners.delete(listener)
     },
-    analyze: (url, token) => analyzeMock(url, token),
+    analyze: (url, token, requestTurnstileToken) =>
+      analyzeMock(url, token, requestTurnstileToken),
     output: async () => "",
     cancel: cancelMock,
     dispose: vi.fn(),
@@ -178,21 +185,28 @@ describe("analysis queue", () => {
 
     queue.activate()
 
+    const requestTurnstileToken = vi
+      .fn<() => Promise<string | null>>()
+      .mockResolvedValue("fresh-turnstile-token")
+
     queue.add(
       "https://example.com/one.mp4\nhttps://example.com/two.mp4",
-      "turnstile-token"
+      "turnstile-token",
+      requestTurnstileToken
     )
     await waitForStatuses(queue, ["done", "done"])
 
     expect(analyzeMock).toHaveBeenNthCalledWith(
       1,
       "https://example.com/one.mp4",
-      "turnstile-token"
+      "turnstile-token",
+      requestTurnstileToken
     )
     expect(analyzeMock).toHaveBeenNthCalledWith(
       2,
       "https://example.com/two.mp4",
-      undefined
+      undefined,
+      requestTurnstileToken
     )
 
     queue.dispose()

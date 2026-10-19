@@ -6,7 +6,7 @@ import type { TurnstileVerification } from "~/features/analyze/use-turnstile-ver
 interface TurnstileTokenDialogProps {
   readonly verification: TurnstileVerification
   readonly onCancel?: () => void
-  readonly onError: () => void
+  readonly onError?: () => void
   readonly onVerified?: (token: string) => void
 }
 
@@ -55,7 +55,7 @@ export const TurnstileTokenDialog = ({
           clearInput()
           settle(null)
           setIsOpen(false)
-          onError()
+          onError?.()
         }}
         onExpire={() => {
           clearInput()
