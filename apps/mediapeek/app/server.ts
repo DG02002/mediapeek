@@ -7,10 +7,9 @@ import type { Register as StartRegister } from "@tanstack/react-start"
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
 import { env as workerEnv } from "cloudflare:workers"
 
+import { DEVTOOLS_WELL_KNOWN_PATH } from "~/constants"
+import { withRequestLogging } from "~/lib/request-logger.server"
 import { createContentSecurityPolicy } from "~/security/content-security-policy"
-
-const DEVTOOLS_WELL_KNOWN_PATH =
-  "/.well-known/appspecific/com.chrome.devtools.json"
 
 const applySecurityHeaders = (
   response: Response,
@@ -47,7 +46,7 @@ const applySecurityHeaders = (
   })
 }
 
-export default createServerEntry({
+const entry = createServerEntry({
   async fetch(request, opts) {
     const url = new URL(request.url)
 
@@ -73,3 +72,5 @@ export default createServerEntry({
     return applySecurityHeaders(response, runtimeConfig)
   },
 })
+
+export default withRequestLogging(entry.fetch)

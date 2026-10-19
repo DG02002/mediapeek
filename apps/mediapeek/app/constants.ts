@@ -12,6 +12,10 @@ export const MAX_PRIVATEBIN_RESPONSE_BYTES = 16 * 1024
 export const ANALYSIS_REQUEST_TIMEOUT_MS = 90_000
 export const MAX_ANALYSIS_RETRIES = 2
 export const ANALYSIS_RETRY_BACKOFF_MS = 1_500
+
+export const DEVTOOLS_WELL_KNOWN_PATH =
+  "/.well-known/appspecific/com.chrome.devtools.json"
+
 export const MEDIA_EXPORT_WIDTH_PX = 960
 export const MEDIA_EXPORT_SCALE = 2
 export const MEDIA_EXPORT_POSITION_OFFSET_PX = 10_000

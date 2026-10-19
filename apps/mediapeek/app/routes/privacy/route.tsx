@@ -99,13 +99,15 @@ function PrivacyPolicy() {
 
       <PolicySection title="Service diagnostics">
         <p>
-          MediaPeek&apos;s analyze endpoint can record request IDs, request
-          paths, response status, timing, IP address, and browser user-agent for
-          service operations. Analysis diagnostics can include the submitted
-          source URL with selected sensitive query values redacted. The logger
-          can sample routine entries; warnings, errors, and slow requests bypass
-          that sampling. The repository does not specify how long infrastructure
-          or diagnostic logs are retained.
+          MediaPeek can record request IDs, methods, paths, response status,
+          timing, and Cloudflare location metadata for web Worker requests,
+          including page requests and unmatched URLs. The analyze endpoint can
+          also record the visitor&apos;s IP address and browser user-agent.
+          Analysis diagnostics can include the submitted source URL with
+          selected sensitive query values redacted. The logger can sample
+          routine entries; warnings, errors, and slow requests bypass that
+          sampling. The repository does not specify how long infrastructure or
+          diagnostic logs are retained.
         </p>
         <p>
           MediaPeek runs on Cloudflare Workers. Cloudflare processes traffic to
