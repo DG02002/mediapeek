@@ -23,6 +23,7 @@ const blockedIpv4Hosts = [
   "030052000401",
 ]
 
+// WHATWG IPv4 canonicalization is pinned in the web Worker runtime test.
 describe("validateUrl", () => {
   it.each(blockedIpv4Hosts)("rejects blocked IPv4 encoding %s", (host) => {
     expect(() => validateUrl(`https://${host}/media.mp4`)).toThrow(
@@ -49,6 +50,11 @@ describe("validateUrl", () => {
       )
     }
   )
+
+  it("rejects IPv6 zone identifiers and malformed colon hosts", () => {
+    expect(() => validateUrl("https://[fe80::1%25eth0]/media.mp4")).toThrow()
+    expect(() => validateUrl("https://[1:2:3:4:5:6:7:8:9]/media.mp4")).toThrow()
+  })
 
   it.each(["localhost", "localhost.localdomain", "ip6-localhost"])(
     "rejects local hostname %s",
