@@ -10,7 +10,7 @@ import {
 import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import { Result, Schema } from "effect"
 import { initWorkersLogger } from "evlog/workers"
-import { Hono } from "hono"
+import { Hono, type Context } from "hono"
 
 import { analyzeSchema, type AnalyzeInput } from "./lib/schemas"
 import { executeAnalysis } from "./services/analysis-execution.server"
@@ -21,7 +21,7 @@ import {
   type AnalyzeLogContext,
   type AnalyzeRequestState,
   type AnalyzerAnalysisExecutor,
-  type AnalyzerContext,
+  type AnalyzerResponder,
   type RunAnalyzeRequest,
   type SetLogContextValue,
 } from "./services/analyze-responses.server"
@@ -31,6 +31,8 @@ import {
   requestLogging,
   type AnalyzerRequestLoggingEnvironment,
 } from "./services/request-logging.server"
+
+type AnalyzerContext = Context<AnalyzerRequestLoggingEnvironment>
 
 export { classifyAnalyzerFailure } from "./services/analyze-responses.server"
 
@@ -230,7 +232,7 @@ const resolveAnalyzerAuthFailure = (
 }
 
 const createAuthFailureResponse = (
-  context: AnalyzerContext,
+  context: Pick<AnalyzerResponder, "json">,
   state: AnalyzeRequestState,
   failure: AnalyzerAuthFailure
 ): Response => {

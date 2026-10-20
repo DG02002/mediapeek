@@ -9,7 +9,7 @@ import {
   classifyAnalyzeError,
   type AnalyzeRequestState,
   type AnalyzerAnalysisExecutor,
-  type AnalyzerContext,
+  type AnalyzerResponder,
   type RunAnalyzeRequest,
   type SetLogContextValue,
 } from "./analyze-responses.server"
@@ -159,7 +159,7 @@ const runProgressAnalysis = async (options: {
 }
 
 export const createProgressResponse = (options: {
-  context: AnalyzerContext
+  context: AnalyzerResponder
   requestState: AnalyzeRequestState
   url: string
   formats: AnalysisExecutionInput["formats"]

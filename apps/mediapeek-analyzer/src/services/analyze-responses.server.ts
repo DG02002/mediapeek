@@ -3,8 +3,6 @@ import type {
   AnalyzerRpcSuccessResponse,
 } from "@mediapeek/shared/analyze-contract"
 import { Match, type Schema } from "effect"
-import type { Context } from "hono"
-import type { UnofficialStatusCode } from "hono/utils/http-status"
 
 import { unknownToError } from "../lib/error"
 import {
@@ -16,13 +14,29 @@ import type {
   AnalysisExecutionInput,
   AnalysisExecutionResult,
 } from "./analysis-execution.server"
-import type { AnalyzerRequestLoggingEnvironment } from "./request-logging.server"
 
 export interface AnalyzerAnalysisExecutor {
   (input: AnalysisExecutionInput): Promise<AnalysisExecutionResult>
 }
 
-export type AnalyzerContext = Context<AnalyzerRequestLoggingEnvironment>
+interface AnalyzerRpcFailureResponse {
+  success: false
+  requestId: string
+  error: {
+    code: AnalyzeErrorCode
+    message: string
+    retryable: boolean
+  }
+}
+
+type AnalyzerResponseBody =
+  | AnalyzerRpcSuccessResponse
+  | AnalyzerRpcFailureResponse
+
+export interface AnalyzerResponder {
+  json(body: AnalyzerResponseBody, status?: number): Response
+  req: { raw: { signal: AbortSignal } }
+}
 
 export interface AnalyzeLogContext {
   [key: string]: typeof Schema.Json.Type
@@ -185,7 +199,7 @@ export const classifyAnalyzeError = (
 }
 
 export const createBufferedSuccessResponse = async (options: {
-  context: AnalyzerContext
+  context: AnalyzerResponder
   requestState: AnalyzeRequestState
   url: string
   formats: AnalysisExecutionInput["formats"]
@@ -214,7 +228,7 @@ export const createBufferedSuccessResponse = async (options: {
 }
 
 export const createBufferedErrorResponse = (options: {
-  context: AnalyzerContext
+  context: AnalyzerResponder
   state: AnalyzeRequestState
   cause: unknown
   setLogContextValue: SetLogContextValue
@@ -238,7 +252,6 @@ export const createBufferedErrorResponse = (options: {
         retryable: classified.retryable,
       },
     },
-    // SAFETY: 499 is sent as a numeric HTTP status; Hono's compile-time union omits it.
-    classified.status as UnofficialStatusCode
+    classified.status
   )
 }
