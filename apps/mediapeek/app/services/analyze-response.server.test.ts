@@ -7,6 +7,7 @@ import {
 import * as requestLogger from "~/lib/request-logger.server"
 
 import {
+  handleAnalysisGatewayResponse,
   handleUnexpectedError,
   type AnalyzeRouteResponseState,
 } from "./analyze-response.server"
@@ -67,6 +68,56 @@ describe("analyze request logging", () => {
     expect(handle?.logger.getContext()).toMatchObject({
       user_agent: "visitor-agent",
       client_ip: "203.0.113.10",
+    })
+  })
+
+  it("passes analyzer warnings through the buffered visitor response", async () => {
+    const request = new Request("https://mediapeek.test/resource/analyze", {
+      method: "POST",
+    })
+
+    const execution = createExecution({ request })
+
+    const state: AnalyzeRouteResponseState = {
+      request,
+      requestLog: execution.state,
+    }
+
+    const response = handleAnalysisGatewayResponse(state, {
+      mode: "json",
+      status: 200,
+      contentType: "application/json",
+      data: {
+        success: true,
+        requestId: "analyzer-request-1",
+        results: { json: '{"media":{"track":[]}}' },
+        warnings: ["source_size_unknown"],
+        diagnostics: {
+          fetch: {
+            headRequestDurationMs: 0,
+            fetchRequestDurationMs: 1,
+            totalDurationMs: 1,
+            isGoogleDrive: false,
+            resolvedFilename: "video.mp4",
+            resolvedFilenameSource: "url",
+            responseStatus: 206,
+            probeMethod: "range",
+            fileSizeUnknown: true,
+          },
+          analysis: {
+            wasmLoadTimeMs: 0,
+            factoryCreateTimeMs: 0,
+            formatGenerationTimes: { json: 1 },
+            totalAnalysisTimeMs: 1,
+            formatErrors: {},
+          },
+        },
+      },
+    })
+
+    expect(await response.json()).toMatchObject({
+      success: true,
+      warnings: ["source_size_unknown"],
     })
   })
 })

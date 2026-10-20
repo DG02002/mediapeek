@@ -121,7 +121,7 @@ describe("fetchMediaChunk", () => {
       )
       .mockResolvedValueOnce(
         makeResponse(new Uint8Array([0, 1, 2, 3]), {
-          status: 206,
+          status: 200,
           headers: {
             "content-type": "application/octet-stream",
             "content-range": "bytes 0-3/4",
@@ -137,6 +137,29 @@ describe("fetchMediaChunk", () => {
     expect(result.fileSize).toBe(4)
     expect(result.filename).toBe("from-get.mp4")
     expect(result.filenameSource).toBe("content-disposition-get")
+  })
+
+  it("marks the source size unknown when neither probe nor range reports it", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        makeResponse(null, {
+          status: 200,
+          headers: { "content-type": "application/octet-stream" },
+        })
+      )
+      .mockResolvedValueOnce(
+        makeResponse(new Uint8Array([0, 1, 2, 3]), {
+          status: 206,
+          headers: { "content-type": "application/octet-stream" },
+        })
+      )
+
+    const result = await fetchMediaChunk({
+      initialUrl: "https://example.com/unknown-size.mp4",
+    })
+
+    expect(result.fileSize).toBeUndefined()
+    expect(result.diagnostics.fileSizeUnknown).toBe(true)
   })
 
   it("uses a valid range for an empty file and classifies its 416 response", async () => {

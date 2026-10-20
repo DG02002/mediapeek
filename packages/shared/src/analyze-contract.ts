@@ -5,6 +5,8 @@ import {
   type AnalysisOutputRequest,
 } from "./analysis-output-formats"
 
+export const ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN = "source_size_unknown"
+
 export const AnalyzeErrorCodeSchema = Schema.Literals([
   "AUTH_REQUIRED",
   "AUTH_INVALID",
@@ -26,10 +28,12 @@ export const AnalyzeErrorSchema = Schema.Struct({
   retryable: Schema.Boolean,
 })
 
+// Public success responses omit fileSize; streamed success events follow this output-only contract.
 export const AnalyzeSuccessResponseSchema = Schema.Struct({
   success: Schema.Literal(true),
   requestId: Schema.String,
   results: Schema.Record(Schema.String, Schema.String),
+  warnings: Schema.optionalKey(Schema.Array(Schema.String)),
 })
 
 export const AnalyzeErrorResponseSchema = Schema.Struct({
@@ -52,6 +56,7 @@ export const AnalyzerFetchDiagnosticsSchema = Schema.Struct({
   resolvedFilenameSource: Schema.String,
   responseStatus: Schema.Number,
   probeMethod: Schema.String,
+  fileSizeUnknown: Schema.optionalKey(Schema.Boolean),
   firstByteReadTimeoutMs: Schema.optionalKey(Schema.Number),
   firstByteReadRetries: Schema.optionalKey(Schema.Number),
   firstByteReadStrategy: Schema.optionalKey(
@@ -80,6 +85,7 @@ export const AnalyzerRpcSuccessResponseSchema = Schema.Struct({
   requestId: Schema.optionalKey(Schema.String),
   fileSize: Schema.optionalKey(Schema.Number),
   results: Schema.Record(Schema.String, Schema.String),
+  warnings: Schema.optionalKey(Schema.Array(Schema.String)),
   diagnostics: Schema.Struct({
     fetch: AnalyzerFetchDiagnosticsSchema,
     analysis: AnalyzerAnalysisDiagnosticsSchema,

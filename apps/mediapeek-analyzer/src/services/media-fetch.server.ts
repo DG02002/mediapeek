@@ -43,6 +43,7 @@ export interface FetchDiagnostics {
   resolvedFilenameSource: FilenameSource
   responseStatus: number
   probeMethod: string
+  fileSizeUnknown?: boolean
   firstByteReadTimeoutMs?: number
   firstByteReadRetries?: number
   firstByteReadStrategy?: "range" | "no_range_fallback"
@@ -675,6 +676,10 @@ const resolveInitialMetadata = (options: {
   diagnostics: FetchDiagnostics
 }) => {
   const fileSize = resolveResponseFileSize(options.response) ?? options.fileSize
+
+  if (fileSize === undefined) {
+    options.diagnostics.fileSizeUnknown = true
+  }
 
   const getFilename =
     options.filenameSource === "url"

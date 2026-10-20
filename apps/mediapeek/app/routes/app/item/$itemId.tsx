@@ -98,6 +98,7 @@ const AnalysisResultPage = ({
       <MediaView
         data={currentAnalysis.outputs}
         url={currentAnalysis.url}
+        warnings={currentAnalysis.warnings}
         session={session}
         requestTurnstileToken={turnstile.requestToken}
       />

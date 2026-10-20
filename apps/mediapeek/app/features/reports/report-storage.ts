@@ -17,6 +17,7 @@ const StoredReportSchema = Schema.Struct({
   filename: Schema.String,
   analyzedAt: Schema.String,
   outputs: ReportOutputsSchema,
+  warnings: Schema.optionalKey(Schema.Array(Schema.String)),
 })
 
 export type StoredReport = typeof StoredReportSchema.Type

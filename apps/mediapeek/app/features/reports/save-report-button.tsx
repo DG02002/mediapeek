@@ -50,12 +50,18 @@ export function SaveReportButton({
         ? parsed.report.file.displayName
         : extractFilenameFromUrl(analysis.url)
 
-      const report = await reportStorageStore.save({
+      const reportInput: Omit<StoredReport, "id"> = {
         sourceUrl: analysis.url,
         filename,
         analyzedAt: new Date().toISOString(),
         outputs,
-      })
+      }
+
+      const report = await reportStorageStore.save(
+        analysis.warnings
+          ? { ...reportInput, warnings: [...analysis.warnings] }
+          : reportInput
+      )
 
       onSaved?.(report)
 

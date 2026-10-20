@@ -35,10 +35,12 @@ export const AnalyzeStreamProgressEventSchema = Schema.Struct({
   message: Schema.String,
 })
 
+// Keep streamed success output-only; fileSize belongs to analyzer diagnostics, not the public stream.
 export const AnalyzeStreamSuccessEventSchema = Schema.Struct({
   type: Schema.Literal("success"),
   requestId: Schema.String,
   results: Schema.Record(Schema.String, Schema.String),
+  warnings: Schema.optionalKey(Schema.Array(Schema.String)),
 })
 
 export const AnalyzeStreamErrorEventSchema = Schema.Struct({

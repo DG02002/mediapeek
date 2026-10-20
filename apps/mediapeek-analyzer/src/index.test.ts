@@ -145,6 +145,44 @@ describe("analyzer Worker boundary", () => {
     )
   })
 
+  it("includes an unknown source size warning in the success response", async () => {
+    executeAnalysisMock.mockImplementationOnce(async () => ({
+      fileSize: undefined,
+      results: { json: '{"media":{"track":[]}}' },
+      diagnostics: {
+        fetch: {
+          headRequestDurationMs: 0,
+          fetchRequestDurationMs: 1,
+          totalDurationMs: 1,
+          isGoogleDrive: false,
+          resolvedFilename: "video.mp4",
+          resolvedFilenameSource: "url",
+          responseStatus: 206,
+          probeMethod: "range",
+          fileSizeUnknown: true,
+        },
+        analysis: {
+          wasmLoadTimeMs: 0,
+          factoryCreateTimeMs: 0,
+          formatGenerationTimes: { json: 1 },
+          totalAnalysisTimeMs: 1,
+          formatErrors: {},
+        },
+      },
+      resolvedFilename: "video.mp4",
+      resolvedFilenameSource: "url",
+      cpuBudgetRemainingMs: 24_999,
+    }))
+
+    const response = await invoke(request())
+
+    expect(await response.json()).toMatchObject({
+      success: true,
+      warnings: ["source_size_unknown"],
+      diagnostics: { fetch: { fileSizeUnknown: true } },
+    })
+  })
+
   it("prefers a bounded propagated request ID", async () => {
     const response = await invoke(
       request(input, { "x-mediapeek-request-id": "web-request-123" })
@@ -284,6 +322,36 @@ describe("analyzer Worker boundary", () => {
     expect(text).toContain('"type":"progress"')
     expect(text).toContain('"type":"success"')
     expect(text).toContain('"requestId":"test-request-id"')
+  })
+
+  it("includes an unknown source size warning in the streamed success event", async () => {
+    const defaultImplementation = executeAnalysisMock.getMockImplementation()
+
+    if (!defaultImplementation) {
+      throw new Error(
+        "The analysis executor mock must have a default implementation."
+      )
+    }
+
+    executeAnalysisMock.mockImplementationOnce(async (executionInput) => {
+      const result = await defaultImplementation(executionInput)
+
+      return {
+        ...result,
+        diagnostics: {
+          ...result.diagnostics,
+          fetch: { ...result.diagnostics.fetch, fileSizeUnknown: true },
+        },
+      }
+    })
+
+    const response = await invoke(
+      request(input, { accept: ANALYZE_PROGRESS_STREAM_CONTENT_TYPE })
+    )
+
+    const text = await response.text()
+
+    expect(text).toContain('"warnings":["source_size_unknown"]')
   })
 
   it("streams a classified terminal error event", async () => {

@@ -10,6 +10,7 @@ type AnalysisSessionTestResponse =
       readonly success: true
       readonly requestId: string
       readonly results: Record<string, string>
+      readonly warnings?: Array<string>
     }
   | {
       readonly success: false
@@ -63,6 +64,7 @@ describe("browser Analysis session", () => {
           type: "success",
           requestId: "request-1",
           results: { json: '{"media":{}}' },
+          warnings: ["source_size_unknown"],
         })
       )
     )
@@ -76,6 +78,7 @@ describe("browser Analysis session", () => {
       url: "https://example.com/video.mp4",
       requestId: "request-1",
       outputs: { json: '{"media":{}}' },
+      warnings: ["source_size_unknown"],
     })
     expect(snapshots).toContainEqual({
       phase: "analyzing",
@@ -94,6 +97,7 @@ describe("browser Analysis session", () => {
         success: true,
         requestId: "request-2",
         results: { json: '{"media":{}}' },
+        warnings: ["source_size_unknown"],
       })
     )
     const session = createBrowserAnalysisSession()
@@ -103,6 +107,7 @@ describe("browser Analysis session", () => {
     expect(analysis).toMatchObject({
       requestId: "request-2",
       outputs: { json: '{"media":{}}' },
+      warnings: ["source_size_unknown"],
     })
     expect(session.getSnapshot()).toMatchObject({ phase: "ready", analysis })
   })

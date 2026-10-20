@@ -7,6 +7,7 @@ import {
 import type { AnalysisExecutionInput } from "./analysis-execution.server"
 import {
   classifyAnalyzeError,
+  getAnalysisWarnings,
   type AnalyzeRequestState,
   type AnalyzerAnalysisExecutor,
   type AnalyzerResponder,
@@ -55,7 +56,8 @@ const closeProgressStream = (state: ProgressStreamState): void => {
 
 const writeProgressSuccess = (
   state: ProgressStreamState,
-  results: Record<string, string>
+  results: Record<string, string>,
+  warnings?: Array<string>
 ): void => {
   if (state.finished || state.signal.aborted) {
     return
@@ -73,6 +75,7 @@ const writeProgressSuccess = (
         type: "success",
         requestId: state.requestState.requestId,
         results,
+        warnings,
       })
     )
   )
@@ -139,7 +142,11 @@ const runProgressAnalysis = async (options: {
       analysisExecutor: options.analysisExecutor,
     })
 
-    writeProgressSuccess(options.state, result.results)
+    writeProgressSuccess(
+      options.state,
+      result.results,
+      getAnalysisWarnings(result.diagnostics)
+    )
   } catch (error) {
     if (options.state.finished) {
       return

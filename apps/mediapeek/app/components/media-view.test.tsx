@@ -111,6 +111,21 @@ describe("MediaView", () => {
     expect(screen.getAllByText("Opening")).toHaveLength(2)
     expect(screen.getAllByText("SDH Subtitles")).toHaveLength(2)
     expect(screen.getAllByText("MediaInfoLib 25.04")).toHaveLength(2)
+    expect(screen.queryByRole("note", { name: "Analysis warning" })).toBeNull()
+  })
+
+  it("shows a warning when the source size is unknown", () => {
+    render(
+      <MediaView
+        data={{ json: '{"media":{"track":[]}}' }}
+        url="https://example.com/movie.mkv"
+        warnings={["source_size_unknown"]}
+      />
+    )
+
+    expect(
+      screen.getByRole("note", { name: "Analysis warning" }).textContent
+    ).toContain("The source did not report its total size")
   })
 
   it("does not render an undefined channel label when track metadata omits channels", () => {

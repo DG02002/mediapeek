@@ -1,0 +1,37 @@
+import { ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN } from "@mediapeek/shared/analyze-contract"
+
+const ANALYSIS_WARNING_COPY = {
+  [ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN]:
+    "The source did not report its total size, so MediaPeek may not be able to inspect the full file.",
+} satisfies Record<string, string>
+
+export function AnalysisWarningBanner({
+  warnings,
+}: {
+  warnings?: ReadonlyArray<string>
+}) {
+  const messages =
+    warnings?.flatMap((warning, index) => {
+      const message = Object.entries(ANALYSIS_WARNING_COPY).find(
+        ([warningId]) => warningId === warning
+      )?.[1]
+
+      return message ? [{ id: `${warning}-${String(index)}`, message }] : []
+    }) ?? []
+
+  if (messages.length === 0) {
+    return null
+  }
+
+  return (
+    <div
+      role="note"
+      aria-label="Analysis warning"
+      className="border-border/60 bg-muted/30 text-muted-foreground rounded-lg border px-4 py-3 text-sm"
+    >
+      {messages.map(({ id, message }) => (
+        <p key={id}>{message}</p>
+      ))}
+    </div>
+  )
+}

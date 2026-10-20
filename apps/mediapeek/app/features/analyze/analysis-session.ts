@@ -58,6 +58,7 @@ export interface AnalysisResult {
   readonly url: string
   readonly requestId?: string
   readonly outputs: Readonly<AnalysisOutputResults>
+  readonly warnings?: ReadonlyArray<string>
 }
 
 export interface AnalysisProgress {
@@ -169,7 +170,11 @@ const requestInitialAnalysis = async (input: {
       )
     }
 
-    return { requestId: terminal.requestId, outputs: terminal.results }
+    return {
+      requestId: terminal.requestId,
+      outputs: terminal.results,
+      warnings: terminal.warnings,
+    }
   }
 
   const data = await readAnalyzeResponse(response)
@@ -191,12 +196,14 @@ const requestInitialAnalysis = async (input: {
   return {
     requestId: data.requestId,
     outputs: data.results,
+    warnings: data.warnings,
   }
 }
 
 interface AnalysisOutcome {
   readonly requestId: string
   readonly outputs: AnalysisOutputResults
+  readonly warnings?: ReadonlyArray<string>
 }
 
 interface AnalysisRetryInput {
@@ -388,6 +395,7 @@ export const createBrowserAnalysisSession = (
         url,
         requestId: outcome.requestId,
         outputs: outcome.outputs,
+        warnings: outcome.warnings,
       }
 
       if (generation === analysisGeneration) {

@@ -1,6 +1,7 @@
-import type {
-  AnalyzeErrorCode,
-  AnalyzerRpcSuccessResponse,
+import {
+  ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN,
+  type AnalyzeErrorCode,
+  type AnalyzerRpcSuccessResponse,
 } from "@mediapeek/shared/analyze-contract"
 import type { RequestLogSeverity } from "@mediapeek/shared/request-log-state"
 import { Match, type Schema } from "effect"
@@ -19,6 +20,13 @@ import type {
 export interface AnalyzerAnalysisExecutor {
   (input: AnalysisExecutionInput): Promise<AnalysisExecutionResult>
 }
+
+export const getAnalysisWarnings = (
+  diagnostics: AnalysisExecutionResult["diagnostics"]
+) =>
+  diagnostics.fetch.fileSizeUnknown
+    ? [ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN]
+    : undefined
 
 interface AnalyzerRpcFailureResponse {
   success: false
@@ -220,6 +228,7 @@ export const createBufferedSuccessResponse = async (options: {
     requestId: options.requestState.requestId,
     fileSize: result.fileSize,
     results: result.results,
+    warnings: getAnalysisWarnings(result.diagnostics),
     diagnostics: result.diagnostics,
   } satisfies AnalyzerRpcSuccessResponse
 
