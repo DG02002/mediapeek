@@ -1,6 +1,8 @@
 import { encodeAnalyzeStreamEvent } from "@mediapeek/shared/analyze-progress"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { ANALYSIS_REQUEST_TIMEOUT_MS } from "~/constants"
+
 import { createBrowserAnalysisSession } from "./analysis-session"
 
 type AnalysisSessionTestResponse =
@@ -177,6 +179,134 @@ describe("browser Analysis session", () => {
     expect(fetchMock.mock.calls[1]?.[1]?.body).toBe(
       fetchMock.mock.calls[0]?.[1]?.body
     )
+  })
+
+  it("does not time out while waiting for a Turnstile token", async () => {
+    vi.useFakeTimers()
+
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            success: false,
+            requestId: "request-blocked",
+            error: {
+              code: "AUTH_REQUIRED",
+              message: "Security verification is required.",
+              retryable: false,
+            },
+          },
+          403
+        )
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          success: true,
+          requestId: "request-verified",
+          results: { json: "{}" },
+        })
+      )
+
+    let resolveToken: ((token: string | null) => void) | undefined
+    let signalTokenRequested: (() => void) | undefined
+
+    const tokenRequested = new Promise<void>((resolve) => {
+      signalTokenRequested = resolve
+    })
+
+    const requestTurnstileToken = vi.fn(
+      () =>
+        new Promise<string | null>((resolve) => {
+          resolveToken = resolve
+          signalTokenRequested?.()
+        })
+    )
+
+    const session = createBrowserAnalysisSession()
+
+    const pending = session.analyze(
+      "https://example.com/video.mp4",
+      undefined,
+      requestTurnstileToken
+    )
+
+    await tokenRequested
+    await vi.advanceTimersByTimeAsync(ANALYSIS_REQUEST_TIMEOUT_MS + 1)
+    resolveToken?.("fresh-token")
+
+    await expect(pending).resolves.toMatchObject({
+      requestId: "request-verified",
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("keeps a progress stream alive when events arrive within the timeout", async () => {
+    vi.useFakeTimers()
+    const encoder = new TextEncoder()
+    let progressIndex = 0
+
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            encoder.encode(
+              encodeAnalyzeStreamEvent({
+                type: "progress",
+                requestId: "request-live",
+                stage: "analysis_started",
+                title: "Running Media Analysis",
+                message: "Started.",
+              })
+            )
+          )
+        },
+        pull(controller) {
+          return new Promise<void>((resolve) => {
+            setTimeout(() => {
+              progressIndex += 1
+
+              if (progressIndex < 2) {
+                controller.enqueue(
+                  encoder.encode(
+                    encodeAnalyzeStreamEvent({
+                      type: "progress",
+                      requestId: "request-live",
+                      stage: "analysis_started",
+                      title: "Running Media Analysis",
+                      message: `Progress ${String(progressIndex)}.`,
+                    })
+                  )
+                )
+              } else {
+                controller.enqueue(
+                  encoder.encode(
+                    encodeAnalyzeStreamEvent({
+                      type: "success",
+                      requestId: "request-live",
+                      results: { json: "{}" },
+                    })
+                  )
+                )
+                controller.close()
+              }
+
+              resolve()
+            }, ANALYSIS_REQUEST_TIMEOUT_MS - 1_000)
+          })
+        },
+      }),
+      { headers: { "Content-Type": "application/x-ndjson" } }
+    )
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(response)
+    const session = createBrowserAnalysisSession()
+    const pending = session.analyze("https://example.com/video.mp4")
+
+    await vi.advanceTimersByTimeAsync(ANALYSIS_REQUEST_TIMEOUT_MS - 1_000)
+    await vi.advanceTimersByTimeAsync(ANALYSIS_REQUEST_TIMEOUT_MS - 1_000)
+
+    await expect(pending).resolves.toMatchObject({ requestId: "request-live" })
   })
 
   it("fails closed when the JSON fallback is malformed", async () => {

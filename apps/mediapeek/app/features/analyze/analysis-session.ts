@@ -219,17 +219,33 @@ const isTurnstileChallenge = (error: unknown): error is AnalysisRequestError =>
   error.status === 403 &&
   (error.code === "AUTH_REQUIRED" || error.code === "AUTH_INVALID")
 
+const createAnalysisRequestTimeout = (
+  controller: AbortController,
+  onController: (controller: AbortController) => void
+) => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+  onController(controller)
+
+  const arm = () => {
+    clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => {
+      controller.abort(
+        new DOMException("Analysis request timed out.", "TimeoutError")
+      )
+    }, ANALYSIS_REQUEST_TIMEOUT_MS)
+  }
+
+  arm()
+
+  return { arm, clear: () => clearTimeout(timeoutId) }
+}
+
 const requestAnalysisWithRetries = async (
   input: AnalysisRetryInput
 ): Promise<AnalysisOutcome> => {
   const controller = new AbortController()
-  input.onController(controller)
-
-  const timeoutId = setTimeout(() => {
-    controller.abort(
-      new DOMException("Analysis request timed out.", "TimeoutError")
-    )
-  }, ANALYSIS_REQUEST_TIMEOUT_MS)
+  const timeout = createAnalysisRequestTimeout(controller, input.onController)
 
   try {
     return await requestInitialAnalysis({
@@ -239,7 +255,10 @@ const requestAnalysisWithRetries = async (
       useProgressStream: input.useProgressStream,
       turnstileToken: input.turnstileToken,
       controller,
-      onProgress: input.onProgress,
+      onProgress: (progress) => {
+        timeout.arm()
+        input.onProgress(progress)
+      },
     })
   } catch (error) {
     if (
@@ -247,6 +266,7 @@ const requestAnalysisWithRetries = async (
       input.requestTurnstileToken &&
       !input.turnstileRetryAttempted
     ) {
+      timeout.clear()
       const turnstileToken = await input.requestTurnstileToken()
 
       if (!turnstileToken) {
@@ -286,7 +306,7 @@ const requestAnalysisWithRetries = async (
       attempt: input.attempt + 1,
     })
   } finally {
-    clearTimeout(timeoutId)
+    timeout.clear()
     input.onAttemptFinished(controller)
   }
 }
