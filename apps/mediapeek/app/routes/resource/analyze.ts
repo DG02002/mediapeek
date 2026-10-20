@@ -18,6 +18,7 @@ import { requestStorage } from "~/lib/logger.server"
 import {
   AnalysisGateway,
   AnalysisGatewayError,
+  type AnalysisStreamOutcome,
   type AnalysisGatewayRequestBase,
 } from "~/services/analysis-gateway.server"
 import {
@@ -54,6 +55,9 @@ interface AnalyzeRequestState {
   readonly requestLog: AnalyzeExecution["state"]
   compatibilityHeaders?: HeadersInit
   requestError?: Error
+  streamSettled: boolean
+  deferFinalize: boolean
+  onStreamSettled: (outcome: AnalysisStreamOutcome) => void
 }
 
 const wantsProgressStream = (request: Request) =>
@@ -145,6 +149,7 @@ const createAnalysisGatewayRequest = (
           ? { "Set-Cookie": input.grantCookieHeader }
           : undefined
       ),
+      onStreamSettled: state.onStreamSettled,
     }
   }
 
@@ -187,6 +192,10 @@ const callAnalyzer = async (
         return yield* analysisGateway.analyze(gatewayRequest)
       }).pipe(Effect.provideService(RequestContext, requestContext))
     )
+
+    if (response.mode === "stream" && !state.streamSettled) {
+      state.deferFinalize = true
+    }
 
     return handleAnalysisGatewayResponse(
       state,
@@ -271,6 +280,21 @@ export const handleAnalyzeRequest = async (args: AnalyzeRouteArgs) => {
     compatibilityHeaders: getCompatibilityHeaders(
       args.request.method !== "POST"
     ),
+    streamSettled: false,
+    deferFinalize: false,
+    onStreamSettled: (outcome) => {
+      state.streamSettled = true
+      state.requestLog.context.stream_outcome = outcome
+
+      if (outcome === "failed") {
+        state.requestLog.setStatus(502)
+        state.requestLog.setSeverity("WARNING")
+      } else if (outcome === "cancelled") {
+        state.requestLog.setSeverity("INFO")
+      }
+
+      finalizeAnalyzeRequest(execution, state.requestError)
+    },
   }
 
   return requestStorage.run(execution.logContext, async () => {
@@ -284,7 +308,9 @@ export const handleAnalyzeRequest = async (args: AnalyzeRouteArgs) => {
 
       return handleUnexpectedError(state, error)
     } finally {
-      finalizeAnalyzeRequest(execution, state.requestError)
+      if (!state.deferFinalize) {
+        finalizeAnalyzeRequest(execution, state.requestError)
+      }
     }
   })
 }

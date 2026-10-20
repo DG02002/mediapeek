@@ -80,6 +80,8 @@ const runAnalyze = async (
 
 describe("AnalysisGateway", () => {
   it("passes through streaming responses without consuming the body", async () => {
+    const onStreamSettled = vi.fn()
+
     const upstreamResponse = new Response("event: progress\ndata: {}\n\n", {
       headers: { "content-type": ANALYZE_PROGRESS_STREAM_CONTENT_TYPE },
     })
@@ -94,6 +96,7 @@ describe("AnalysisGateway", () => {
       url: "https://example.com/video.mp4",
       format: ["json"],
       mode: "stream",
+      onStreamSettled,
       responseHeaders: {
         Warning: '299 - "legacy request"',
         "Set-Cookie": "grant=token; Path=/",
@@ -109,14 +112,15 @@ describe("AnalysisGateway", () => {
     expect(response.status).toBe(200)
     expect(response.contentType).toBe(ANALYZE_PROGRESS_STREAM_CONTENT_TYPE)
     expect(readBody).not.toHaveBeenCalled()
-    expect(response.response.headers.get("warning")).toBe(
-      '299 - "legacy request"'
-    )
-    expect(response.response.headers.get("set-cookie")).toBe(
-      "grant=token; Path=/"
-    )
-    expect(response.response.headers.get("cache-control")).toBe("no-store")
+    expect(
+      Object.fromEntries(response.response.headers.entries())
+    ).toMatchObject({
+      warning: '299 - "legacy request"',
+      "set-cookie": "grant=token; Path=/",
+      "cache-control": "no-store",
+    })
     expect(await response.response.text()).toBe("event: progress\ndata: {}\n\n")
+    expect(onStreamSettled).toHaveBeenCalledWith("completed")
     expect(fetch).toHaveBeenCalledOnce()
     const streamRequestHeaders = new Headers(fetch.mock.calls[0]?.[1]?.headers)
     expect(streamRequestHeaders.get("accept")).toBe(

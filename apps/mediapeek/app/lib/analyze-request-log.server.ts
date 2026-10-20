@@ -61,6 +61,16 @@ export const finalizeAnalyzeRequest = (
   const { state, logContext, requestLoggerHandle, startTime } = execution
 
   state.finalize(({ status, severity, context }) => {
+    let outcome: "success" | "error" | "cancelled"
+
+    if (context.stream_outcome === "cancelled") {
+      outcome = "cancelled"
+    } else if (status < 400) {
+      outcome = "success"
+    } else {
+      outcome = "error"
+    }
+
     if (logContext.httpRequest) {
       logContext.httpRequest.status = status
       logContext.httpRequest.latency =
@@ -69,7 +79,7 @@ export const finalizeAnalyzeRequest = (
 
     requestLoggerHandle.logger.set({
       ...context,
-      outcome: status < 400 ? "success" : "error",
+      outcome,
       severity: severity.toLowerCase(),
       durationMs: performance.now() - startTime,
     })

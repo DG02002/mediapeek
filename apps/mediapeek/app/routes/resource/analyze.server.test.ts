@@ -7,6 +7,7 @@ import {
   MAX_TURNSTILE_RESPONSE_BYTES,
   TURNSTILE_VERIFY_TIMEOUT_MS,
 } from "~/constants"
+import * as requestLogger from "~/lib/request-logger.server"
 import {
   createTurnstileGrantToken,
   serializeTurnstileGrantCookie,
@@ -16,6 +17,16 @@ import { handleAnalyzeRequest, type AnalyzeRouteArgs } from "./analyze"
 
 const analyzeUrl = "https://example.com/video.mp4"
 const grantSecret = "test-grant-secret"
+
+const createDeferred = () => {
+  let resolveDeferred: (() => void) | undefined
+
+  const promise = new Promise<void>((resolve) => {
+    resolveDeferred = resolve
+  })
+
+  return { promise, resolve: () => resolveDeferred?.() }
+}
 
 const createContext = (overrides: Partial<Env> = {}) => {
   const workerEnv = { ...env, ...overrides } satisfies Env
@@ -100,6 +111,83 @@ describe("analyze route Turnstile flag", () => {
     )
     expect(response.headers.get("cache-control")).toBe("no-store")
     expect(await response.text()).toBe('{"type":"started"}\n')
+  })
+
+  it("finalizes the request log after the stream body completes", async () => {
+    const bodyGate = createDeferred()
+    const finishLogger = vi.spyOn(requestLogger, "finishFallbackRequestLogger")
+
+    const analyzerResponse = new Response(
+      new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          await bodyGate.promise
+          controller.enqueue(new TextEncoder().encode('{"type":"started"}\n'))
+          controller.close()
+        },
+      }),
+      {
+        headers: { "content-type": ANALYZE_PROGRESS_STREAM_CONTENT_TYPE },
+      }
+    )
+
+    const context = createContext({
+      ANALYZER: { ...env.ANALYZER, fetch: async () => analyzerResponse },
+    })
+
+    const response = await invokePost(
+      post({ accept: ANALYZE_PROGRESS_STREAM_CONTENT_TYPE }),
+      context
+    )
+
+    expect(finishLogger).not.toHaveBeenCalled()
+    bodyGate.resolve()
+    expect(await response.text()).toBe('{"type":"started"}\n')
+    expect(finishLogger).toHaveBeenCalledOnce()
+
+    const [handle] = finishLogger.mock.calls[0] ?? []
+    expect(handle?.logger.getContext()).toMatchObject({
+      stream_outcome: "completed",
+      outcome: "success",
+    })
+    expect(Number(handle?.logger.getContext().durationMs)).toBeGreaterThan(0)
+  })
+
+  it("logs a cancelled stream as an informational cancellation", async () => {
+    const bodyGate = createDeferred()
+    const finishLogger = vi.spyOn(requestLogger, "finishFallbackRequestLogger")
+
+    const analyzerResponse = new Response(
+      new ReadableStream<Uint8Array>({
+        async pull() {
+          await bodyGate.promise
+        },
+        cancel() {
+          bodyGate.resolve()
+        },
+      }),
+      {
+        headers: { "content-type": ANALYZE_PROGRESS_STREAM_CONTENT_TYPE },
+      }
+    )
+
+    const context = createContext({
+      ANALYZER: { ...env.ANALYZER, fetch: async () => analyzerResponse },
+    })
+
+    const response = await invokePost(
+      post({ accept: ANALYZE_PROGRESS_STREAM_CONTENT_TYPE }),
+      context
+    )
+
+    await response.body?.cancel()
+
+    expect(finishLogger).toHaveBeenCalledOnce()
+    const [handle] = finishLogger.mock.calls[0] ?? []
+    expect(handle?.logger.getContext()).toMatchObject({
+      stream_outcome: "cancelled",
+      outcome: "cancelled",
+      severity: "info",
+    })
   })
 
   it("requires a token or valid grant when Turnstile is enabled", async () => {

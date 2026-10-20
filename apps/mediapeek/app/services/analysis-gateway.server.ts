@@ -29,6 +29,8 @@ const ANALYZER_UNAVAILABLE_MESSAGE =
 
 const ANALYZER_RESPONSE_PREVIEW_MAX_CHARS = 240
 
+export type AnalysisStreamOutcome = "completed" | "failed" | "cancelled"
+
 export interface AnalysisGatewayRequestBase {
   readonly url: string
   readonly format: ReadonlyArray<AnalysisOutputId>
@@ -40,6 +42,7 @@ export type AnalysisGatewayRequest =
   | (AnalysisGatewayRequestBase & {
       readonly mode: "stream"
       readonly responseHeaders?: HeadersInit
+      readonly onStreamSettled: (outcome: AnalysisStreamOutcome) => void
     })
 
 interface AnalysisGatewayJsonResponse {
@@ -156,9 +159,77 @@ const makeRequestHeaders = (
   return headers
 }
 
+const wrapStreamForSettlement = (
+  body: ReadableStream<Uint8Array> | null,
+  onSettled: (outcome: AnalysisStreamOutcome) => void
+): ReadableStream<Uint8Array> | null => {
+  if (!body) {
+    onSettled("completed")
+
+    return null
+  }
+
+  const reader = body.getReader()
+  let settled = false
+
+  const settle = (outcome: AnalysisStreamOutcome) => {
+    if (settled) {
+      return
+    }
+
+    settled = true
+    onSettled(outcome)
+  }
+
+  const pump = (
+    controller: ReadableStreamDefaultController<Uint8Array>
+  ): Promise<void> =>
+    reader.read().then(
+      ({ done, value }) => {
+        if (settled) {
+          return
+        }
+
+        if (done) {
+          controller.close()
+          settle("completed")
+
+          return
+        }
+
+        try {
+          controller.enqueue(value)
+        } catch (error) {
+          controller.error(error)
+          settle("failed")
+
+          return
+        }
+
+        void pump(controller)
+      },
+      (error) => {
+        if (!settled) {
+          controller.error(error)
+          settle("failed")
+        }
+      }
+    )
+
+  return new ReadableStream<Uint8Array>({
+    start: pump,
+    cancel(reason) {
+      settle("cancelled")
+
+      return reader.cancel(reason)
+    },
+  })
+}
+
 const makeStreamResponse = (
   response: Response,
-  responseHeaders?: HeadersInit
+  responseHeaders: HeadersInit | undefined,
+  onStreamSettled: (outcome: AnalysisStreamOutcome) => void
 ) => {
   const headers = new Headers(response.headers)
 
@@ -170,7 +241,7 @@ const makeStreamResponse = (
 
   headers.set("cache-control", "no-store")
 
-  return new Response(response.body, {
+  return new Response(wrapStreamForSettlement(response.body, onStreamSettled), {
     status: response.status,
     statusText: response.statusText,
     headers,
@@ -240,7 +311,11 @@ export class AnalysisGateway extends Context.Service<
               mode: "stream",
               status: response.status,
               contentType,
-              response: makeStreamResponse(response, input.responseHeaders),
+              response: makeStreamResponse(
+                response,
+                input.responseHeaders,
+                input.onStreamSettled
+              ),
             } satisfies AnalysisGatewayStreamResponse
           }
 
