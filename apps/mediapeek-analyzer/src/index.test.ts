@@ -72,6 +72,33 @@ function invoke(req: Request, env: Record<string, string> = {}) {
   return app.fetch(req, { APP_ENV: "test", ...env })
 }
 
+const addMediaInfoFailure = (failure: "format" | "object") => {
+  const defaultImplementation = executeAnalysisMock.getMockImplementation()
+
+  if (!defaultImplementation) {
+    throw new Error(
+      "The analysis executor mock must have a default implementation."
+    )
+  }
+
+  executeAnalysisMock.mockImplementationOnce(async (executionInput) => {
+    const result = await defaultImplementation(executionInput)
+
+    if (failure === "format") {
+      result.results.xml = "Error generating XML view."
+      result.diagnostics.analysis.formatErrors = {
+        xml: "MediaInfo did not generate the requested output.",
+      }
+    } else {
+      result.results.json = "{}"
+      result.diagnostics.analysis.objectProcessError =
+        "The MediaInfo object was invalid."
+    }
+
+    return result
+  })
+}
+
 describe("analyzer Worker boundary", () => {
   beforeEach(() => {
     loggedEvents.length = 0
@@ -226,6 +253,56 @@ describe("analyzer Worker boundary", () => {
       warnings: ["archive_entry_truncated"],
       diagnostics: { fetch: { archiveEntryTruncated: true } },
     })
+  })
+
+  it("includes a format generation warning beside its output placeholder", async () => {
+    addMediaInfoFailure("format")
+
+    const response = await invoke(request({ ...input, format: ["xml"] }))
+
+    expect(await response.json()).toMatchObject({
+      success: true,
+      warnings: ["format_generation_failed"],
+      results: { xml: "Error generating XML view." },
+      diagnostics: {
+        analysis: {
+          formatErrors: {
+            xml: "MediaInfo did not generate the requested output.",
+          },
+        },
+      },
+    })
+  })
+
+  it("includes a format generation warning for object processing failures", async () => {
+    addMediaInfoFailure("object")
+
+    const response = await invoke(request())
+
+    expect(await response.json()).toMatchObject({
+      success: true,
+      warnings: ["format_generation_failed"],
+      results: { json: "{}" },
+      diagnostics: {
+        analysis: { objectProcessError: "The MediaInfo object was invalid." },
+      },
+    })
+  })
+
+  it("includes format generation warnings in streamed successes", async () => {
+    addMediaInfoFailure("format")
+
+    const response = await invoke(
+      request(
+        { ...input, format: ["xml"] },
+        { accept: ANALYZE_PROGRESS_STREAM_CONTENT_TYPE }
+      )
+    )
+
+    const text = await response.text()
+
+    expect(text).toContain('"warnings":["format_generation_failed"]')
+    expect(text).toContain('"xml":"Error generating XML view."')
   })
 
   it("prefers a bounded propagated request ID", async () => {

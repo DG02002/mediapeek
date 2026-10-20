@@ -1,5 +1,6 @@
 import {
   ANALYZE_WARNING_ARCHIVE_ENTRY_TRUNCATED,
+  ANALYZE_WARNING_FORMAT_GENERATION_FAILED,
   ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN,
   type AnalyzeErrorCode,
   type AnalyzerRpcSuccessResponse,
@@ -33,6 +34,13 @@ export const getAnalysisWarnings = (
 
   if (diagnostics.fetch.archiveEntryTruncated) {
     warnings.push(ANALYZE_WARNING_ARCHIVE_ENTRY_TRUNCATED)
+  }
+
+  if (
+    Object.keys(diagnostics.analysis.formatErrors).length > 0 ||
+    diagnostics.analysis.objectProcessError !== undefined
+  ) {
+    warnings.push(ANALYZE_WARNING_FORMAT_GENERATION_FAILED)
   }
 
   return warnings.length > 0 ? warnings : undefined

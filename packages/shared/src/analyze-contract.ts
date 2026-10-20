@@ -8,6 +8,9 @@ import {
 export const ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN = "source_size_unknown"
 export const ANALYZE_WARNING_ARCHIVE_ENTRY_TRUNCATED = "archive_entry_truncated"
 
+export const ANALYZE_WARNING_FORMAT_GENERATION_FAILED =
+  "format_generation_failed"
+
 export const AnalyzeErrorCodeSchema = Schema.Literals([
   "AUTH_REQUIRED",
   "AUTH_INVALID",

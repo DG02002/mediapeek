@@ -1,5 +1,6 @@
 import {
   ANALYZE_WARNING_ARCHIVE_ENTRY_TRUNCATED,
+  ANALYZE_WARNING_FORMAT_GENERATION_FAILED,
   ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN,
 } from "@mediapeek/shared/analyze-contract"
 
@@ -8,6 +9,8 @@ const ANALYSIS_WARNING_COPY = {
     "The source did not report its total size, so MediaPeek may not be able to inspect the full file.",
   [ANALYZE_WARNING_ARCHIVE_ENTRY_TRUNCATED]:
     "This archive entry was larger than the portion fetched, so analysis covered only its first portion.",
+  [ANALYZE_WARNING_FORMAT_GENERATION_FAILED]:
+    "One or more requested output formats failed to generate. Their displayed error placeholders are not metadata.",
 } satisfies Record<string, string>
 
 export function AnalysisWarningBanner({

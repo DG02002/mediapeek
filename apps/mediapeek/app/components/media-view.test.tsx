@@ -142,6 +142,23 @@ describe("MediaView", () => {
     ).toContain("analysis covered only its first portion")
   })
 
+  it("shows a warning when an output format failed to generate", () => {
+    render(
+      <MediaView
+        data={{
+          json: '{"media":{"track":[]}}',
+          xml: "Error generating XML view.",
+        }}
+        url="https://example.com/movie.mkv"
+        warnings={["format_generation_failed"]}
+      />
+    )
+
+    expect(
+      screen.getByRole("note", { name: "Analysis warning" }).textContent
+    ).toContain("Their displayed error placeholders are not metadata")
+  })
+
   it("does not render an undefined channel label when track metadata omits channels", () => {
     render(
       <MediaView
