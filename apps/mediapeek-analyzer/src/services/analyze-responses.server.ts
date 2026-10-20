@@ -2,6 +2,7 @@ import type {
   AnalyzeErrorCode,
   AnalyzerRpcSuccessResponse,
 } from "@mediapeek/shared/analyze-contract"
+import type { RequestLogSeverity } from "@mediapeek/shared/request-log-state"
 import { Match, type Schema } from "effect"
 
 import { unknownToError } from "../lib/error"
@@ -48,8 +49,6 @@ export type SetLogContextValue = (
   cause: unknown
 ) => void
 
-type RequestSeverity = "INFO" | "WARNING" | "ERROR"
-
 type AnalyzeStatus = 200 | 400 | 401 | 403 | 429 | 499 | 500 | 502 | 503
 
 interface ClassifiedAnalyzeError {
@@ -57,7 +56,7 @@ interface ClassifiedAnalyzeError {
   code: AnalyzeErrorCode
   message: string
   retryable: boolean
-  severity: RequestSeverity
+  severity: RequestLogSeverity
   errorClass: string
 }
 
@@ -70,11 +69,11 @@ export interface AnalyzeLogActions {
 export interface AnalyzeRequestState {
   readonly requestId: string
   readonly status: number
-  readonly severity: RequestSeverity
+  readonly severity: RequestLogSeverity
   readonly context: AnalyzeLogContext
   annotate: (values: Partial<AnalyzeLogContext>) => void
   setStatus: (status: number) => void
-  setSeverity: (severity: RequestSeverity) => void
+  setSeverity: (severity: RequestLogSeverity) => void
   log: AnalyzeLogActions
   finalize: () => void
 }
