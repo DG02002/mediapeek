@@ -30,6 +30,19 @@ Protect `main`, require pull requests, and require the successful
 the stable `v*.*.*` release tags to maintainers. These GitHub settings are
 external to this repository and must be configured in GitHub.
 
+## Plan requirements
+
+Production requires the Workers Paid plan ($5/month) because the analyzer sets
+`limits.cpu_ms = 30000`, above Free's 10 ms CPU limit, and MediaInfo WASM
+analyses routinely need that headroom.
+The Rate Limiting binding works on both plans and counts against ordinary
+Workers request limits, so namespace setup does not depend on plan choice.
+Until December 1, 2026, Workers Logs include 200,000 events per day with
+3-day retention on Free and 20 million events per month with 7-day retention
+on Paid; Cloudflare moves to new Observability pricing on that date.
+The 10% `LOG_SAMPLE_RATE` keeps free-tier testing under its event allowance,
+while error and warning events are always retained.
+
 ## Stable release flow
 
 1. Merge a reviewed pull request into `main` after verification passes.
