@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { UpstreamFetchError } from "../lib/error-utils"
+import { UpstreamFetchError, ValidationFailureError } from "../lib/error-utils"
 import { fetchMediaChunk } from "./media-fetch.server"
 
 const makeResponse = (
@@ -87,6 +87,7 @@ describe("fetchMediaChunk", () => {
           status: 200,
           headers: {
             "content-type": "text/plain;charset=UTF-8",
+            "content-length": "1256",
           },
         })
       )
@@ -136,6 +137,33 @@ describe("fetchMediaChunk", () => {
     expect(result.fileSize).toBe(4)
     expect(result.filename).toBe("from-get.mp4")
     expect(result.filenameSource).toBe("content-disposition-get")
+  })
+
+  it("uses a valid range for an empty file and classifies its 416 response", async () => {
+    let rangeHeader: string | null = null
+
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        makeResponse(null, {
+          status: 200,
+          headers: {
+            "content-type": "application/octet-stream",
+            "content-length": "0",
+          },
+        })
+      )
+      .mockImplementationOnce(async (_input, init) => {
+        rangeHeader = new Headers(init?.headers).get("range")
+
+        return makeResponse(null, { status: 416 })
+      })
+
+    await expect(
+      fetchMediaChunk({ initialUrl: "https://example.com/empty.mp4" })
+    ).rejects.toBeInstanceOf(ValidationFailureError)
+    expect(rangeHeader).toMatch(/^bytes=0-\d+$/)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it("uses verified inner archive size for stored zip entries", async () => {

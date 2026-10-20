@@ -443,6 +443,7 @@ const createInitialResponseRead = async (options: {
   strategy: InitialResponseRead["strategy"]
   reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
+  fileSize?: number
   waitingMessage: string
   receivedMessage: string
 }): Promise<InitialResponseRead> => {
@@ -453,6 +454,10 @@ const createInitialResponseRead = async (options: {
     redirect: "follow",
     signal: readSignal,
   })
+
+  if (response.status === 416 && options.fileSize === 0) {
+    throw new ValidationFailureError("The media source is empty.")
+  }
 
   assertByteFetchStatus(response)
 
@@ -502,6 +507,7 @@ const fetchRangedInitialBytes = async (
   options: {
     url: string
     fetchEnd: number
+    fileSize?: number
     reportProgress?: AnalyzeProgressReporter
     signal?: AbortSignal
   },
@@ -521,6 +527,7 @@ const fetchRangedInitialBytes = async (
       strategy: "range",
       reportProgress: options.reportProgress,
       signal: options.signal,
+      fileSize: options.fileSize,
       waitingMessage:
         "The source accepted the request but has not started sending media bytes yet.",
       receivedMessage:
@@ -547,6 +554,7 @@ const fetchNoRangeFallback = async (options: {
   url: string
   timeoutRetries: number
   didRangeTimeout: boolean
+  fileSize?: number
   reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
 }): Promise<InitialResponseRead> => {
@@ -564,6 +572,7 @@ const fetchNoRangeFallback = async (options: {
       strategy: "no_range_fallback",
       reportProgress: options.reportProgress,
       signal: options.signal,
+      fileSize: options.fileSize,
       waitingMessage:
         "Waiting for the source to start sending bytes for the fallback request.",
       receivedMessage: "Initial media bytes arrived from the fallback request.",
@@ -588,6 +597,7 @@ const fetchNoRangeFallback = async (options: {
 const fetchInitialResponse = async (options: {
   url: string
   fetchEnd: number
+  fileSize?: number
   diagnostics: FetchDiagnostics
   reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
@@ -604,6 +614,7 @@ const fetchInitialResponse = async (options: {
   const rangedResult = await fetchRangedInitialBytes({
     url: options.url,
     fetchEnd: options.fetchEnd,
+    fileSize: options.fileSize,
     reportProgress: options.reportProgress,
     signal: options.signal,
   })
@@ -616,6 +627,7 @@ const fetchInitialResponse = async (options: {
       url: options.url,
       timeoutRetries: rangedResult.timeoutRetries,
       didRangeTimeout,
+      fileSize: options.fileSize,
       reportProgress: options.reportProgress,
       signal: options.signal,
     }))
@@ -658,7 +670,7 @@ const resolveInitialMetadata = (options: {
   filenameSource: FilenameSource
   diagnostics: FetchDiagnostics
 }) => {
-  const fileSize = options.fileSize || resolveResponseFileSize(options.response)
+  const fileSize = resolveResponseFileSize(options.response) ?? options.fileSize
 
   const getFilename =
     options.filenameSource === "url"
@@ -717,12 +729,13 @@ const fetchInitialSegment = async (options: {
 }) => {
   const fetchEnd =
     options.probe.fileSize !== undefined
-      ? Math.min(options.chunkSize - 1, options.probe.fileSize - 1)
+      ? Math.max(0, Math.min(options.chunkSize - 1, options.probe.fileSize - 1))
       : options.chunkSize - 1
 
   const initialRead = await fetchInitialResponse({
     url: options.probe.url,
     fetchEnd,
+    fileSize: options.probe.fileSize,
     diagnostics: options.diagnostics,
     reportProgress: options.reportProgress,
     signal: options.signal,
