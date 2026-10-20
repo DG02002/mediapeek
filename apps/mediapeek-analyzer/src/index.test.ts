@@ -2,7 +2,7 @@ import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-
 import { createEvlogLoggerConfig } from "@mediapeek/shared/evlog"
 import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import type { AnalyzeInput } from "@mediapeek/shared/schemas"
-import type { WideEvent } from "evlog"
+import type { LoggerConfig, WideEvent } from "evlog"
 import { initWorkersLogger } from "evlog/workers"
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -22,13 +22,40 @@ import {
 const executeAnalysisMock = vi.fn<AnalyzerAnalysisExecutor>()
 const app = createAnalyzerApp({ executeAnalysis: executeAnalysisMock })
 const loggedEvents: WideEvent[] = []
+let loggedEventPromise: Promise<void> = Promise.resolve()
+let resolveLoggedEvent = () => {}
+
+const initializeTestLogger = (
+  sampling: LoggerConfig["sampling"] = {
+    rates: { info: 100, warn: 100, error: 100 },
+  }
+) => {
+  loggedEventPromise = new Promise<void>((resolve) => {
+    resolveLoggedEvent = resolve
+  })
+
+  initWorkersLogger({
+    env: { service: "mediapeek-analyzer-test" },
+    sampling,
+    silent: true,
+    redact: false,
+    drain: ({ event }) => {
+      loggedEvents.push(event)
+      resolveLoggedEvent()
+    },
+  })
+}
 
 const input: AnalyzeInput = {
   url: "https://example.com/video.mp4",
   format: ["json"],
 }
 
-const request = (body: AnalyzeInput = input, headers: HeadersInit = {}) => {
+const request = (
+  body: AnalyzeInput = input,
+  headers: HeadersInit = {},
+  signal?: AbortSignal
+) => {
   const requestHeaders = new Headers(headers)
   requestHeaders.set("content-type", "application/json")
   requestHeaders.set("cf-ray", "test-request-id")
@@ -37,6 +64,7 @@ const request = (body: AnalyzeInput = input, headers: HeadersInit = {}) => {
     method: "POST",
     headers: requestHeaders,
     body: JSON.stringify(body),
+    signal,
   })
 }
 
@@ -47,15 +75,7 @@ function invoke(req: Request, env: Record<string, string> = {}) {
 describe("analyzer Worker boundary", () => {
   beforeEach(() => {
     loggedEvents.length = 0
-    initWorkersLogger({
-      env: { service: "mediapeek-analyzer-test" },
-      sampling: { rates: { info: 100, warn: 100, error: 100 } },
-      silent: true,
-      redact: false,
-      drain: ({ event }) => {
-        loggedEvents.push(event)
-      },
-    })
+    initializeTestLogger()
     vi.clearAllMocks()
     executeAnalysisMock.mockImplementation(async ({ reportProgress }) => {
       await reportProgress?.(
@@ -355,8 +375,9 @@ describe("analyzer Worker boundary", () => {
   })
 
   it("streams a classified terminal error event", async () => {
+    initializeTestLogger({ rates: { info: 0 }, keep: [{ status: 400 }] })
     executeAnalysisMock.mockRejectedValue(
-      new ValidationFailureError("media file not found")
+      new UpstreamFetchError("Unable to fetch source.")
     )
 
     const response = await invoke(
@@ -366,7 +387,75 @@ describe("analyzer Worker boundary", () => {
     const text = await response.text()
     expect(response.status).toBe(200)
     expect(text).toContain('"type":"error"')
-    expect(text).toContain('"code":"VALIDATION_FAILED"')
-    expect(text).toContain('"retryable":false')
+    expect(text).toContain('"code":"UPSTREAM_FETCH_FAILED"')
+    expect(text).toContain('"retryable":true')
+    await loggedEventPromise
+    expect(loggedEvents).toHaveLength(1)
+    expect(loggedEvents[0]).toMatchObject({
+      status: 200,
+      analysis_status: 502,
+      errorClass: "UPSTREAM_FETCH_FAILED",
+      level: "error",
+    })
+  })
+
+  it("classifies and retains a streamed client abort after progress", async () => {
+    initializeTestLogger({ rates: { info: 0 }, keep: [{ status: 400 }] })
+
+    const abortController = new AbortController()
+    executeAnalysisMock.mockImplementationOnce(
+      async ({ signal, reportProgress }) => {
+        await reportProgress?.(
+          "analysis_started",
+          "Running Media Analysis",
+          "MediaInfo is parsing the source."
+        )
+
+        return new Promise<never>((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason), {
+            once: true,
+          })
+        })
+      }
+    )
+
+    const response = await invoke(
+      request(
+        input,
+        { accept: ANALYZE_PROGRESS_STREAM_CONTENT_TYPE },
+        abortController.signal
+      )
+    )
+
+    const reader = response.body?.getReader()
+
+    if (!reader) {
+      throw new Error("The analysis response must have a progress stream.")
+    }
+
+    const firstChunk = await reader.read()
+
+    if (!firstChunk.value) {
+      throw new Error("The analysis stream must start with a progress event.")
+    }
+
+    expect(new TextDecoder().decode(firstChunk.value)).toContain(
+      '"type":"progress"'
+    )
+
+    abortController.abort(
+      new DOMException("The client disconnected.", "AbortError")
+    )
+
+    await expect(reader.read()).rejects.toMatchObject({ name: "AbortError" })
+    await loggedEventPromise
+
+    expect(loggedEvents).toHaveLength(1)
+    expect(loggedEvents[0]).toMatchObject({
+      status: 500,
+      analysis_status: 499,
+      errorClass: "ANALYZER_CLIENT_ABORTED",
+      level: "error",
+    })
   })
 })

@@ -114,6 +114,20 @@ const writeProgressError = (
   closeProgressStream(state)
 }
 
+const classifyProgressAbort = (
+  state: ProgressStreamState,
+  setLogContextValue: SetLogContextValue
+): void => {
+  const classified = classifyAnalyzeError(
+    state.signal.reason,
+    state.requestState.context,
+    setLogContextValue
+  )
+
+  state.requestState.setStatus(classified.status)
+  state.requestState.setSeverity(classified.severity)
+}
+
 const finalizeProgressStream = (state: ProgressStreamState): void => {
   const { requestState } = state
   requestState.context.analysis_status = requestState.status
@@ -153,6 +167,7 @@ const runProgressAnalysis = async (options: {
     }
 
     if (options.state.signal.aborted) {
+      classifyProgressAbort(options.state, options.setLogContextValue)
       options.state.finished = true
       options.state.controller?.error(options.state.signal.reason)
 
