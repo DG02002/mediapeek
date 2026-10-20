@@ -13,7 +13,8 @@ import { createContentSecurityPolicy } from "~/security/content-security-policy"
 
 const applySecurityHeaders = (
   response: Response,
-  runtimeConfig: RuntimeConfig
+  runtimeConfig: RuntimeConfig,
+  nonce: string
 ) => {
   const contentType = response.headers.get("content-type") ?? ""
 
@@ -27,6 +28,7 @@ const applySecurityHeaders = (
     createContentSecurityPolicy({
       isDevelopment: isDevelopmentEnvironment(runtimeConfig.appEnv),
       turnstileEnabled: runtimeConfig.turnstileEnabled,
+      nonce,
     })
   )
   headers.set("X-Content-Type-Options", "nosniff")
@@ -57,18 +59,24 @@ const entry = createServerEntry({
     }
 
     const runtimeConfig = resolveRuntimeConfig(workerEnv)
+    const nonce = crypto.randomUUID()
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set("x-mediapeek-csp-nonce", nonce)
+    const requestWithNonce = new Request(request, { headers: requestHeaders })
 
     const context: StartRegister["server"]["requestContext"] & {
       readonly request: Request
+      readonly nonce: string
     } = {
       env: workerEnv,
       runtimeConfig,
-      request,
+      request: requestWithNonce,
+      nonce,
     }
 
-    const response = await handler.fetch(request, { ...opts, context })
+    const response = await handler.fetch(requestWithNonce, { ...opts, context })
 
-    return applySecurityHeaders(response, runtimeConfig)
+    return applySecurityHeaders(response, runtimeConfig, nonce)
   },
 })
 
