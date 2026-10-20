@@ -128,6 +128,20 @@ describe("MediaView", () => {
     ).toContain("The source did not report its total size")
   })
 
+  it("shows a warning when an archive entry was truncated", () => {
+    render(
+      <MediaView
+        data={{ json: '{"media":{"track":[]}}' }}
+        url="https://example.com/archive.zip"
+        warnings={["archive_entry_truncated"]}
+      />
+    )
+
+    expect(
+      screen.getByRole("note", { name: "Analysis warning" }).textContent
+    ).toContain("analysis covered only its first portion")
+  })
+
   it("does not render an undefined channel label when track metadata omits channels", () => {
     render(
       <MediaView

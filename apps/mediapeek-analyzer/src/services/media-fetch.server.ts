@@ -44,6 +44,7 @@ export interface FetchDiagnostics {
   responseStatus: number
   probeMethod: string
   fileSizeUnknown?: boolean
+  archiveEntryTruncated?: boolean
   firstByteReadTimeoutMs?: number
   firstByteReadRetries?: number
   firstByteReadStrategy?: "range" | "no_range_fallback"
@@ -853,6 +854,15 @@ const extractAnalysisBuffer = async (options: {
     options.rawBuffer,
     options.archiveEntry
   )
+
+  if (
+    extractedPrefix &&
+    options.archiveEntry.sizeStatus === "verified" &&
+    options.archiveEntry.uncompressedSize !== undefined &&
+    extractedPrefix.byteLength < options.archiveEntry.uncompressedSize
+  ) {
+    options.diagnostics.archiveEntryTruncated = true
+  }
 
   const buffer =
     extractedPrefix && extractedPrefix.byteLength > 0

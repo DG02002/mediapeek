@@ -1,4 +1,5 @@
 import {
+  ANALYZE_WARNING_ARCHIVE_ENTRY_TRUNCATED,
   ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN,
   type AnalyzeErrorCode,
   type AnalyzerRpcSuccessResponse,
@@ -23,10 +24,19 @@ export interface AnalyzerAnalysisExecutor {
 
 export const getAnalysisWarnings = (
   diagnostics: AnalysisExecutionResult["diagnostics"]
-) =>
-  diagnostics.fetch.fileSizeUnknown
-    ? [ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN]
-    : undefined
+) => {
+  const warnings: string[] = []
+
+  if (diagnostics.fetch.fileSizeUnknown) {
+    warnings.push(ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN)
+  }
+
+  if (diagnostics.fetch.archiveEntryTruncated) {
+    warnings.push(ANALYZE_WARNING_ARCHIVE_ENTRY_TRUNCATED)
+  }
+
+  return warnings.length > 0 ? warnings : undefined
+}
 
 interface AnalyzerRpcFailureResponse {
   success: false

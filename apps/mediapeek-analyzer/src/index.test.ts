@@ -203,6 +203,31 @@ describe("analyzer Worker boundary", () => {
     })
   })
 
+  it("includes a truncated archive entry warning in the success response", async () => {
+    const defaultImplementation = executeAnalysisMock.getMockImplementation()
+
+    if (!defaultImplementation) {
+      throw new Error(
+        "The analysis executor mock must have a default implementation."
+      )
+    }
+
+    executeAnalysisMock.mockImplementationOnce(async (executionInput) => {
+      const result = await defaultImplementation(executionInput)
+      result.diagnostics.fetch.archiveEntryTruncated = true
+
+      return result
+    })
+
+    const response = await invoke(request())
+
+    expect(await response.json()).toMatchObject({
+      success: true,
+      warnings: ["archive_entry_truncated"],
+      diagnostics: { fetch: { archiveEntryTruncated: true } },
+    })
+  })
+
   it("prefers a bounded propagated request ID", async () => {
     const response = await invoke(
       request(input, { "x-mediapeek-request-id": "web-request-123" })

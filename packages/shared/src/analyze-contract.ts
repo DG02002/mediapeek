@@ -6,6 +6,7 @@ import {
 } from "./analysis-output-formats"
 
 export const ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN = "source_size_unknown"
+export const ANALYZE_WARNING_ARCHIVE_ENTRY_TRUNCATED = "archive_entry_truncated"
 
 export const AnalyzeErrorCodeSchema = Schema.Literals([
   "AUTH_REQUIRED",
@@ -57,6 +58,7 @@ export const AnalyzerFetchDiagnosticsSchema = Schema.Struct({
   responseStatus: Schema.Number,
   probeMethod: Schema.String,
   fileSizeUnknown: Schema.optionalKey(Schema.Boolean),
+  archiveEntryTruncated: Schema.optionalKey(Schema.Boolean),
   firstByteReadTimeoutMs: Schema.optionalKey(Schema.Number),
   firstByteReadRetries: Schema.optionalKey(Schema.Number),
   firstByteReadStrategy: Schema.optionalKey(
