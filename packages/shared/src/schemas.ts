@@ -26,6 +26,7 @@ const isHttpUrl = (value: string): boolean => {
 }
 
 const httpUrlSchema = Schema.Trim.pipe(
+  Schema.check(Schema.isMaxLength(4096)),
   Schema.check(
     Schema.makeFilter(
       (value) => (isValidUrl(value) ? undefined : "Invalid URL provided."),

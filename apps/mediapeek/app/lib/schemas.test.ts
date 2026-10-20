@@ -50,4 +50,24 @@ describe("analyzeSchema", () => {
       expect(result.value.format).toEqual(["json", "text"])
     }
   })
+
+  it("accepts a valid URL at the 4096-character limit", () => {
+    const prefix = "https://example.com/"
+    const url = `${prefix}${"a".repeat(4096 - prefix.length)}`
+    const result = validateAnalyzeSchema({ url })
+
+    expect("value" in result).toBe(true)
+
+    if ("value" in result) {
+      expect(result.value.url).toHaveLength(4096)
+    }
+  })
+
+  it("rejects a URL longer than 4096 characters", () => {
+    const prefix = "https://example.com/"
+    const url = `${prefix}${"a".repeat(4097 - prefix.length)}`
+    const result = validateAnalyzeSchema({ url })
+
+    expect("issues" in result).toBe(true)
+  })
 })

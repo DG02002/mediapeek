@@ -24,7 +24,10 @@ import {
   AnalysisPolicy,
   AnalysisPolicyError,
 } from "~/services/analysis-policy.server"
-import { parseAnalyzeInput } from "~/services/analyze-input.server"
+import {
+  MAX_ANALYZE_BODY_BYTES,
+  parseAnalyzeInput,
+} from "~/services/analyze-input.server"
 import {
   createPolicyErrorResponse,
   failRequest,
@@ -85,6 +88,20 @@ const validateAnalyzeRequest = async (
   state.requestLog.context.apiContract = parsed.legacyGet
     ? "legacy_get_query"
     : "post_json"
+
+  if ("bodyTooLarge" in parsed) {
+    return {
+      success: false,
+      response: failRequest(state, {
+        status: 413,
+        code: "VALIDATION_FAILED",
+        message: `Request body exceeds the ${MAX_ANALYZE_BODY_BYTES}-byte limit.`,
+        retryable: false,
+        severity: "WARNING",
+        errorClass: "ANALYZE_REQUEST_BODY_TOO_LARGE",
+      }),
+    }
+  }
 
   const runtime = getWorkerAppRuntime(state.env)
 

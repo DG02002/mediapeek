@@ -12,11 +12,17 @@ import {
   createTurnstileGrantToken,
   serializeTurnstileGrantCookie,
 } from "~/lib/turnstile-grant.server"
+import { MAX_ANALYZE_BODY_BYTES } from "~/services/analyze-input.server"
 
 import { handleAnalyzeRequest, type AnalyzeRouteArgs } from "./analyze"
 
 const analyzeUrl = "https://example.com/video.mp4"
 const grantSecret = "test-grant-secret"
+
+interface AnalyzeRequestBody {
+  readonly url: string
+  readonly format?: ReadonlyArray<string>
+}
 
 const createDeferred = () => {
   let resolveDeferred: (() => void) | undefined
@@ -40,7 +46,10 @@ const createContext = (overrides: Partial<Env> = {}) => {
   } satisfies AnalyzeRouteArgs["context"]
 }
 
-const post = (headers: HeadersInit = {}) => {
+const post = (
+  headers: HeadersInit = {},
+  body: AnalyzeRequestBody = { url: analyzeUrl, format: ["json"] }
+) => {
   const requestHeaders = new Headers(headers)
   requestHeaders.set("content-type", "application/json")
   requestHeaders.set("cf-ray", crypto.randomUUID())
@@ -48,7 +57,7 @@ const post = (headers: HeadersInit = {}) => {
   return new Request("https://mediapeek.test/resource/analyze", {
     method: "POST",
     headers: requestHeaders,
-    body: JSON.stringify({ url: analyzeUrl, format: ["json"] }),
+    body: JSON.stringify(body),
   })
 }
 
@@ -94,6 +103,60 @@ describe("analyze route Turnstile flag", () => {
     expect(await response.json()).toMatchObject({
       success: true,
       results: { json: '{"media":{"track":[]}}' },
+    })
+  })
+
+  it("rejects oversized bodies before rate limiting or analyzer calls", async () => {
+    const rateLimit = vi.fn(async () => ({ success: true }))
+    const analyzerFetch = vi.fn(async () => Response.json({}))
+
+    const context = createContext({
+      ANALYZE_RATE_LIMITER: { limit: rateLimit },
+      ANALYZER: { ...env.ANALYZER, fetch: analyzerFetch },
+    })
+
+    const largeBody = {
+      url: `https://example.com/${"a".repeat(MAX_ANALYZE_BODY_BYTES)}`,
+    }
+
+    const oversizedRequest = post({}, largeBody)
+    const oversizedResponse = await invokePost(oversizedRequest, context)
+
+    expect(oversizedResponse.status).toBe(413)
+    expect(await oversizedResponse.json()).toMatchObject({
+      success: false,
+      error: {
+        code: "VALIDATION_FAILED",
+        message: `Request body exceeds the ${MAX_ANALYZE_BODY_BYTES}-byte limit.`,
+        retryable: false,
+      },
+    })
+
+    const declaredOversizedRequest = post(
+      { "content-length": String(MAX_ANALYZE_BODY_BYTES + 1) },
+      { url: analyzeUrl }
+    )
+
+    const declaredOversizedResponse = await invokePost(
+      declaredOversizedRequest,
+      context
+    )
+
+    expect(declaredOversizedResponse.status).toBe(413)
+    expect(declaredOversizedRequest.bodyUsed).toBe(false)
+    expect(rateLimit).not.toHaveBeenCalled()
+    expect(analyzerFetch).not.toHaveBeenCalled()
+  })
+
+  it("returns VALIDATION_FAILED for a URL longer than 4096 characters", async () => {
+    const prefix = "https://example.com/"
+    const url = `${prefix}${"a".repeat(4097 - prefix.length)}`
+    const response = await invokePost(post({}, { url }), createContext())
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toMatchObject({
+      success: false,
+      error: { code: "VALIDATION_FAILED" },
     })
   })
 
