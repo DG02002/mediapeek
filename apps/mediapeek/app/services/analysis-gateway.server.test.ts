@@ -43,12 +43,14 @@ const successPayload = {
   },
 }
 
-const createRequestContext = (): RequestContextValue => ({
+const createRequestContext = (
+  headers = new Headers()
+): RequestContextValue => ({
   requestId: "request-123",
   method: "POST",
   pathname: "/resource/analyze",
   url: new URL("https://mediapeek.test/resource/analyze"),
-  headers: new Headers(),
+  headers,
   signal: new AbortController().signal,
   runtimeConfig: {
     ...DEFAULT_RUNTIME_CONFIG,
@@ -58,7 +60,8 @@ const createRequestContext = (): RequestContextValue => ({
 
 const runAnalyze = async (
   fetch: NonNullable<RuntimeEnvironmentValue["analyzer"]>["fetch"],
-  input: AnalysisGatewayRequest
+  input: AnalysisGatewayRequest,
+  requestContext = createRequestContext()
 ): Promise<AnalysisGatewayResponse> => {
   const runtime = getAppRuntime({ analyzer: { fetch } })
 
@@ -68,7 +71,7 @@ const runAnalyze = async (
         const analysisGateway = yield* AnalysisGateway
 
         return yield* analysisGateway.analyze(input)
-      }).pipe(Effect.provideService(RequestContext, createRequestContext()))
+      }).pipe(Effect.provideService(RequestContext, requestContext))
     )
   } finally {
     await runtime.dispose()
@@ -122,6 +125,33 @@ describe("AnalysisGateway", () => {
     expect(streamRequestHeaders.get("x-mediapeek-request-id")).toBe(
       "request-123"
     )
+    expect(streamRequestHeaders.get("x-request-id")).toBe("request-123")
+  })
+
+  it("forwards visitor headers to the analyzer when present", async () => {
+    const fetch = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        Response.json(successPayload)
+    )
+
+    await runAnalyze(
+      fetch,
+      { url: "https://example.com/video.mp4", format: ["json"] },
+      createRequestContext(
+        new Headers({
+          "user-agent": "visitor-agent",
+          "cf-connecting-ip": "203.0.113.10",
+          "cf-ipcountry": "IN",
+        })
+      )
+    )
+
+    const requestHeaders = new Headers(fetch.mock.calls[0]?.[1]?.headers)
+    expect(requestHeaders.get("x-request-id")).toBe("request-123")
+    expect(requestHeaders.get("x-mediapeek-request-id")).toBe("request-123")
+    expect(requestHeaders.get("user-agent")).toBe("visitor-agent")
+    expect(requestHeaders.get("cf-connecting-ip")).toBe("203.0.113.10")
+    expect(requestHeaders.get("cf-ipcountry")).toBe("IN")
   })
 
   it("keeps decoding JSON analyzer responses through the gateway", async () => {

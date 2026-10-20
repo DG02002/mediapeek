@@ -43,12 +43,6 @@ export const requestLogging = (
     const cloudflareRay = request.headers.get("cf-ray")
     const runtimeConfig = resolveRuntimeConfig(context.env)
 
-    try {
-      request.headers.set("x-request-id", requestId)
-    } catch {
-      // Incoming Worker request headers can be immutable; the response still carries the request ID.
-    }
-
     context.header("x-request-id", requestId)
 
     await evlogMiddleware(context, async () => {

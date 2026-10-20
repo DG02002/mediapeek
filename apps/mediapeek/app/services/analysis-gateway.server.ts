@@ -125,8 +125,25 @@ const makeRequestHeaders = (
 ) => {
   const headers = new Headers({
     "content-type": "application/json",
+    "x-request-id": requestContext.requestId,
     [INTERNAL_REQUEST_ID_HEADER]: requestContext.requestId,
   })
+
+  const userAgent = requestContext.headers.get("user-agent")
+  const clientIp = requestContext.headers.get("cf-connecting-ip")
+  const clientCountry = requestContext.headers.get("cf-ipcountry")
+
+  if (userAgent !== null) {
+    headers.set("user-agent", userAgent)
+  }
+
+  if (clientIp !== null) {
+    headers.set("cf-connecting-ip", clientIp)
+  }
+
+  if (clientCountry !== null) {
+    headers.set("cf-ipcountry", clientCountry)
+  }
 
   if (input.apiKey) {
     headers.set("x-api-key", input.apiKey)
