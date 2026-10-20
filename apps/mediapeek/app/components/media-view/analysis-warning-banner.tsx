@@ -2,6 +2,7 @@ import {
   ANALYZE_WARNING_ARCHIVE_ENTRY_TRUNCATED,
   ANALYZE_WARNING_FORMAT_GENERATION_FAILED,
   ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN,
+  type AnalyzeWarningCode,
 } from "@mediapeek/shared/analyze-contract"
 
 const ANALYSIS_WARNING_COPY = {
@@ -11,21 +12,18 @@ const ANALYSIS_WARNING_COPY = {
     "This archive entry was larger than the portion fetched, so analysis covered only its first portion.",
   [ANALYZE_WARNING_FORMAT_GENERATION_FAILED]:
     "One or more requested output formats failed to generate. Their displayed error placeholders are not metadata.",
-} satisfies Record<string, string>
+} satisfies Record<AnalyzeWarningCode, string>
 
 export function AnalysisWarningBanner({
   warnings,
 }: {
-  warnings?: ReadonlyArray<string>
+  warnings?: ReadonlyArray<AnalyzeWarningCode>
 }) {
   const messages =
-    warnings?.flatMap((warning, index) => {
-      const message = Object.entries(ANALYSIS_WARNING_COPY).find(
-        ([warningId]) => warningId === warning
-      )?.[1]
-
-      return message ? [{ id: `${warning}-${String(index)}`, message }] : []
-    }) ?? []
+    warnings?.map((warning, index) => ({
+      id: `${warning}-${String(index)}`,
+      message: ANALYSIS_WARNING_COPY[warning],
+    })) ?? []
 
   if (messages.length === 0) {
     return null

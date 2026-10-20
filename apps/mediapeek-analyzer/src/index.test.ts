@@ -114,7 +114,9 @@ function invoke(req: Request, env: Record<string, string> = {}) {
   return app.fetch(req, { APP_ENV: "development", ...env })
 }
 
-const addMediaInfoFailure = (failure: "format" | "object") => {
+const updateAnalysisResultOnce = (
+  update: (result: Awaited<ReturnType<AnalyzerAnalysisExecutor>>) => void
+) => {
   const defaultImplementation = executeAnalysisMock.getMockImplementation()
 
   if (!defaultImplementation) {
@@ -125,7 +127,14 @@ const addMediaInfoFailure = (failure: "format" | "object") => {
 
   executeAnalysisMock.mockImplementationOnce(async (executionInput) => {
     const result = await defaultImplementation(executionInput)
+    update(result)
 
+    return result
+  })
+}
+
+const addMediaInfoFailure = (failure: "format" | "object") => {
+  updateAnalysisResultOnce((result) => {
     if (failure === "format") {
       result.results.xml = "Error generating XML view."
       result.diagnostics.analysis.formatErrors = {
@@ -136,8 +145,6 @@ const addMediaInfoFailure = (failure: "format" | "object") => {
       result.diagnostics.analysis.objectProcessError =
         "The MediaInfo object was invalid."
     }
-
-    return result
   })
 }
 
@@ -205,8 +212,8 @@ describe("analyzer Worker boundary", () => {
 
   describe("analyzer authentication", () => {
     it.each([
-      [undefined, 401, "AUTH_REQUIRED"],
-      ["wrong", 403, "AUTH_INVALID"],
+      [undefined, 401, "ANALYZER_AUTH_REQUIRED"],
+      ["wrong", 403, "ANALYZER_AUTH_INVALID"],
     ])("enforces a configured internal API key", async (key, status, code) => {
       if (key) {
         restoreTimingSafeEqual = stubTimingSafeEqual()
@@ -314,19 +321,8 @@ describe("analyzer Worker boundary", () => {
   })
 
   it("includes a truncated archive entry warning in the success response", async () => {
-    const defaultImplementation = executeAnalysisMock.getMockImplementation()
-
-    if (!defaultImplementation) {
-      throw new Error(
-        "The analysis executor mock must have a default implementation."
-      )
-    }
-
-    executeAnalysisMock.mockImplementationOnce(async (executionInput) => {
-      const result = await defaultImplementation(executionInput)
+    updateAnalysisResultOnce((result) => {
       result.diagnostics.fetch.archiveEntryTruncated = true
-
-      return result
     })
 
     const response = await invoke(request())
@@ -530,24 +526,8 @@ describe("analyzer Worker boundary", () => {
   })
 
   it("includes an unknown source size warning in the streamed success event", async () => {
-    const defaultImplementation = executeAnalysisMock.getMockImplementation()
-
-    if (!defaultImplementation) {
-      throw new Error(
-        "The analysis executor mock must have a default implementation."
-      )
-    }
-
-    executeAnalysisMock.mockImplementationOnce(async (executionInput) => {
-      const result = await defaultImplementation(executionInput)
-
-      return {
-        ...result,
-        diagnostics: {
-          ...result.diagnostics,
-          fetch: { ...result.diagnostics.fetch, fileSizeUnknown: true },
-        },
-      }
+    updateAnalysisResultOnce((result) => {
+      result.diagnostics.fetch.fileSizeUnknown = true
     })
 
     const response = await invoke(

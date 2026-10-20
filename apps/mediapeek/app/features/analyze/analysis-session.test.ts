@@ -1,3 +1,4 @@
+import type { AnalyzeWarningCode } from "@mediapeek/shared/analyze-contract"
 import { encodeAnalyzeStreamEvent } from "@mediapeek/shared/analyze-progress"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -10,7 +11,7 @@ type AnalysisSessionTestResponse =
       readonly success: true
       readonly requestId: string
       readonly results: Record<string, string>
-      readonly warnings?: Array<string>
+      readonly warnings?: Array<AnalyzeWarningCode>
     }
   | {
       readonly success: false

@@ -45,7 +45,7 @@ export interface AnalyzerDependencies {
 
 interface AnalyzerAuthFailure {
   status: 401 | 403 | 503
-  code: "AUTH_REQUIRED" | "AUTH_INVALID" | "INTERNAL_ERROR"
+  code: "ANALYZER_AUTH_REQUIRED" | "ANALYZER_AUTH_INVALID" | "INTERNAL_ERROR"
   message: string
   severity: "WARNING" | "ERROR"
   errorClass:
@@ -207,7 +207,10 @@ const finalizeRequestLog = (
 
 const resolveAnalyzerAuthFailure = async (
   request: Request,
-  environment: Pick<Env, "APP_ENV" | "ANALYZE_API_KEY">
+  environment: Pick<
+    AnalyzerRequestLoggingEnvironment["Bindings"],
+    "APP_ENV" | "ANALYZE_API_KEY"
+  >
 ): Promise<AnalyzerAuthFailure | null> => {
   const expectedApiKey = environment.ANALYZE_API_KEY?.trim()
 
@@ -230,7 +233,7 @@ const resolveAnalyzerAuthFailure = async (
   if (!providedApiKey) {
     return {
       status: 401,
-      code: "AUTH_REQUIRED",
+      code: "ANALYZER_AUTH_REQUIRED",
       message: "Missing analyzer API key.",
       severity: "WARNING",
       errorClass: "ANALYZER_AUTH_REQUIRED",
@@ -240,7 +243,7 @@ const resolveAnalyzerAuthFailure = async (
   if (!(await timingSafeEqualStrings(providedApiKey, expectedApiKey))) {
     return {
       status: 403,
-      code: "AUTH_INVALID",
+      code: "ANALYZER_AUTH_INVALID",
       message: "Invalid analyzer API key.",
       severity: "WARNING",
       errorClass: "ANALYZER_AUTH_INVALID",

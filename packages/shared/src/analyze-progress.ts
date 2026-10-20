@@ -1,6 +1,9 @@
 import { Schema } from "effect"
 
-import { AnalyzeErrorSchema } from "./analyze-contract"
+import {
+  AnalyzeErrorSchema,
+  AnalyzeWarningCodeSchema,
+} from "./analyze-contract"
 
 export { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "./constants"
 
@@ -40,7 +43,7 @@ export const AnalyzeStreamSuccessEventSchema = Schema.Struct({
   type: Schema.Literal("success"),
   requestId: Schema.String,
   results: Schema.Record(Schema.String, Schema.String),
-  warnings: Schema.optionalKey(Schema.Array(Schema.String)),
+  warnings: Schema.optionalKey(Schema.Array(AnalyzeWarningCodeSchema)),
 })
 
 export const AnalyzeStreamErrorEventSchema = Schema.Struct({

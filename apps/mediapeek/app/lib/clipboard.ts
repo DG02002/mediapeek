@@ -1,3 +1,6 @@
+export const CLIPBOARD_ACCESS_BLOCKED_MESSAGE =
+  "Clipboard access was blocked. Try again."
+
 /**
  * Writes text to the clipboard, handling async generation in a way that
  * satisfies Safari's User Activation API limits (using ClipboardItem with Promise).

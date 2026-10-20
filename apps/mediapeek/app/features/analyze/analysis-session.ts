@@ -4,6 +4,7 @@ import type {
 } from "@mediapeek/shared/analysis-output-formats"
 import {
   AnalyzeResponseSchema,
+  type AnalyzeWarningCode,
   type AnalyzeResponse,
 } from "@mediapeek/shared/analyze-contract"
 import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
@@ -58,7 +59,7 @@ export interface AnalysisResult {
   readonly url: string
   readonly requestId?: string
   readonly outputs: Readonly<AnalysisOutputResults>
-  readonly warnings?: ReadonlyArray<string>
+  readonly warnings?: ReadonlyArray<AnalyzeWarningCode>
 }
 
 export interface AnalysisProgress {
@@ -203,7 +204,7 @@ const requestInitialAnalysis = async (input: {
 interface AnalysisOutcome {
   readonly requestId: string
   readonly outputs: AnalysisOutputResults
-  readonly warnings?: ReadonlyArray<string>
+  readonly warnings?: ReadonlyArray<AnalyzeWarningCode>
 }
 
 interface AnalysisRetryInput {

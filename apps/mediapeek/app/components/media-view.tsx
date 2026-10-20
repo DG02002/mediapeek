@@ -1,6 +1,7 @@
 "use client"
 
 import { ArrowExpandIcon, ArrowShrink02Icon } from "@hugeicons/core-free-icons"
+import type { AnalyzeWarningCode } from "@mediapeek/shared/analyze-contract"
 import { AnimatePresence, motion } from "motion/react"
 import {
   memo,
@@ -36,7 +37,7 @@ export type MediaViewData = Record<string, string>
 interface MediaViewProps {
   data: MediaViewData
   url: string
-  warnings?: ReadonlyArray<string>
+  warnings?: ReadonlyArray<AnalyzeWarningCode>
   session?: Pick<AnalysisSession, "output">
   requestTurnstileToken?: () => Promise<string | null>
   allowLazyTextOutput?: boolean

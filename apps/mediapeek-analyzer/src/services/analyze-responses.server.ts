@@ -3,6 +3,7 @@ import {
   ANALYZE_WARNING_FORMAT_GENERATION_FAILED,
   ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN,
   type AnalyzeErrorCode,
+  type AnalyzeWarningCode,
   type AnalyzerRpcSuccessResponse,
 } from "@mediapeek/shared/analyze-contract"
 import type { RequestLogSeverity } from "@mediapeek/shared/request-log-state"
@@ -26,7 +27,7 @@ export interface AnalyzerAnalysisExecutor {
 export const getAnalysisWarnings = (
   diagnostics: AnalysisExecutionResult["diagnostics"]
 ) => {
-  const warnings: string[] = []
+  const warnings: Array<AnalyzeWarningCode> = []
 
   if (diagnostics.fetch.fileSizeUnknown) {
     warnings.push(ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN)

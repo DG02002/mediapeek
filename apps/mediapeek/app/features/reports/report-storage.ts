@@ -1,3 +1,4 @@
+import { AnalyzeWarningCodeSchema } from "@mediapeek/shared/analyze-contract"
 import { Result, Schema } from "effect"
 
 const DATABASE_NAME = "mediapeek"
@@ -17,7 +18,7 @@ const StoredReportSchema = Schema.Struct({
   filename: Schema.String,
   analyzedAt: Schema.String,
   outputs: ReportOutputsSchema,
-  warnings: Schema.optionalKey(Schema.Array(Schema.String)),
+  warnings: Schema.optionalKey(Schema.Array(AnalyzeWarningCodeSchema)),
 })
 
 export type StoredReport = typeof StoredReportSchema.Type

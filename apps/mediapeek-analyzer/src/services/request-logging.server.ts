@@ -3,8 +3,12 @@ import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import { evlog, type EvlogHonoOptions, type EvlogVariables } from "evlog/hono"
 import type { MiddlewareHandler } from "hono"
 
+type AnalyzerBindings = Omit<Env, "ANALYZE_API_KEY"> & {
+  ANALYZE_API_KEY?: string
+}
+
 export interface AnalyzerRequestLoggingEnvironment extends EvlogVariables {
-  Bindings: Env
+  Bindings: AnalyzerBindings
 }
 
 export const requestLogging = (

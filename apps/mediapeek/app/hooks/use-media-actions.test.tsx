@@ -3,6 +3,7 @@ import { act } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { AnalysisSession } from "~/features/analyze/analysis-session"
+import { CLIPBOARD_ACCESS_BLOCKED_MESSAGE } from "~/lib/clipboard"
 
 import { useMediaActions, type MediaActionsServices } from "./use-media-actions"
 
@@ -85,7 +86,7 @@ describe("useMediaActions", () => {
 
     await waitFor(() => {
       expect(services.toastError).toHaveBeenCalledWith("Copy Failed", {
-        description: "Clipboard access was blocked. Try again.",
+        description: CLIPBOARD_ACCESS_BLOCKED_MESSAGE,
       })
     })
   })

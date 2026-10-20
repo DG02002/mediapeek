@@ -57,8 +57,7 @@ interface AnalyzeRequestState {
   readonly requestLog: AnalyzeExecution["state"]
   compatibilityHeaders?: HeadersInit
   requestError?: Error
-  streamSettled: boolean
-  deferFinalize: boolean
+  finalizationState: "request-pending" | "stream-pending" | "stream-settled"
   onStreamSettled: (outcome: AnalysisStreamOutcome) => void
 }
 
@@ -209,8 +208,11 @@ const callAnalyzer = async (
       }).pipe(Effect.provideService(RequestContext, requestContext))
     )
 
-    if (response.mode === "stream" && !state.streamSettled) {
-      state.deferFinalize = true
+    if (
+      response.mode === "stream" &&
+      state.finalizationState === "request-pending"
+    ) {
+      state.finalizationState = "stream-pending"
     }
 
     return handleAnalysisGatewayResponse(
@@ -295,10 +297,9 @@ export const handleAnalyzeRequest = async (args: AnalyzeRouteArgs) => {
     compatibilityHeaders: getCompatibilityHeaders(
       args.request.method !== "POST"
     ),
-    streamSettled: false,
-    deferFinalize: false,
+    finalizationState: "request-pending",
     onStreamSettled: (outcome) => {
-      state.streamSettled = true
+      state.finalizationState = "stream-settled"
       state.requestLog.context.stream_outcome = outcome
 
       if (outcome === "failed") {
@@ -322,7 +323,7 @@ export const handleAnalyzeRequest = async (args: AnalyzeRouteArgs) => {
 
     return handleUnexpectedError(state, error)
   } finally {
-    if (!state.deferFinalize) {
+    if (state.finalizationState === "request-pending") {
       finalizeAnalyzeRequest(execution, state.requestError)
     }
   }

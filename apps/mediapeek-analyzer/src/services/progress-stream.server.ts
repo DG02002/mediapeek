@@ -1,3 +1,4 @@
+import type { AnalyzeWarningCode } from "@mediapeek/shared/analyze-contract"
 import {
   ANALYZE_PROGRESS_STREAM_CONTENT_TYPE,
   encodeAnalyzeStreamEvent,
@@ -57,7 +58,7 @@ const closeProgressStream = (state: ProgressStreamState): void => {
 const writeProgressSuccess = (
   state: ProgressStreamState,
   results: Record<string, string>,
-  warnings?: Array<string>
+  warnings?: Array<AnalyzeWarningCode>
 ): void => {
   if (state.finished || state.signal.aborted) {
     return

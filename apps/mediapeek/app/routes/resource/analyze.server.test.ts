@@ -1,4 +1,5 @@
 import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
+import { ANALYZE_URL_MAX_LENGTH } from "@mediapeek/shared/constants"
 import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import { env } from "cloudflare:workers"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -150,7 +151,7 @@ describe("analyze route Turnstile flag", () => {
 
   it("returns VALIDATION_FAILED for a URL longer than 4096 characters", async () => {
     const prefix = "https://example.com/"
-    const url = `${prefix}${"a".repeat(4097 - prefix.length)}`
+    const url = `${prefix}${"a".repeat(ANALYZE_URL_MAX_LENGTH + 1 - prefix.length)}`
     const response = await invokePost(post({}, { url }), createContext())
 
     expect(response.status).toBe(422)

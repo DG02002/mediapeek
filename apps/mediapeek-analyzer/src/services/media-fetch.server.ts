@@ -449,7 +449,7 @@ const createInitialResponseRead = async (options: {
   strategy: InitialResponseRead["strategy"]
   reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
-  fileSize?: number
+  isKnownEmptySource: boolean
   waitingMessage: string
   receivedMessage: string
 }): Promise<InitialResponseRead> => {
@@ -461,7 +461,7 @@ const createInitialResponseRead = async (options: {
     signal: readSignal,
   })
 
-  if (response.status === 416 && options.fileSize === 0) {
+  if (response.status === 416 && options.isKnownEmptySource) {
     throw new ValidationFailureError("The media source is empty.")
   }
 
@@ -513,7 +513,7 @@ const fetchRangedInitialBytes = async (
   options: {
     url: string
     fetchEnd: number
-    fileSize?: number
+    isKnownEmptySource: boolean
     reportProgress?: AnalyzeProgressReporter
     signal?: AbortSignal
   },
@@ -533,7 +533,7 @@ const fetchRangedInitialBytes = async (
       strategy: "range",
       reportProgress: options.reportProgress,
       signal: options.signal,
-      fileSize: options.fileSize,
+      isKnownEmptySource: options.isKnownEmptySource,
       waitingMessage:
         "The source accepted the request but has not started sending media bytes yet.",
       receivedMessage:
@@ -560,7 +560,7 @@ const fetchNoRangeFallback = async (options: {
   url: string
   timeoutRetries: number
   didRangeTimeout: boolean
-  fileSize?: number
+  isKnownEmptySource: boolean
   reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
 }): Promise<InitialResponseRead> => {
@@ -578,7 +578,7 @@ const fetchNoRangeFallback = async (options: {
       strategy: "no_range_fallback",
       reportProgress: options.reportProgress,
       signal: options.signal,
-      fileSize: options.fileSize,
+      isKnownEmptySource: options.isKnownEmptySource,
       waitingMessage:
         "Waiting for the source to start sending bytes for the fallback request.",
       receivedMessage: "Initial media bytes arrived from the fallback request.",
@@ -603,7 +603,7 @@ const fetchNoRangeFallback = async (options: {
 const fetchInitialResponse = async (options: {
   url: string
   fetchEnd: number
-  fileSize?: number
+  isKnownEmptySource: boolean
   diagnostics: FetchDiagnostics
   reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
@@ -620,7 +620,7 @@ const fetchInitialResponse = async (options: {
   const rangedResult = await fetchRangedInitialBytes({
     url: options.url,
     fetchEnd: options.fetchEnd,
-    fileSize: options.fileSize,
+    isKnownEmptySource: options.isKnownEmptySource,
     reportProgress: options.reportProgress,
     signal: options.signal,
   })
@@ -633,7 +633,7 @@ const fetchInitialResponse = async (options: {
       url: options.url,
       timeoutRetries: rangedResult.timeoutRetries,
       didRangeTimeout,
-      fileSize: options.fileSize,
+      isKnownEmptySource: options.isKnownEmptySource,
       reportProgress: options.reportProgress,
       signal: options.signal,
     }))
@@ -745,7 +745,7 @@ const fetchInitialSegment = async (options: {
   const initialRead = await fetchInitialResponse({
     url: options.probe.url,
     fetchEnd,
-    fileSize: options.probe.fileSize,
+    isKnownEmptySource: options.probe.fileSize === 0,
     diagnostics: options.diagnostics,
     reportProgress: options.reportProgress,
     signal: options.signal,

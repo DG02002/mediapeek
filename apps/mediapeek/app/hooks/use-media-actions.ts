@@ -7,7 +7,10 @@ import {
   type AnalysisSession,
 } from "../features/analyze/analysis-session"
 import { clientLog } from "../lib/client-logger"
-import { safeClipboardWrite } from "../lib/clipboard"
+import {
+  CLIPBOARD_ACCESS_BLOCKED_MESSAGE,
+  safeClipboardWrite,
+} from "../lib/clipboard"
 import { uploadToPrivateBin } from "../lib/privatebin"
 import { useHapticFeedback } from "./use-haptic"
 
@@ -136,7 +139,7 @@ export function useMediaActions({
 
           if (err !== noContentError) {
             services.toastError("Copy Failed", {
-              description: "Clipboard access was blocked. Try again.",
+              description: CLIPBOARD_ACCESS_BLOCKED_MESSAGE,
             })
           }
         }

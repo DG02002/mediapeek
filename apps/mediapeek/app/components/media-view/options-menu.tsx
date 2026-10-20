@@ -48,6 +48,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import type { AnalysisSession } from "~/features/analyze/analysis-session"
 import { useMediaActions } from "~/hooks/use-media-actions"
 import { useMediaQuery } from "~/hooks/use-media-query"
+import { CLIPBOARD_ACCESS_BLOCKED_MESSAGE } from "~/lib/clipboard"
 import { cn } from "~/lib/utils"
 
 import type { MediaPngExportTheme } from "./media-export"
@@ -82,27 +83,15 @@ const blurActiveElement = () => {
   }
 }
 
-interface ShareLinkClipboardServices {
-  readonly writeText: (text: string) => Promise<void>
-  readonly toastSuccess: (message: string) => void
-  readonly toastError: (
-    message: string,
-    options: { readonly description: string }
-  ) => void
-}
-
-export const copyShareLinkToClipboard = async (
-  url: string,
-  services: ShareLinkClipboardServices
-) => {
+export const copyShareLinkToClipboard = async (url: string) => {
   try {
-    await services.writeText(url)
-    services.toastSuccess("Link Copied")
+    await navigator.clipboard.writeText(url)
+    toast.success("Link Copied")
 
     return true
   } catch {
-    services.toastError("Copy Failed", {
-      description: "Clipboard access was blocked. Try again.",
+    toast.error("Copy Failed", {
+      description: CLIPBOARD_ACCESS_BLOCKED_MESSAGE,
     })
 
     return false
@@ -195,11 +184,7 @@ export function OptionsMenu({
 
   const copyToClipboard = async () => {
     if (shareData?.url) {
-      const copied = await copyShareLinkToClipboard(shareData.url, {
-        writeText: (text) => navigator.clipboard.writeText(text),
-        toastSuccess: (message) => toast.success(message),
-        toastError: (message, options) => toast.error(message, options),
-      })
+      const copied = await copyShareLinkToClipboard(shareData.url)
 
       if (copied) {
         setShareDialogOpen(false)
