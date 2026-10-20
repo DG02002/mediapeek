@@ -446,6 +446,33 @@ describe("browser Analysis session", () => {
     expect(followUpBody).toMatch(/"operationId":"[^"]+"/)
   })
 
+  it("caches an empty follow-up output", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse({
+          success: true,
+          requestId: "request-initial",
+          results: { json: "{}" },
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          success: true,
+          requestId: "request-empty-text",
+          results: { text: "" },
+        })
+      )
+
+    const session = createBrowserAnalysisSession()
+
+    await session.analyze("https://example.com/video.mp4")
+
+    await expect(session.output("text")).resolves.toBe("")
+    await expect(session.output("text")).resolves.toBe("")
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it("retries a follow-up output once after requesting a Turnstile token", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")

@@ -82,6 +82,33 @@ const blurActiveElement = () => {
   }
 }
 
+interface ShareLinkClipboardServices {
+  readonly writeText: (text: string) => Promise<void>
+  readonly toastSuccess: (message: string) => void
+  readonly toastError: (
+    message: string,
+    options: { readonly description: string }
+  ) => void
+}
+
+export const copyShareLinkToClipboard = async (
+  url: string,
+  services: ShareLinkClipboardServices
+) => {
+  try {
+    await services.writeText(url)
+    services.toastSuccess("Link Copied")
+
+    return true
+  } catch {
+    services.toastError("Copy Failed", {
+      description: "Clipboard access was blocked. Try again.",
+    })
+
+    return false
+  }
+}
+
 export function OptionsMenu({
   data,
   url,
@@ -166,11 +193,17 @@ export function OptionsMenu({
     }
   }
 
-  const copyToClipboard = () => {
+  const copyToClipboard = async () => {
     if (shareData?.url) {
-      void navigator.clipboard.writeText(shareData.url)
-      toast.success("Link Copied")
-      setShareDialogOpen(false)
+      const copied = await copyShareLinkToClipboard(shareData.url, {
+        writeText: (text) => navigator.clipboard.writeText(text),
+        toastSuccess: (message) => toast.success(message),
+        toastError: (message, options) => toast.error(message, options),
+      })
+
+      if (copied) {
+        setShareDialogOpen(false)
+      }
     }
   }
 

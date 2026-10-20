@@ -65,9 +65,9 @@ export function useMediaActions({
     async (format: AnalysisOutputId, label: string) => {
       const { [format]: initialContent } = data
 
-      let content: string | undefined = initialContent
+      let content: string | null = initialContent ?? null
 
-      if (!content) {
+      if (content === null) {
         const toastId = services.toastLoading(`Generating ${label}...`)
 
         try {
@@ -106,14 +106,12 @@ export function useMediaActions({
 
   const handleCopy = useCallback(
     (format: AnalysisOutputId, label: string) => {
-      const contentPromise = fetchContent(format, label).then(
-        (content: string | null | undefined) => {
-          if (!content) {
-            if (content === undefined) {
-              services.toastError(`No ${label} Data Available`)
-            }
+      const noContentError = new Error("No content found")
 
-            throw new Error("No content found")
+      const contentPromise = fetchContent(format, label).then(
+        (content: string | null) => {
+          if (content === null) {
+            throw noContentError
           }
 
           return content
@@ -135,6 +133,12 @@ export function useMediaActions({
             format,
             error: err instanceof Error ? err.message : String(err),
           })
+
+          if (err !== noContentError) {
+            services.toastError("Copy Failed", {
+              description: "Clipboard access was blocked. Try again.",
+            })
+          }
         }
       )
     },
@@ -150,11 +154,7 @@ export function useMediaActions({
 
       const content = await fetchContent(format, label)
 
-      if (!content) {
-        if (typeof content === "undefined") {
-          services.toastError(`No ${label} Data Available`)
-        }
-
+      if (content === null) {
         throw new Error("No content found")
       }
 

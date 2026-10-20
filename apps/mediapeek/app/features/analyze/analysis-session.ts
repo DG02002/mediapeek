@@ -456,7 +456,7 @@ export const createBrowserAnalysisSession = (
       .then((outcome) => {
         const content = outcome.outputs[format]
 
-        if (!content) {
+        if (content === undefined) {
           throw new Error(`No ${format.toUpperCase()} content returned.`)
         }
 

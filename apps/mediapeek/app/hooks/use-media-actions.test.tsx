@@ -65,6 +65,31 @@ describe("useMediaActions", () => {
     })
   })
 
+  it("shows an error when clipboard access is blocked", async () => {
+    safeClipboardWriteMock.mockImplementation(
+      async (_textPromise, _onSuccess, onError) => {
+        onError?.(new Error("NotAllowedError"))
+      }
+    )
+
+    const { result } = renderHook(() =>
+      useMediaActions({
+        data: { text: "General" },
+        url: "https://example.com/video.mp4",
+        session: { output: outputMock },
+        services,
+      })
+    )
+
+    act(() => result.current.handleCopy("text", "Text"))
+
+    await waitFor(() => {
+      expect(services.toastError).toHaveBeenCalledWith("Copy Failed", {
+        description: "Clipboard access was blocked. Try again.",
+      })
+    })
+  })
+
   it("caches share urls by format after first upload", async () => {
     outputMock.mockResolvedValue("<xml />")
     uploadToPrivateBinMock.mockResolvedValue({
@@ -96,5 +121,27 @@ describe("useMediaActions", () => {
     expect(secondUrl).toBe("https://privatebin.net/?abc#key")
     expect(outputMock).toHaveBeenCalledTimes(1)
     expect(uploadToPrivateBinMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("shares empty output as data", async () => {
+    uploadToPrivateBinMock.mockResolvedValue({
+      url: "https://privatebin.net/?empty#key",
+      deleteUrl: "https://privatebin.net/?pasteid=empty&deletetoken=token",
+    })
+
+    const { result } = renderHook(() =>
+      useMediaActions({
+        data: { text: "" },
+        url: "https://example.com/video.mp4",
+        session: { output: outputMock },
+        services,
+      })
+    )
+
+    await expect(result.current.getShareUrl("text", "Text")).resolves.toBe(
+      "https://privatebin.net/?empty#key"
+    )
+    expect(outputMock).not.toHaveBeenCalled()
+    expect(uploadToPrivateBinMock).toHaveBeenCalledWith("")
   })
 })
