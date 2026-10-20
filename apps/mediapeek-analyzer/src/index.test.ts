@@ -158,7 +158,7 @@ describe("analyzer Worker boundary", () => {
 
   it("classifies media fetch failures", async () => {
     executeAnalysisMock.mockRejectedValue(
-      new UpstreamFetchError("Unable to access file stream")
+      new UpstreamFetchError("Media source request timed out.")
     )
     const response = await invoke(request())
     expect(response.status).toBe(502)
@@ -167,7 +167,7 @@ describe("analyzer Worker boundary", () => {
       requestId: "test-request-id",
       error: {
         code: "UPSTREAM_FETCH_FAILED",
-        message: "Unable to retrieve the media source.",
+        message: "Media source request timed out.",
         retryable: true,
       },
     })

@@ -128,10 +128,10 @@ export const classifyAnalyzerFailure = Match.typeTags<
     severity: "WARNING",
     errorClass: "ANALYZE_VALIDATION_FAILED",
   }),
-  UpstreamFetchError: () => ({
+  UpstreamFetchError: (failure) => ({
     status: 502,
     code: "UPSTREAM_FETCH_FAILED",
-    message: "Unable to retrieve the media source.",
+    message: failure.message || "Unable to retrieve the media source.",
     retryable: true,
     severity: "ERROR",
     errorClass: "UPSTREAM_FETCH_FAILED",
