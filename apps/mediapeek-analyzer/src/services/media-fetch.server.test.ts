@@ -166,6 +166,37 @@ describe("fetchMediaChunk", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it("cancels the 405 probe fallback body after reading its headers", async () => {
+    const cancel = vi.fn()
+
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(null, { status: 405 }))
+      .mockResolvedValueOnce(
+        new Response(new ReadableStream({ cancel }), {
+          status: 206,
+          headers: {
+            "content-type": "application/octet-stream",
+            "content-range": "bytes 0-0/1",
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        makeResponse(new Uint8Array([0]), {
+          status: 206,
+          headers: {
+            "content-type": "application/octet-stream",
+            "content-range": "bytes 0-0/1",
+          },
+        })
+      )
+
+    await fetchMediaChunk({
+      initialUrl: "https://example.com/media.mp4",
+    })
+
+    expect(cancel).toHaveBeenCalledTimes(1)
+  })
+
   it("uses verified inner archive size for stored zip entries", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(

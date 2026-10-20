@@ -423,12 +423,16 @@ const probeRemoteSource = async (
     response.headers.get("content-disposition")
   )
 
+  const fileSize = resolveResponseFileSize(response)
+
+  void response.body?.cancel()
+
   return {
     url,
     isGoogleDrive,
     htmlResponseMessage: source.htmlResponseMessage,
     htmlResponseKind: isGoogleDrive ? "rate-limited" : "validation",
-    fileSize: resolveResponseFileSize(response),
+    fileSize,
     filename: headerFilename ?? filename,
     filenameSource: headerFilename ? "content-disposition-head" : "url",
     probeMethod: method,

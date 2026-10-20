@@ -39,10 +39,15 @@ describe("safeMediaFetch redirects", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("follows public and relative redirects while preserving range headers", async () => {
+    const cancel = vi.fn()
+
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(
-        new Response(null, { status: 302, headers: { location: "/next" } })
+        new Response(new ReadableStream({ cancel }), {
+          status: 302,
+          headers: { location: "/next" },
+        })
       )
       .mockResolvedValueOnce(new Response("media", { status: 200 }))
 
@@ -67,6 +72,7 @@ describe("safeMediaFetch redirects", () => {
 
     expect(redirectedInput.href).toBe("https://example.com/next")
     expect(new Headers(redirectedInit?.headers).get("range")).toBe("bytes=0-9")
+    expect(cancel).toHaveBeenCalledTimes(1)
   })
 
   it("rejects private redirects and missing locations", async () => {
