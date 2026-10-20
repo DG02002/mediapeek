@@ -28,6 +28,10 @@
       "types": "./dist/telemetry.d.ts",
       "default": "./src/telemetry.ts"
     },
+    "./timing-safe-equal": {
+      "types": "./dist/timing-safe-equal.d.ts",
+      "default": "./src/timing-safe-equal.ts"
+    },
     "./schemas": {
       "types": "./dist/schemas.d.ts",
       "default": "./src/schemas.ts"

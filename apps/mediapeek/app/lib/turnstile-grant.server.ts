@@ -1,4 +1,5 @@
 import { isProductionEnvironment } from "@mediapeek/shared/runtime-config"
+import { timingSafeEqualStrings } from "@mediapeek/shared/timing-safe-equal"
 import { Schema } from "effect"
 
 const encoder = new TextEncoder()
@@ -10,13 +11,6 @@ const TURNSTILE_GRANT_PATH = "/resource/analyze"
 type GrantPayload = {
   e: number
   u: string
-}
-
-interface CloudflareSubtleCrypto extends SubtleCrypto {
-  timingSafeEqual?: (
-    left: ArrayBuffer | ArrayBufferView,
-    right: ArrayBuffer | ArrayBufferView
-  ) => boolean
 }
 
 const grantPayloadSchema = Schema.Struct({
@@ -86,22 +80,6 @@ const fromBase64Url = (input: string) => {
     remainder === 0 ? normalized : `${normalized}${"=".repeat(4 - remainder)}`
 
   return decodeBase64(padded)
-}
-
-const isSafeEqual = async (left: string, right: string) => {
-  const [leftDigest, rightDigest] = await Promise.all([
-    crypto.subtle.digest("SHA-256", encoder.encode(left)),
-    crypto.subtle.digest("SHA-256", encoder.encode(right)),
-  ])
-
-  // SAFETY: Cloudflare Workers adds this method to SubtleCrypto; the guard below fails closed in other runtimes.
-  const subtleCrypto = crypto.subtle as CloudflareSubtleCrypto
-
-  if (!subtleCrypto.timingSafeEqual) {
-    throw new Error("Constant-time comparison is unavailable in this runtime.")
-  }
-
-  return subtleCrypto.timingSafeEqual(leftDigest, rightDigest)
 }
 
 const importHmacKey = (secret: string) =>
@@ -231,7 +209,7 @@ export const verifyTurnstileGrantToken = async ({
 
   const expectedSignature = await signHmacSha256(secret, encodedPayload)
 
-  if (!(await isSafeEqual(expectedSignature, signature))) {
+  if (!(await timingSafeEqualStrings(expectedSignature, signature))) {
     return { valid: false, reason: "GRANT_INVALID_SIGNATURE" }
   }
 
@@ -243,7 +221,7 @@ export const verifyTurnstileGrantToken = async ({
 
   const expectedUrlHash = await hashAnalyzeUrl(url)
 
-  if (!(await isSafeEqual(payload.u, expectedUrlHash))) {
+  if (!(await timingSafeEqualStrings(payload.u, expectedUrlHash))) {
     return { valid: false, reason: "GRANT_URL_MISMATCH" }
   }
 

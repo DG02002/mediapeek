@@ -21,6 +21,9 @@ The web Worker configuration defaults to `TURNSTILE_ENABLED=false`. The
 release workflow preserves that setting. If you enable Turnstile, configure
 `TURNSTILE_SECRET_KEY` and `TURNSTILE_GRANT_SECRET` as Cloudflare Worker
 secrets and `TURNSTILE_SITE_KEY` as a Worker variable before releasing.
+Set the analyzer's `ANALYZE_API_KEY` secret with `wrangler secret put
+ANALYZE_API_KEY` before a production release, or analyze requests fail closed
+with HTTP 503.
 The web Worker configuration must also define the `ANALYZE_RATE_LIMITER`
 binding with its production namespace ID before a stable release; the release
 workflow blocks deployment when that binding is missing.

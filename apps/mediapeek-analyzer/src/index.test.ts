@@ -1,10 +1,20 @@
+import { timingSafeEqual as nodeTimingSafeEqual } from "node:crypto"
+
 import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
 import { createEvlogLoggerConfig } from "@mediapeek/shared/evlog"
 import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import type { AnalyzeInput } from "@mediapeek/shared/schemas"
 import type { LoggerConfig, WideEvent } from "evlog"
 import { initWorkersLogger } from "evlog/workers"
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import {
   classifyAnalyzerFailure,
@@ -24,6 +34,38 @@ const app = createAnalyzerApp({ executeAnalysis: executeAnalysisMock })
 const loggedEvents: WideEvent[] = []
 let loggedEventPromise: Promise<void> = Promise.resolve()
 let resolveLoggedEvent = () => {}
+
+const toBytes = (value: ArrayBuffer | ArrayBufferView) =>
+  value instanceof ArrayBuffer
+    ? new Uint8Array(value)
+    : new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
+
+const stubTimingSafeEqual = () => {
+  const subtleCrypto = crypto.subtle
+
+  const original = Object.getOwnPropertyDescriptor(
+    subtleCrypto,
+    "timingSafeEqual"
+  )
+
+  Object.defineProperty(subtleCrypto, "timingSafeEqual", {
+    configurable: true,
+    value: (
+      left: ArrayBuffer | ArrayBufferView,
+      right: ArrayBuffer | ArrayBufferView
+    ) => nodeTimingSafeEqual(toBytes(left), toBytes(right)),
+  })
+
+  return () => {
+    if (original) {
+      Object.defineProperty(subtleCrypto, "timingSafeEqual", original)
+    } else {
+      Reflect.deleteProperty(subtleCrypto, "timingSafeEqual")
+    }
+  }
+}
+
+let restoreTimingSafeEqual = () => {}
 
 const initializeTestLogger = (
   sampling: LoggerConfig["sampling"] = {
@@ -69,7 +111,7 @@ const request = (
 }
 
 function invoke(req: Request, env: Record<string, string> = {}) {
-  return app.fetch(req, { APP_ENV: "test", ...env })
+  return app.fetch(req, { APP_ENV: "development", ...env })
 }
 
 const addMediaInfoFailure = (failure: "format" | "object") => {
@@ -140,6 +182,11 @@ describe("analyzer Worker boundary", () => {
     })
   })
 
+  afterEach(() => {
+    restoreTimingSafeEqual()
+    restoreTimingSafeEqual = () => {}
+  })
+
   afterAll(() => {
     initWorkersLogger(
       createEvlogLoggerConfig(
@@ -156,40 +203,76 @@ describe("analyzer Worker boundary", () => {
     expect(executeAnalysisMock).not.toHaveBeenCalled()
   })
 
-  it.each([
-    [undefined, 401, "AUTH_REQUIRED"],
-    ["wrong", 403, "AUTH_INVALID"],
-  ])("enforces a configured internal API key", async (key, status, code) => {
-    const response = await invoke(
-      request(input, key ? { "x-api-key": key } : {}),
-      { ANALYZE_API_KEY: "secret" }
-    )
+  describe("analyzer authentication", () => {
+    it.each([
+      [undefined, 401, "AUTH_REQUIRED"],
+      ["wrong", 403, "AUTH_INVALID"],
+    ])("enforces a configured internal API key", async (key, status, code) => {
+      if (key) {
+        restoreTimingSafeEqual = stubTimingSafeEqual()
+      }
 
-    expect(response.status).toBe(status)
-    expect(await response.json()).toMatchObject({
-      success: false,
-      requestId: "test-request-id",
-      error: { code, retryable: false },
+      const response = await invoke(
+        request(input, key ? { "x-api-key": key } : {}),
+        { ANALYZE_API_KEY: "secret" }
+      )
+
+      expect(response.status).toBe(status)
+      expect(await response.json()).toMatchObject({
+        success: false,
+        requestId: "test-request-id",
+        error: { code, retryable: false },
+      })
     })
-  })
 
-  it("accepts a valid internal API key and returns the success contract", async () => {
-    const response = await invoke(
-      request(input, { authorization: "Bearer secret" }),
-      { ANALYZE_API_KEY: "secret" }
-    )
+    it("fails closed when production has no analyzer API key", async () => {
+      const response = await invoke(request(), { APP_ENV: "production" })
 
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({
-      success: true,
-      requestId: "test-request-id",
-      fileSize: 1,
-      results: { json: '{"media":{"track":[]}}' },
-      diagnostics: { fetch: {}, analysis: { resolvedFilename: "video.mp4" } },
+      expect(response.status).toBe(503)
+      expect(await response.json()).toMatchObject({
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Analyzer authentication is not configured.",
+          retryable: false,
+        },
+      })
+      await loggedEventPromise
+      expect(loggedEvents).toHaveLength(1)
+      expect(loggedEvents[0]).toMatchObject({
+        errorClass: "ANALYZER_AUTH_UNCONFIGURED",
+        level: "error",
+      })
+      expect(executeAnalysisMock).not.toHaveBeenCalled()
     })
-    expect(executeAnalysisMock.mock.calls[0]?.[0].signal).toBeInstanceOf(
-      AbortSignal
-    )
+
+    it("allows development analysis without an analyzer API key", async () => {
+      const response = await invoke(request(), { APP_ENV: "development" })
+
+      expect(response.status).toBe(200)
+      expect(executeAnalysisMock).toHaveBeenCalledOnce()
+    })
+
+    it("accepts a valid internal API key and returns the success contract", async () => {
+      restoreTimingSafeEqual = stubTimingSafeEqual()
+
+      const response = await invoke(
+        request(input, { authorization: "Bearer secret" }),
+        { ANALYZE_API_KEY: "secret" }
+      )
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({
+        success: true,
+        requestId: "test-request-id",
+        fileSize: 1,
+        results: { json: '{"media":{"track":[]}}' },
+        diagnostics: { fetch: {}, analysis: { resolvedFilename: "video.mp4" } },
+      })
+      expect(executeAnalysisMock.mock.calls[0]?.[0].signal).toBeInstanceOf(
+        AbortSignal
+      )
+    })
   })
 
   it("includes an unknown source size warning in the success response", async () => {

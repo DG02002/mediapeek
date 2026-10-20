@@ -8,6 +8,7 @@ import {
   type RequestLogState,
 } from "@mediapeek/shared/request-log-state"
 import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
+import { timingSafeEqualStrings } from "@mediapeek/shared/timing-safe-equal"
 import { Result, Schema } from "effect"
 import { initWorkersLogger } from "evlog/workers"
 import { Hono, type Context } from "hono"
@@ -43,10 +44,14 @@ export interface AnalyzerDependencies {
 }
 
 interface AnalyzerAuthFailure {
-  status: 401 | 403
-  code: "AUTH_REQUIRED" | "AUTH_INVALID"
+  status: 401 | 403 | 503
+  code: "AUTH_REQUIRED" | "AUTH_INVALID" | "INTERNAL_ERROR"
   message: string
-  errorClass: "ANALYZER_AUTH_REQUIRED" | "ANALYZER_AUTH_INVALID"
+  severity: "WARNING" | "ERROR"
+  errorClass:
+    | "ANALYZER_AUTH_REQUIRED"
+    | "ANALYZER_AUTH_INVALID"
+    | "ANALYZER_AUTH_UNCONFIGURED"
 }
 
 const defaultAnalyzerDependencies: AnalyzerDependencies = {
@@ -200,11 +205,23 @@ const finalizeRequestLog = (
   })
 }
 
-const resolveAnalyzerAuthFailure = (
+const resolveAnalyzerAuthFailure = async (
   request: Request,
-  expectedApiKey?: string
-): AnalyzerAuthFailure | null => {
+  environment: Pick<Env, "APP_ENV" | "ANALYZE_API_KEY">
+): Promise<AnalyzerAuthFailure | null> => {
+  const expectedApiKey = environment.ANALYZE_API_KEY?.trim()
+
   if (!expectedApiKey) {
+    if (resolveRuntimeConfig(environment).appEnv === "production") {
+      return {
+        status: 503,
+        code: "INTERNAL_ERROR",
+        message: "Analyzer authentication is not configured.",
+        severity: "ERROR",
+        errorClass: "ANALYZER_AUTH_UNCONFIGURED",
+      }
+    }
+
     return null
   }
 
@@ -215,15 +232,17 @@ const resolveAnalyzerAuthFailure = (
       status: 401,
       code: "AUTH_REQUIRED",
       message: "Missing analyzer API key.",
+      severity: "WARNING",
       errorClass: "ANALYZER_AUTH_REQUIRED",
     }
   }
 
-  if (providedApiKey !== expectedApiKey) {
+  if (!(await timingSafeEqualStrings(providedApiKey, expectedApiKey))) {
     return {
       status: 403,
       code: "AUTH_INVALID",
       message: "Invalid analyzer API key.",
+      severity: "WARNING",
       errorClass: "ANALYZER_AUTH_INVALID",
     }
   }
@@ -237,7 +256,7 @@ const createAuthFailureResponse = (
   failure: AnalyzerAuthFailure
 ): Response => {
   state.setStatus(failure.status)
-  state.setSeverity("WARNING")
+  state.setSeverity(failure.severity)
   state.context.errorClass = failure.errorClass
   state.finalize()
 
@@ -261,11 +280,10 @@ const handleAnalyzeRequest = async (
   dependencies: AnalyzerDependencies
 ): Promise<Response> => {
   const requestState = createAnalyzeRequestState(context)
-  const expectedApiKey = context.env.ANALYZE_API_KEY?.trim()
 
-  const authFailure = resolveAnalyzerAuthFailure(
+  const authFailure = await resolveAnalyzerAuthFailure(
     context.req.raw,
-    expectedApiKey
+    context.env
   )
 
   if (authFailure) {
