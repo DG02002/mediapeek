@@ -44,6 +44,8 @@ external to this repository and must be configured in GitHub.
    keeps the `TURNSTILE_ENABLED` value from its Wrangler configuration.
 6. The workflow checks `https://mediapeek.plnk.workers.dev/healthz` until it
    reports `ok: true` and the expected commit and service version.
+   The endpoint returns HTTP 503 if production has no
+   `ANALYZE_RATE_LIMITER` binding, so the release cannot pass this check.
 7. If a deployment succeeded but the health check or a later deploy step
    fails, the workflow rolls back the changed Workers in reverse deployment
    order to their captured prior version IDs.
