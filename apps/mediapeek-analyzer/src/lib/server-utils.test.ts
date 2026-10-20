@@ -23,8 +23,6 @@ const blockedIpv4Hosts = [
   "030052000401",
 ]
 
-// Workerd URL parsing is pinned in the web Worker runtime test:
-// apps/mediapeek/app/lib/url-canonicalization.server.test.ts.
 describe("validateUrl", () => {
   it.each(blockedIpv4Hosts)("rejects blocked IPv4 encoding %s", (host) => {
     expect(() => validateUrl(`https://${host}/media.mp4`)).toThrow(

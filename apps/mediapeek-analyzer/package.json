@@ -30,6 +30,7 @@
     "hono": "^4.13.13"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.4.0",
     "@cloudflare/workers-types": "catalog:",
     "@mediapeek/config-typescript": "workspace:*",
     "@types/node": "^26.6.5",
