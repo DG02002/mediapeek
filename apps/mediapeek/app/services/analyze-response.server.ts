@@ -329,7 +329,7 @@ export const handleUnexpectedError = (
   caughtError: Error
 ) => {
   state.requestError = caughtError
-  const message = caughtError.message || "An unexpected error occurred."
+  const message = "An unexpected error occurred."
 
   let failure: AnalyzeFailure = {
     status: 500,
