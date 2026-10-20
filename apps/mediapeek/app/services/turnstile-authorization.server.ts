@@ -168,7 +168,8 @@ const verifyTurnstileToken = async (input: {
     "remoteip",
     input.authorizationInput.request.headers.get("CF-Connecting-IP") ?? ""
   )
-  formData.append("idempotency_key", input.authorizationInput.requestId)
+  // Generate this key server-side so visitor-supplied request IDs cannot replay siteverify results.
+  formData.append("idempotency_key", crypto.randomUUID())
 
   let outcome: TurnstileResponse
 
