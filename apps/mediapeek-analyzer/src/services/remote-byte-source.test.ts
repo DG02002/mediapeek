@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { UpstreamFetchError } from "../lib/error-utils"
 import { createRemoteByteSource } from "./remote-byte-source"
 import type { safeMediaFetch } from "./safe-media-fetch.server"
 
@@ -137,6 +138,109 @@ describe("createRemoteByteSource", () => {
     await source.readChunk(5, 10)
 
     expect(diagnostics).toEqual({ seekFetchCount: 1, seekBytesFetched: 16 })
+  })
+
+  it.each([
+    {
+      name: "accepts the requested Content-Range",
+      contentRange: "bytes 500-999/2000",
+      shouldReject: false,
+    },
+    {
+      name: "rejects a shifted Content-Range",
+      contentRange: "bytes 0-499/2000",
+      shouldReject: true,
+    },
+    {
+      name: "accepts a missing Content-Range",
+      contentRange: null,
+      shouldReject: false,
+    },
+  ])("$name", async ({ contentRange, shouldReject }) => {
+    mockedSafeMediaFetch.mockImplementation(
+      async () =>
+        new Response(new Uint8Array(1500), {
+          status: 206,
+          headers:
+            contentRange === null
+              ? undefined
+              : { "content-range": contentRange },
+        })
+    )
+
+    const source = createRemoteByteSource(
+      {
+        url: "https://example.com/media.mp4",
+        initialBuffer: new Uint8Array(500),
+        fileSize: 2000,
+        diagnostics: {},
+      },
+      { safeMediaFetch: mockedSafeMediaFetch }
+    )
+
+    if (shouldReject) {
+      await expect(source.readChunk(1, 500)).rejects.toBeInstanceOf(
+        UpstreamFetchError
+      )
+      expect(mockedSafeMediaFetch).toHaveBeenCalledTimes(1)
+      mockedSafeMediaFetch.mockImplementation(
+        async () => new Response(new Uint8Array(1500), { status: 206 })
+      )
+      await expect(source.readChunk(1, 500)).resolves.toHaveLength(1)
+      expect(mockedSafeMediaFetch).toHaveBeenCalledTimes(2)
+
+      return
+    }
+
+    await expect(source.readChunk(1, 500)).resolves.toHaveLength(1)
+  })
+
+  it("rejects a short non-final 206 response without caching it", async () => {
+    mockedSafeMediaFetch.mockImplementation(
+      async () => new Response(new Uint8Array(4), { status: 206 })
+    )
+
+    const source = createRemoteByteSource(
+      {
+        url: "https://example.com/media.mp4",
+        initialBuffer: new Uint8Array(500),
+        fileSize: 500 + 2 * REMOTE_RANGE_CHUNK_SIZE,
+        diagnostics: {},
+      },
+      { safeMediaFetch: mockedSafeMediaFetch }
+    )
+
+    await expect(source.readChunk(1, 500)).rejects.toBeInstanceOf(
+      UpstreamFetchError
+    )
+    expect(mockedSafeMediaFetch).toHaveBeenCalledTimes(1)
+
+    mockedSafeMediaFetch.mockImplementation(
+      async () =>
+        new Response(new Uint8Array(2 * REMOTE_RANGE_CHUNK_SIZE), {
+          status: 206,
+        })
+    )
+    await expect(source.readChunk(1, 500)).resolves.toHaveLength(1)
+    expect(mockedSafeMediaFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it("accepts a short final 206 response", async () => {
+    mockedSafeMediaFetch.mockImplementation(
+      async () => new Response(new Uint8Array(9), { status: 206 })
+    )
+
+    const source = createRemoteByteSource(
+      {
+        url: "https://example.com/media.mp4",
+        initialBuffer: new Uint8Array(500),
+        fileSize: 510,
+        diagnostics: {},
+      },
+      { safeMediaFetch: mockedSafeMediaFetch }
+    )
+
+    await expect(source.readChunk(1, 500)).resolves.toHaveLength(1)
   })
 
   it("propagates cancellation to an active range request", async () => {
