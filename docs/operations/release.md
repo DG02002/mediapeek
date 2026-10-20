@@ -24,6 +24,8 @@ secrets and `TURNSTILE_SITE_KEY` as a Worker variable before releasing.
 The web Worker configuration must also define the `ANALYZE_RATE_LIMITER`
 binding with its production namespace ID before a stable release; the release
 workflow blocks deployment when that binding is missing.
+After configuring the binding, run `pnpm --filter mediapeek run cf-typegen`
+so it appears in the generated types.
 
 Protect `main`, require pull requests, and require the successful
 `Verify / Repository verification` check before merging. Restrict creation of
