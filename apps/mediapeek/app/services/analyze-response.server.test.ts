@@ -1,4 +1,3 @@
-import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
@@ -12,7 +11,7 @@ import {
   type AnalyzeRouteResponseState,
 } from "./analyze-response.server"
 
-describe("handleUnexpectedError", () => {
+describe("analyze request logging", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("hides internal details from visitors and retains them in logs", async () => {
@@ -20,10 +19,7 @@ describe("handleUnexpectedError", () => {
       method: "POST",
     })
 
-    const execution = createExecution({
-      request,
-      runtimeConfig: resolveRuntimeConfig({ APP_ENV: "test" }),
-    })
+    const execution = createExecution({ request })
 
     const state: AnalyzeRouteResponseState = {
       request,
@@ -49,6 +45,28 @@ describe("handleUnexpectedError", () => {
     const [handle] = finishLogger.mock.calls[0] ?? []
     expect(handle?.logger.getContext().error).toMatchObject({
       details: expect.stringContaining("distinctive internal library detail"),
+    })
+  })
+
+  it("records visitor facts on the analysis log", () => {
+    const request = new Request("https://mediapeek.test/resource/analyze", {
+      method: "POST",
+      headers: {
+        "user-agent": "visitor-agent",
+        "cf-connecting-ip": "203.0.113.10",
+      },
+    })
+
+    const execution = createExecution({ request })
+
+    const finishLogger = vi.spyOn(requestLogger, "finishFallbackRequestLogger")
+
+    finalizeAnalyzeRequest(execution)
+
+    const [handle] = finishLogger.mock.calls[0] ?? []
+    expect(handle?.logger.getContext()).toMatchObject({
+      user_agent: "visitor-agent",
+      client_ip: "203.0.113.10",
     })
   })
 })

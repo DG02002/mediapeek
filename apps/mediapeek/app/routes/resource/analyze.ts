@@ -14,7 +14,6 @@ import {
   finalizeAnalyzeRequest,
   type AnalyzeExecution,
 } from "~/lib/analyze-request-log.server"
-import { requestStorage } from "~/lib/logger.server"
 import {
   AnalysisGateway,
   AnalysisGatewayError,
@@ -268,7 +267,6 @@ const executeAnalyzeRequest = async (
 export const handleAnalyzeRequest = async (args: AnalyzeRouteArgs) => {
   const execution = createExecution({
     request: args.request,
-    runtimeConfig: args.context.runtimeConfig,
   })
 
   const state: AnalyzeRequestState = {
@@ -297,22 +295,20 @@ export const handleAnalyzeRequest = async (args: AnalyzeRouteArgs) => {
     },
   }
 
-  return requestStorage.run(execution.logContext, async () => {
-    try {
-      return await executeAnalyzeRequest(state)
-    } catch (caughtError) {
-      const error =
-        caughtError instanceof Error
-          ? caughtError
-          : new Error(String(caughtError))
+  try {
+    return await executeAnalyzeRequest(state)
+  } catch (caughtError) {
+    const error =
+      caughtError instanceof Error
+        ? caughtError
+        : new Error(String(caughtError))
 
-      return handleUnexpectedError(state, error)
-    } finally {
-      if (!state.deferFinalize) {
-        finalizeAnalyzeRequest(execution, state.requestError)
-      }
+    return handleUnexpectedError(state, error)
+  } finally {
+    if (!state.deferFinalize) {
+      finalizeAnalyzeRequest(execution, state.requestError)
     }
-  })
+  }
 }
 
 export const Route = createFileRoute("/resource/analyze")({
