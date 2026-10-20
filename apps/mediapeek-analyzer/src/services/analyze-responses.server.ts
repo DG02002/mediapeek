@@ -4,6 +4,7 @@ import type {
 } from "@mediapeek/shared/analyze-contract"
 import { Match, type Schema } from "effect"
 import type { Context } from "hono"
+import type { UnofficialStatusCode } from "hono/utils/http-status"
 
 import { unknownToError } from "../lib/error"
 import {
@@ -35,7 +36,7 @@ export type SetLogContextValue = (
 
 type RequestSeverity = "INFO" | "WARNING" | "ERROR"
 
-type AnalyzeStatus = 200 | 400 | 401 | 403 | 429 | 500 | 502 | 503
+type AnalyzeStatus = 200 | 400 | 401 | 403 | 429 | 499 | 500 | 502 | 503
 
 interface ClassifiedAnalyzeError {
   status: AnalyzeStatus
@@ -146,9 +147,27 @@ export const classifyAnalyzeError = (
   const diagnosticsError = cause instanceof DiagnosticsError ? cause : undefined
   const analyzerFailure = diagnosticsError?.cause ?? cause
 
-  const classification = isAnalyzerFailure(analyzerFailure)
-    ? classifyAnalyzerFailure(analyzerFailure)
-    : internalErrorClassification
+  const isClientAbort =
+    analyzerFailure instanceof Error &&
+    (analyzerFailure.name === "AbortError" ||
+      analyzerFailure.name === "TimeoutError")
+
+  let classification: ClassifiedAnalyzeError
+
+  if (isClientAbort) {
+    classification = {
+      status: 499,
+      code: "CLIENT_ABORTED",
+      message: "The request was cancelled before analysis finished.",
+      retryable: true,
+      severity: "INFO",
+      errorClass: "ANALYZER_CLIENT_ABORTED",
+    }
+  } else if (isAnalyzerFailure(analyzerFailure)) {
+    classification = classifyAnalyzerFailure(analyzerFailure)
+  } else {
+    classification = internalErrorClassification
+  }
 
   if (diagnosticsError) {
     setLogContextValue(logContext, "diagnostics", diagnosticsError.diagnostics)
@@ -219,6 +238,7 @@ export const createBufferedErrorResponse = (options: {
         retryable: classified.retryable,
       },
     },
-    classified.status
+    // SAFETY: 499 is sent as a numeric HTTP status; Hono's compile-time union omits it.
+    classified.status as UnofficialStatusCode
   )
 }

@@ -173,6 +173,29 @@ describe("analyzer Worker boundary", () => {
     })
   })
 
+  it("classifies buffered client aborts as informational cancellations", async () => {
+    executeAnalysisMock.mockRejectedValue(
+      new DOMException("The client disconnected.", "AbortError")
+    )
+
+    const response = await invoke(request())
+
+    expect(response.status).toBe(499)
+    expect(await response.json()).toMatchObject({
+      success: false,
+      error: {
+        code: "CLIENT_ABORTED",
+        message: "The request was cancelled before analysis finished.",
+        retryable: true,
+      },
+    })
+    expect(loggedEvents).toHaveLength(1)
+    expect(loggedEvents[0]).toMatchObject({
+      errorClass: "ANALYZER_CLIENT_ABORTED",
+      level: "info",
+    })
+  })
+
   it.each([
     {
       error: new CpuBudgetExceededError(),

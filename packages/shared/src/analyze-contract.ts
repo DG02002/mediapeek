@@ -11,6 +11,7 @@ export const AnalyzeErrorCodeSchema = Schema.Literals([
   "RATE_LIMITED",
   "VALIDATION_FAILED",
   "CPU_BUDGET_EXCEEDED",
+  "CLIENT_ABORTED",
   "UPSTREAM_FETCH_FAILED",
   "INTERNAL_ERROR",
 ])
