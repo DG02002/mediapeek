@@ -117,6 +117,13 @@ describe("analyze route Turnstile flag", () => {
     const bodyGate = createDeferred()
     const finishLogger = vi.spyOn(requestLogger, "finishFallbackRequestLogger")
 
+    let currentTimeMs = 0
+    vi.spyOn(performance, "now").mockImplementation(() => {
+      currentTimeMs += 1
+
+      return currentTimeMs
+    })
+
     const analyzerResponse = new Response(
       new ReadableStream<Uint8Array>({
         async pull(controller) {
