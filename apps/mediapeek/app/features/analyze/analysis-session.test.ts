@@ -388,6 +388,46 @@ describe("browser Analysis session", () => {
     expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true)
   })
 
+  it("aborts a pending lazy output request when disposed", async () => {
+    let requestSignal: AbortSignal | null | undefined
+    let signalFetchStarted: (() => void) | undefined
+
+    const fetchStarted = new Promise<void>((resolve) => {
+      signalFetchStarted = resolve
+    })
+
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (_input, init) => {
+        requestSignal = init?.signal
+        signalFetchStarted?.()
+
+        return new Promise<Response>((_resolve, reject) => {
+          requestSignal?.addEventListener(
+            "abort",
+            () => reject(requestSignal?.reason),
+            { once: true }
+          )
+        })
+      })
+
+    const session = createBrowserAnalysisSession({
+      initialAnalysis: {
+        url: "https://example.com/video.mp4",
+        outputs: { json: "{}" },
+      },
+    })
+
+    const pending = session.output("text")
+
+    await fetchStarted
+    session.dispose()
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" })
+    expect(requestSignal?.aborted).toBe(true)
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
   it("aborts an attempt when its timeout expires", async () => {
     vi.useFakeTimers()
     vi.spyOn(globalThis, "fetch").mockImplementation(

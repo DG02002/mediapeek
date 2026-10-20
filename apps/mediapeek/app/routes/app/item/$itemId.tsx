@@ -4,7 +4,13 @@ import {
   Loading03Icon,
 } from "@hugeicons/core-free-icons"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
-import { useCallback, useMemo, useState, useSyncExternalStore } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react"
 
 import { MediaSkeleton } from "~/components/media-skeleton"
 import { MediaView } from "~/components/media-view"
@@ -56,6 +62,8 @@ const AnalysisResultPage = ({
     () => createBrowserAnalysisSession({ initialAnalysis: analysis }),
     [analysis]
   )
+
+  useEffect(() => () => session.dispose(), [session])
 
   const sessionSnapshot = useAnalysisSessionSnapshot(session)
   const turnstile = useTurnstileVerification()
