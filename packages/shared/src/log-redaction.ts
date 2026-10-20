@@ -1,5 +1,3 @@
-import { Schema } from "effect"
-
 const REDACTED = "[REDACTED]"
 
 const SENSITIVE_QUERY_PREFIXES = ["x-amz-", "x-goog-"] as const
@@ -40,48 +38,6 @@ export type SensitiveLogValue =
   | Date
   | readonly SensitiveLogValue[]
   | SensitiveLogObject
-
-export const SensitiveLogValueSchema: Schema.Codec<SensitiveLogValue> =
-  Schema.suspend(() =>
-    Schema.Union([
-      Schema.Undefined,
-      Schema.String,
-      Schema.Finite,
-      Schema.Boolean,
-      Schema.Null,
-      Schema.instanceOf(Date),
-      Schema.Array(SensitiveLogValueSchema),
-      Schema.Record(Schema.String, SensitiveLogValueSchema),
-    ])
-  )
-
-const SENSITIVE_FIELD_PATTERNS = [
-  /token/i,
-  /secret/i,
-  /api[-_]?key/i,
-  /authorization/i,
-  /cookie/i,
-  /password/i,
-  /signature/i,
-]
-
-const isString = Schema.is(Schema.String)
-
-const isRecord = Schema.is(
-  Schema.Record(Schema.String, SensitiveLogValueSchema)
-)
-
-const isPlainObject = (
-  value: SensitiveLogValue
-): value is SensitiveLogObject => {
-  if (!isRecord(value)) {
-    return false
-  }
-
-  const prototype = Object.getPrototypeOf(value)
-
-  return prototype === Object.prototype || prototype === null
-}
 
 const isLikelyAbsoluteUrl = (value: string) =>
   /^https?:\/\//i.test(value.trim())
@@ -125,49 +81,6 @@ export const redactSensitiveUrl = (rawUrl: string) => {
     return rawUrl
   }
 }
-
-const isSensitiveFieldName = (key: string) =>
-  SENSITIVE_FIELD_PATTERNS.some((pattern) => pattern.test(key))
-
-const redactString = (value: string) =>
-  (isLikelyAbsoluteUrl(value) ? redactSensitiveUrl(value) : value).replaceAll(
-    sensitiveQueryPattern,
-    (_, name: string) => `${name}=${REDACTED}`
-  )
-
-const redactInternal = (
-  value: SensitiveLogValue,
-  keyHint?: string
-): SensitiveLogValue => {
-  if (isString(value)) {
-    if (keyHint && isSensitiveFieldName(keyHint)) {
-      return REDACTED
-    }
-
-    return redactString(value)
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((entry) => redactInternal(entry))
-  }
-
-  if (!isPlainObject(value)) {
-    return value
-  }
-
-  const result: SensitiveLogObject = {}
-
-  for (const [key, nested] of Object.entries(value)) {
-    result[key] = isSensitiveFieldName(key)
-      ? REDACTED
-      : redactInternal(nested, key)
-  }
-
-  return result
-}
-
-export const redactSensitiveLogData = (value: SensitiveLogValue) =>
-  redactInternal(value)
 
 export const summarizeSensitiveToken = (token: string | null | undefined) => {
   const normalized = token?.trim() ?? ""
