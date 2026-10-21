@@ -31,6 +31,7 @@ export const createRequestLogState = <
 }): RequestLogState<TContext> => {
   let status = 200
   let severity: RequestLogSeverity = "INFO"
+  let finalized = false
 
   const annotate = (values: Partial<TContext>) => {
     Object.assign(initialContext, values)
@@ -47,6 +48,11 @@ export const createRequestLogState = <
   const finalize = (
     onFinalize: (state: RequestLogStateSnapshot<TContext>) => void
   ) => {
+    if (finalized) {
+      return
+    }
+
+    finalized = true
     onFinalize({ requestId, status, severity, context: initialContext })
   }
 

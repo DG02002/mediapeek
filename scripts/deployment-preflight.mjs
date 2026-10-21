@@ -50,73 +50,112 @@ const uncommentedConfigSource = configSource
   .filter((line) => !/^\s*\/\//.test(line))
   .join("\n")
 
-const config = JSON.parse(
-  uncommentedConfigSource.replaceAll(/,\s*([}\]])/g, "$1")
-)
-
 const failures = []
 const warnings = []
+let config
+let configParsed = false
 
-if (
-  Object.prototype.toString.call(config.main) !== "[object String]" ||
-  config.main.length === 0
-) {
-  failures.push("missing main entry point")
-}
-
-if (!Array.isArray(config.compatibility_flags)) {
-  failures.push("missing compatibility_flags with nodejs_compat")
-} else if (!config.compatibility_flags.includes("nodejs_compat")) {
-  failures.push("compatibility_flags must include nodejs_compat")
-}
-
-if (config.observability?.enabled !== true) {
-  failures.push("observability.enabled must be true")
-}
-
-if (config.observability?.traces?.enabled !== true) {
-  failures.push("observability.traces.enabled must be true")
-}
-
-if (analyzerMode) {
-  if (!Number.isFinite(config.limits?.cpu_ms) || config.limits.cpu_ms <= 0) {
-    failures.push("missing limits.cpu_ms")
-  }
-} else {
-  const services = Array.isArray(config.services) ? config.services : []
-
-  const analyzerBindings = services.filter(
-    (service) => service?.binding === "ANALYZER"
+try {
+  config = JSON.parse(uncommentedConfigSource.replaceAll(/,\s*([}\]])/g, "$1"))
+  configParsed = true
+} catch (error) {
+  failures.push(
+    `config could not be parsed as JSON after comment stripping: ${error instanceof Error ? error.message : String(error)}`
   )
+}
 
-  if (analyzerBindings.length === 0) {
-    failures.push("missing services binding ANALYZER")
-  } else if (analyzerBindings.length > 1) {
-    failures.push(
-      `ANALYZER service binding appears ${analyzerBindings.length} times; expected 1`
-    )
-  } else if (analyzerBindings[0].service !== "mediapeek-analyzer") {
-    failures.push("ANALYZER service must target mediapeek-analyzer")
-  }
-
-  const rateLimiters = Array.isArray(config.ratelimits) ? config.ratelimits : []
-
-  const analyzeRateLimiters = rateLimiters.filter(
-    (rateLimiter) => rateLimiter?.name === "ANALYZE_RATE_LIMITER"
-  )
-
-  if (analyzeRateLimiters.length === 0) {
-    const message = "missing ANALYZE_RATE_LIMITER"
-
-    if (requireAnalyzeRateLimiter) {
-      failures.push(message)
-    } else {
-      warnings.push(message)
+if (configParsed) {
+  if (Object.prototype.toString.call(config) !== "[object Object]") {
+    failures.push("config root must be a JSON object")
+  } else {
+    if (
+      Object.prototype.toString.call(config.main) !== "[object String]" ||
+      config.main.length === 0
+    ) {
+      failures.push("missing main entry point")
     }
-  } else if (analyzeRateLimiters.length > 1) {
-    failures.push(
-      `ANALYZE_RATE_LIMITER appears ${analyzeRateLimiters.length} times; expected 1`
-    )
+
+    if (!Array.isArray(config.compatibility_flags)) {
+      failures.push("missing compatibility_flags with nodejs_compat")
+    } else if (!config.compatibility_flags.includes("nodejs_compat")) {
+      failures.push("compatibility_flags must include nodejs_compat")
+    }
+
+    if (config.observability?.enabled !== true) {
+      failures.push("observability.enabled must be true")
+    }
+
+    if (config.observability?.traces?.enabled !== true) {
+      failures.push("observability.traces.enabled must be true")
+    }
+
+    if (analyzerMode) {
+      if (
+        !Number.isFinite(config.limits?.cpu_ms) ||
+        config.limits.cpu_ms <= 0
+      ) {
+        failures.push("missing limits.cpu_ms")
+      }
+    } else {
+      const services = Array.isArray(config.services) ? config.services : []
+
+      const analyzerBindings = services.filter(
+        (service) => service?.binding === "ANALYZER"
+      )
+
+      if (analyzerBindings.length === 0) {
+        failures.push("missing services binding ANALYZER")
+      } else if (analyzerBindings.length > 1) {
+        failures.push(
+          `ANALYZER service binding appears ${analyzerBindings.length} times; expected 1`
+        )
+      } else if (analyzerBindings[0].service !== "mediapeek-analyzer") {
+        failures.push("ANALYZER service must target mediapeek-analyzer")
+      }
+
+      const rateLimiters = Array.isArray(config.ratelimits)
+        ? config.ratelimits
+        : []
+
+      const analyzeRateLimiters = rateLimiters.filter(
+        (rateLimiter) => rateLimiter?.name === "ANALYZE_RATE_LIMITER"
+      )
+
+      if (analyzeRateLimiters.length === 0) {
+        const message = "missing ANALYZE_RATE_LIMITER"
+
+        if (requireAnalyzeRateLimiter) {
+          failures.push(message)
+        } else {
+          warnings.push(message)
+        }
+      } else if (analyzeRateLimiters.length > 1) {
+        failures.push(
+          `ANALYZE_RATE_LIMITER appears ${analyzeRateLimiters.length} times; expected 1`
+        )
+      } else {
+        const [analyzeRateLimiter] = analyzeRateLimiters
+
+        if (
+          Object.prototype.toString.call(analyzeRateLimiter.namespace_id) !==
+            "[object String]" ||
+          analyzeRateLimiter.namespace_id.length === 0
+        ) {
+          failures.push("ANALYZE_RATE_LIMITER is missing namespace_id")
+        }
+
+        if (
+          !Number.isFinite(analyzeRateLimiter.simple?.limit) ||
+          analyzeRateLimiter.simple.limit <= 0
+        ) {
+          failures.push("ANALYZE_RATE_LIMITER has an invalid simple.limit")
+        }
+
+        if (![10, 60].includes(analyzeRateLimiter.simple?.period)) {
+          failures.push("ANALYZE_RATE_LIMITER has an invalid simple.period")
+        }
+      }
+    }
   }
 }
 
@@ -133,12 +172,13 @@ for (const warning of warnings) {
 }
 
 if (failures.length > 0) {
-  throw new Error(
+  console.error(
     [
       "Deployment configuration preflight failed:",
       ...failures.map((failure) => `- ${failure}`),
     ].join("\n")
   )
+  process.exitCode = 1
+} else {
+  console.log(`Deployment configuration preflight passed: ${configPath}`)
 }
-
-console.log(`Deployment configuration preflight passed: ${configPath}`)

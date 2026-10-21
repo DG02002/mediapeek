@@ -164,9 +164,10 @@ const isBlockedIpLiteral = (host: string) => {
   const value = parseIpv6(host)
 
   if (value === null) {
-    return false
+    return host.includes(":")
   }
 
+  // nip.io-style names that resolve privately are accepted; production fetches are edge-routed.
   const prefix = (network: bigint, bits: bigint) =>
     value >> (128n - bits) === network >> (128n - bits)
 

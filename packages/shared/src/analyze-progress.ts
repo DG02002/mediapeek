@@ -1,6 +1,9 @@
 import { Schema } from "effect"
 
-import { AnalyzeErrorSchema } from "./analyze-contract"
+import {
+  AnalyzeErrorSchema,
+  AnalyzeWarningCodeSchema,
+} from "./analyze-contract"
 
 export { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "./constants"
 
@@ -35,10 +38,12 @@ export const AnalyzeStreamProgressEventSchema = Schema.Struct({
   message: Schema.String,
 })
 
+// Keep streamed success output-only; fileSize belongs to analyzer diagnostics, not the public stream.
 export const AnalyzeStreamSuccessEventSchema = Schema.Struct({
   type: Schema.Literal("success"),
   requestId: Schema.String,
   results: Schema.Record(Schema.String, Schema.String),
+  warnings: Schema.optionalKey(Schema.Array(AnalyzeWarningCodeSchema)),
 })
 
 export const AnalyzeStreamErrorEventSchema = Schema.Struct({

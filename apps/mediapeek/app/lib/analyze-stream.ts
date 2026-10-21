@@ -12,7 +12,7 @@ type AnalyzeStreamTerminalEvent =
   | AnalyzeStreamErrorEvent
   | AnalyzeStreamSuccessEvent
 
-const parseAnalyzeStreamEvent = (line: string): AnalyzeStreamEvent => {
+const parseAnalyzeStreamEvent = (line: string): AnalyzeStreamEvent | null => {
   let parsedJson: Schema.Json
 
   try {
@@ -26,6 +26,17 @@ const parseAnalyzeStreamEvent = (line: string): AnalyzeStreamEvent => {
   )
 
   if (Result.isFailure(parsedEvent)) {
+    const parsedObject = Schema.decodeUnknownResult(
+      Schema.Record(Schema.String, Schema.Json)
+    )(parsedJson)
+
+    if (
+      Result.isSuccess(parsedObject) &&
+      parsedObject.success.type === "progress"
+    ) {
+      return null
+    }
+
     throw new Error("The analysis response stream contains an invalid event.")
   }
 
@@ -102,6 +113,10 @@ export async function readAnalyzeStreamResponse(
     }
 
     const event = parseAnalyzeStreamEvent(normalizedLine)
+
+    if (!event) {
+      return
+    }
 
     if (terminalEvent) {
       throw new Error("The analysis response stream contains multiple results.")

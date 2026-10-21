@@ -140,6 +140,26 @@ describe("analyze stream", () => {
     })
   })
 
+  it("skips unknown progress stages and continues to the terminal event", async () => {
+    const onProgress = vi.fn()
+
+    await expect(
+      readAnalyzeStreamResponse(
+        createStreamResponse([
+          '{"type":"progress","requestId":"request-new","stage":"future_stage","title":"New stage","message":"New progress."}\n',
+          '{"type":"success","requestId":"request-new","results":{"json":"{}"}}\n',
+        ]),
+        onProgress
+      )
+    ).resolves.toEqual({
+      type: "success",
+      requestId: "request-new",
+      results: { json: "{}" },
+    })
+
+    expect(onProgress).not.toHaveBeenCalled()
+  })
+
   it("rejects malformed events and streams without a terminal result", async () => {
     await expect(
       readAnalyzeStreamResponse(
@@ -147,6 +167,22 @@ describe("analyze stream", () => {
         vi.fn()
       )
     ).rejects.toThrow("The analysis response stream contains an invalid event.")
+
+    await Promise.all(
+      [
+        '{"type":"success","results":{"json":"{}"}}\n',
+        '{"type":"success","requestId":3,"results":{"json":"{}"}}\n',
+      ].map((invalidEvent) =>
+        expect(
+          readAnalyzeStreamResponse(
+            createStreamResponse([invalidEvent]),
+            vi.fn()
+          )
+        ).rejects.toThrow(
+          "The analysis response stream contains an invalid event."
+        )
+      )
+    )
 
     await expect(
       readAnalyzeStreamResponse(

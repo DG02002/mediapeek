@@ -14,17 +14,20 @@ import {
   finalizeAnalyzeRequest,
   type AnalyzeExecution,
 } from "~/lib/analyze-request-log.server"
-import { requestStorage } from "~/lib/logger.server"
 import {
   AnalysisGateway,
   AnalysisGatewayError,
+  type AnalysisStreamOutcome,
   type AnalysisGatewayRequestBase,
 } from "~/services/analysis-gateway.server"
 import {
   AnalysisPolicy,
   AnalysisPolicyError,
 } from "~/services/analysis-policy.server"
-import { parseAnalyzeInput } from "~/services/analyze-input.server"
+import {
+  MAX_ANALYZE_BODY_BYTES,
+  parseAnalyzeInput,
+} from "~/services/analyze-input.server"
 import {
   createPolicyErrorResponse,
   failRequest,
@@ -54,6 +57,8 @@ interface AnalyzeRequestState {
   readonly requestLog: AnalyzeExecution["state"]
   compatibilityHeaders?: HeadersInit
   requestError?: Error
+  finalizationState: "request-pending" | "stream-pending" | "stream-settled"
+  onStreamSettled: (outcome: AnalysisStreamOutcome) => void
 }
 
 const wantsProgressStream = (request: Request) =>
@@ -82,6 +87,20 @@ const validateAnalyzeRequest = async (
   state.requestLog.context.apiContract = parsed.legacyGet
     ? "legacy_get_query"
     : "post_json"
+
+  if ("bodyTooLarge" in parsed) {
+    return {
+      success: false,
+      response: failRequest(state, {
+        status: 413,
+        code: "VALIDATION_FAILED",
+        message: `Request body exceeds the ${MAX_ANALYZE_BODY_BYTES}-byte limit.`,
+        retryable: false,
+        severity: "WARNING",
+        errorClass: "ANALYZE_REQUEST_BODY_TOO_LARGE",
+      }),
+    }
+  }
 
   const runtime = getWorkerAppRuntime(state.env)
 
@@ -145,6 +164,7 @@ const createAnalysisGatewayRequest = (
           ? { "Set-Cookie": input.grantCookieHeader }
           : undefined
       ),
+      onStreamSettled: state.onStreamSettled,
     }
   }
 
@@ -187,6 +207,13 @@ const callAnalyzer = async (
         return yield* analysisGateway.analyze(gatewayRequest)
       }).pipe(Effect.provideService(RequestContext, requestContext))
     )
+
+    if (
+      response.mode === "stream" &&
+      state.finalizationState === "request-pending"
+    ) {
+      state.finalizationState = "stream-pending"
+    }
 
     return handleAnalysisGatewayResponse(
       state,
@@ -259,7 +286,6 @@ const executeAnalyzeRequest = async (
 export const handleAnalyzeRequest = async (args: AnalyzeRouteArgs) => {
   const execution = createExecution({
     request: args.request,
-    runtimeConfig: args.context.runtimeConfig,
   })
 
   const state: AnalyzeRequestState = {
@@ -271,22 +297,36 @@ export const handleAnalyzeRequest = async (args: AnalyzeRouteArgs) => {
     compatibilityHeaders: getCompatibilityHeaders(
       args.request.method !== "POST"
     ),
+    finalizationState: "request-pending",
+    onStreamSettled: (outcome) => {
+      state.finalizationState = "stream-settled"
+      state.requestLog.context.stream_outcome = outcome
+
+      if (outcome === "failed") {
+        state.requestLog.setStatus(502)
+        state.requestLog.setSeverity("WARNING")
+      } else if (outcome === "cancelled") {
+        state.requestLog.setSeverity("INFO")
+      }
+
+      finalizeAnalyzeRequest(execution, state.requestError)
+    },
   }
 
-  return requestStorage.run(execution.logContext, async () => {
-    try {
-      return await executeAnalyzeRequest(state)
-    } catch (caughtError) {
-      const error =
-        caughtError instanceof Error
-          ? caughtError
-          : new Error(String(caughtError))
+  try {
+    return await executeAnalyzeRequest(state)
+  } catch (caughtError) {
+    const error =
+      caughtError instanceof Error
+        ? caughtError
+        : new Error(String(caughtError))
 
-      return handleUnexpectedError(state, error)
-    } finally {
+    return handleUnexpectedError(state, error)
+  } finally {
+    if (state.finalizationState === "request-pending") {
       finalizeAnalyzeRequest(execution, state.requestError)
     }
-  })
+  }
 }
 
 export const Route = createFileRoute("/resource/analyze")({

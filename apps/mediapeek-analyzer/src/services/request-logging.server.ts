@@ -3,14 +3,8 @@ import { resolveRuntimeConfig } from "@mediapeek/shared/runtime-config"
 import { evlog, type EvlogHonoOptions, type EvlogVariables } from "evlog/hono"
 import type { MiddlewareHandler } from "hono"
 
-interface AnalyzerBindings {
+type AnalyzerBindings = Omit<Env, "ANALYZE_API_KEY"> & {
   ANALYZE_API_KEY?: string
-  ANALYZE_CPU_BUDGET_MS?: string
-  APP_ENV?: string
-  LOG_SAMPLE_RATE?: string
-  LOG_SLOW_REQUEST_MS?: string
-  LOG_FORCE_ALL_REQUESTS?: string
-  VERSION_METADATA?: { id: string }
 }
 
 export interface AnalyzerRequestLoggingEnvironment extends EvlogVariables {
@@ -42,12 +36,6 @@ export const requestLogging = (
     const requestId = getRequestId(request)
     const cloudflareRay = request.headers.get("cf-ray")
     const runtimeConfig = resolveRuntimeConfig(context.env)
-
-    try {
-      request.headers.set("x-request-id", requestId)
-    } catch {
-      // Incoming Worker request headers can be immutable; the response still carries the request ID.
-    }
 
     context.header("x-request-id", requestId)
 

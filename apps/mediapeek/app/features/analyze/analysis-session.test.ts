@@ -1,5 +1,8 @@
+import type { AnalyzeWarningCode } from "@mediapeek/shared/analyze-contract"
 import { encodeAnalyzeStreamEvent } from "@mediapeek/shared/analyze-progress"
 import { afterEach, describe, expect, it, vi } from "vitest"
+
+import { ANALYSIS_REQUEST_TIMEOUT_MS } from "~/constants"
 
 import { createBrowserAnalysisSession } from "./analysis-session"
 
@@ -8,6 +11,7 @@ type AnalysisSessionTestResponse =
       readonly success: true
       readonly requestId: string
       readonly results: Record<string, string>
+      readonly warnings?: Array<AnalyzeWarningCode>
     }
   | {
       readonly success: false
@@ -61,6 +65,7 @@ describe("browser Analysis session", () => {
           type: "success",
           requestId: "request-1",
           results: { json: '{"media":{}}' },
+          warnings: ["source_size_unknown"],
         })
       )
     )
@@ -74,6 +79,7 @@ describe("browser Analysis session", () => {
       url: "https://example.com/video.mp4",
       requestId: "request-1",
       outputs: { json: '{"media":{}}' },
+      warnings: ["source_size_unknown"],
     })
     expect(snapshots).toContainEqual({
       phase: "analyzing",
@@ -92,6 +98,7 @@ describe("browser Analysis session", () => {
         success: true,
         requestId: "request-2",
         results: { json: '{"media":{}}' },
+        warnings: ["source_size_unknown"],
       })
     )
     const session = createBrowserAnalysisSession()
@@ -101,6 +108,7 @@ describe("browser Analysis session", () => {
     expect(analysis).toMatchObject({
       requestId: "request-2",
       outputs: { json: '{"media":{}}' },
+      warnings: ["source_size_unknown"],
     })
     expect(session.getSnapshot()).toMatchObject({ phase: "ready", analysis })
   })
@@ -177,6 +185,134 @@ describe("browser Analysis session", () => {
     expect(fetchMock.mock.calls[1]?.[1]?.body).toBe(
       fetchMock.mock.calls[0]?.[1]?.body
     )
+  })
+
+  it("does not time out while waiting for a Turnstile token", async () => {
+    vi.useFakeTimers()
+
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            success: false,
+            requestId: "request-blocked",
+            error: {
+              code: "AUTH_REQUIRED",
+              message: "Security verification is required.",
+              retryable: false,
+            },
+          },
+          403
+        )
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          success: true,
+          requestId: "request-verified",
+          results: { json: "{}" },
+        })
+      )
+
+    let resolveToken: ((token: string | null) => void) | undefined
+    let signalTokenRequested: (() => void) | undefined
+
+    const tokenRequested = new Promise<void>((resolve) => {
+      signalTokenRequested = resolve
+    })
+
+    const requestTurnstileToken = vi.fn(
+      () =>
+        new Promise<string | null>((resolve) => {
+          resolveToken = resolve
+          signalTokenRequested?.()
+        })
+    )
+
+    const session = createBrowserAnalysisSession()
+
+    const pending = session.analyze(
+      "https://example.com/video.mp4",
+      undefined,
+      requestTurnstileToken
+    )
+
+    await tokenRequested
+    await vi.advanceTimersByTimeAsync(ANALYSIS_REQUEST_TIMEOUT_MS + 1)
+    resolveToken?.("fresh-token")
+
+    await expect(pending).resolves.toMatchObject({
+      requestId: "request-verified",
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("keeps a progress stream alive when events arrive within the timeout", async () => {
+    vi.useFakeTimers()
+    const encoder = new TextEncoder()
+    let progressIndex = 0
+
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            encoder.encode(
+              encodeAnalyzeStreamEvent({
+                type: "progress",
+                requestId: "request-live",
+                stage: "analysis_started",
+                title: "Running Media Analysis",
+                message: "Started.",
+              })
+            )
+          )
+        },
+        pull(controller) {
+          return new Promise<void>((resolve) => {
+            setTimeout(() => {
+              progressIndex += 1
+
+              if (progressIndex < 2) {
+                controller.enqueue(
+                  encoder.encode(
+                    encodeAnalyzeStreamEvent({
+                      type: "progress",
+                      requestId: "request-live",
+                      stage: "analysis_started",
+                      title: "Running Media Analysis",
+                      message: `Progress ${String(progressIndex)}.`,
+                    })
+                  )
+                )
+              } else {
+                controller.enqueue(
+                  encoder.encode(
+                    encodeAnalyzeStreamEvent({
+                      type: "success",
+                      requestId: "request-live",
+                      results: { json: "{}" },
+                    })
+                  )
+                )
+                controller.close()
+              }
+
+              resolve()
+            }, ANALYSIS_REQUEST_TIMEOUT_MS - 1_000)
+          })
+        },
+      }),
+      { headers: { "Content-Type": "application/x-ndjson" } }
+    )
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(response)
+    const session = createBrowserAnalysisSession()
+    const pending = session.analyze("https://example.com/video.mp4")
+
+    await vi.advanceTimersByTimeAsync(ANALYSIS_REQUEST_TIMEOUT_MS - 1_000)
+    await vi.advanceTimersByTimeAsync(ANALYSIS_REQUEST_TIMEOUT_MS - 1_000)
+
+    await expect(pending).resolves.toMatchObject({ requestId: "request-live" })
   })
 
   it("fails closed when the JSON fallback is malformed", async () => {
@@ -258,6 +394,46 @@ describe("browser Analysis session", () => {
     expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true)
   })
 
+  it("aborts a pending lazy output request when disposed", async () => {
+    let requestSignal: AbortSignal | null | undefined
+    let signalFetchStarted: (() => void) | undefined
+
+    const fetchStarted = new Promise<void>((resolve) => {
+      signalFetchStarted = resolve
+    })
+
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (_input, init) => {
+        requestSignal = init?.signal
+        signalFetchStarted?.()
+
+        return new Promise<Response>((_resolve, reject) => {
+          requestSignal?.addEventListener(
+            "abort",
+            () => reject(requestSignal?.reason),
+            { once: true }
+          )
+        })
+      })
+
+    const session = createBrowserAnalysisSession({
+      initialAnalysis: {
+        url: "https://example.com/video.mp4",
+        outputs: { json: "{}" },
+      },
+    })
+
+    const pending = session.output("text")
+
+    await fetchStarted
+    session.dispose()
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" })
+    expect(requestSignal?.aborted).toBe(true)
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
   it("aborts an attempt when its timeout expires", async () => {
     vi.useFakeTimers()
     vi.spyOn(globalThis, "fetch").mockImplementation(
@@ -314,6 +490,33 @@ describe("browser Analysis session", () => {
       '{"url":"https://example.com/video.mp4","format":["text"]'
     )
     expect(followUpBody).toMatch(/"operationId":"[^"]+"/)
+  })
+
+  it("caches an empty follow-up output", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse({
+          success: true,
+          requestId: "request-initial",
+          results: { json: "{}" },
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          success: true,
+          requestId: "request-empty-text",
+          results: { text: "" },
+        })
+      )
+
+    const session = createBrowserAnalysisSession()
+
+    await session.analyze("https://example.com/video.mp4")
+
+    await expect(session.output("text")).resolves.toBe("")
+    await expect(session.output("text")).resolves.toBe("")
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it("retries a follow-up output once after requesting a Turnstile token", async () => {

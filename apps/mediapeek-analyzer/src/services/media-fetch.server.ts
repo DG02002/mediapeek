@@ -43,6 +43,8 @@ export interface FetchDiagnostics {
   resolvedFilenameSource: FilenameSource
   responseStatus: number
   probeMethod: string
+  fileSizeUnknown?: boolean
+  archiveEntryTruncated?: boolean
   firstByteReadTimeoutMs?: number
   firstByteReadRetries?: number
   firstByteReadStrategy?: "range" | "no_range_fallback"
@@ -423,12 +425,16 @@ const probeRemoteSource = async (
     response.headers.get("content-disposition")
   )
 
+  const fileSize = resolveResponseFileSize(response)
+
+  void response.body?.cancel()
+
   return {
     url,
     isGoogleDrive,
     htmlResponseMessage: source.htmlResponseMessage,
     htmlResponseKind: isGoogleDrive ? "rate-limited" : "validation",
-    fileSize: resolveResponseFileSize(response),
+    fileSize,
     filename: headerFilename ?? filename,
     filenameSource: headerFilename ? "content-disposition-head" : "url",
     probeMethod: method,
@@ -443,6 +449,7 @@ const createInitialResponseRead = async (options: {
   strategy: InitialResponseRead["strategy"]
   reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
+  isKnownEmptySource: boolean
   waitingMessage: string
   receivedMessage: string
 }): Promise<InitialResponseRead> => {
@@ -453,6 +460,10 @@ const createInitialResponseRead = async (options: {
     redirect: "follow",
     signal: readSignal,
   })
+
+  if (response.status === 416 && options.isKnownEmptySource) {
+    throw new ValidationFailureError("The media source is empty.")
+  }
 
   assertByteFetchStatus(response)
 
@@ -502,6 +513,7 @@ const fetchRangedInitialBytes = async (
   options: {
     url: string
     fetchEnd: number
+    isKnownEmptySource: boolean
     reportProgress?: AnalyzeProgressReporter
     signal?: AbortSignal
   },
@@ -521,6 +533,7 @@ const fetchRangedInitialBytes = async (
       strategy: "range",
       reportProgress: options.reportProgress,
       signal: options.signal,
+      isKnownEmptySource: options.isKnownEmptySource,
       waitingMessage:
         "The source accepted the request but has not started sending media bytes yet.",
       receivedMessage:
@@ -547,6 +560,7 @@ const fetchNoRangeFallback = async (options: {
   url: string
   timeoutRetries: number
   didRangeTimeout: boolean
+  isKnownEmptySource: boolean
   reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
 }): Promise<InitialResponseRead> => {
@@ -564,6 +578,7 @@ const fetchNoRangeFallback = async (options: {
       strategy: "no_range_fallback",
       reportProgress: options.reportProgress,
       signal: options.signal,
+      isKnownEmptySource: options.isKnownEmptySource,
       waitingMessage:
         "Waiting for the source to start sending bytes for the fallback request.",
       receivedMessage: "Initial media bytes arrived from the fallback request.",
@@ -588,6 +603,7 @@ const fetchNoRangeFallback = async (options: {
 const fetchInitialResponse = async (options: {
   url: string
   fetchEnd: number
+  isKnownEmptySource: boolean
   diagnostics: FetchDiagnostics
   reportProgress?: AnalyzeProgressReporter
   signal?: AbortSignal
@@ -604,6 +620,7 @@ const fetchInitialResponse = async (options: {
   const rangedResult = await fetchRangedInitialBytes({
     url: options.url,
     fetchEnd: options.fetchEnd,
+    isKnownEmptySource: options.isKnownEmptySource,
     reportProgress: options.reportProgress,
     signal: options.signal,
   })
@@ -616,6 +633,7 @@ const fetchInitialResponse = async (options: {
       url: options.url,
       timeoutRetries: rangedResult.timeoutRetries,
       didRangeTimeout,
+      isKnownEmptySource: options.isKnownEmptySource,
       reportProgress: options.reportProgress,
       signal: options.signal,
     }))
@@ -658,7 +676,11 @@ const resolveInitialMetadata = (options: {
   filenameSource: FilenameSource
   diagnostics: FetchDiagnostics
 }) => {
-  const fileSize = options.fileSize || resolveResponseFileSize(options.response)
+  const fileSize = resolveResponseFileSize(options.response) ?? options.fileSize
+
+  if (fileSize === undefined) {
+    options.diagnostics.fileSizeUnknown = true
+  }
 
   const getFilename =
     options.filenameSource === "url"
@@ -717,12 +739,13 @@ const fetchInitialSegment = async (options: {
 }) => {
   const fetchEnd =
     options.probe.fileSize !== undefined
-      ? Math.min(options.chunkSize - 1, options.probe.fileSize - 1)
+      ? Math.max(0, Math.min(options.chunkSize - 1, options.probe.fileSize - 1))
       : options.chunkSize - 1
 
   const initialRead = await fetchInitialResponse({
     url: options.probe.url,
     fetchEnd,
+    isKnownEmptySource: options.probe.fileSize === 0,
     diagnostics: options.diagnostics,
     reportProgress: options.reportProgress,
     signal: options.signal,
@@ -831,6 +854,15 @@ const extractAnalysisBuffer = async (options: {
     options.rawBuffer,
     options.archiveEntry
   )
+
+  if (
+    extractedPrefix &&
+    options.archiveEntry.sizeStatus === "verified" &&
+    options.archiveEntry.uncompressedSize !== undefined &&
+    extractedPrefix.byteLength < options.archiveEntry.uncompressedSize
+  ) {
+    options.diagnostics.archiveEntryTruncated = true
+  }
 
   const buffer =
     extractedPrefix && extractedPrefix.byteLength > 0

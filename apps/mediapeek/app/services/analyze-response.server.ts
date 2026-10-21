@@ -118,18 +118,20 @@ const buildErrorResponse = (
   return Response.json(payload, { status, headers: details.headers })
 }
 
-const buildSuccessResponse = (
-  requestId: string,
-  results: Record<string, string>,
-  headers?: HeadersInit
-) =>
+const buildSuccessResponse = (options: {
+  readonly requestId: string
+  readonly results: Record<string, string>
+  readonly warnings: AnalyzerSuccessResponse["warnings"]
+  readonly headers?: HeadersInit
+}) =>
   Response.json(
     {
       success: true,
-      requestId,
-      results,
+      requestId: options.requestId,
+      results: options.results,
+      warnings: options.warnings,
     },
-    { headers }
+    { headers: options.headers }
   )
 
 export const failRequest = (
@@ -246,14 +248,15 @@ const completeAnalyzeResponse = (
     state.requestLog.context.innerFilename = resolvedFilename
   }
 
-  return buildSuccessResponse(
-    state.requestLog.requestId,
+  return buildSuccessResponse({
+    requestId: state.requestLog.requestId,
     results,
-    mergeHeaders(
+    warnings: data.warnings,
+    headers: mergeHeaders(
       state.compatibilityHeaders,
       grantCookieHeader ? { "Set-Cookie": grantCookieHeader } : undefined
-    )
-  )
+    ),
+  })
 }
 
 const getAnalysisGatewayErrorDetails = (error: AnalysisGatewayError) => {
@@ -329,7 +332,7 @@ export const handleUnexpectedError = (
   caughtError: Error
 ) => {
   state.requestError = caughtError
-  const message = caughtError.message || "An unexpected error occurred."
+  const message = "An unexpected error occurred."
 
   let failure: AnalyzeFailure = {
     status: 500,

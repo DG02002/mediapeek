@@ -4,7 +4,13 @@ import {
   Loading03Icon,
 } from "@hugeicons/core-free-icons"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
-import { useCallback, useMemo, useState, useSyncExternalStore } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react"
 
 import { MediaSkeleton } from "~/components/media-skeleton"
 import { MediaView } from "~/components/media-view"
@@ -57,6 +63,8 @@ const AnalysisResultPage = ({
     [analysis]
   )
 
+  useEffect(() => () => session.dispose(), [session])
+
   const sessionSnapshot = useAnalysisSessionSnapshot(session)
   const turnstile = useTurnstileVerification()
 
@@ -90,6 +98,7 @@ const AnalysisResultPage = ({
       <MediaView
         data={currentAnalysis.outputs}
         url={currentAnalysis.url}
+        warnings={currentAnalysis.warnings}
         session={session}
         requestTurnstileToken={turnstile.requestToken}
       />

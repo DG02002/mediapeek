@@ -18,6 +18,9 @@
     "LOG_FORCE_ALL_REQUESTS": "false",
     "ANALYZE_CPU_BUDGET_MS": "25000",
   },
+  "version_metadata": {
+    "binding": "VERSION_METADATA",
+  },
   "upload_source_maps": true,
   "observability": {
     "enabled": true,

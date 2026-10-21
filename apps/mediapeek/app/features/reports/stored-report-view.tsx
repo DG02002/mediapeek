@@ -32,6 +32,7 @@ export function StoredReportView({ report }: { report: StoredReport }) {
     <MediaView
       data={toMediaViewData(report)}
       url={report.sourceUrl}
+      warnings={report.warnings}
       session={session}
       allowLazyTextOutput={false}
     />

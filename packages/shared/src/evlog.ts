@@ -26,6 +26,8 @@ export const createEvlogLoggerConfig = (
       "**.cookie",
       "**.password",
       "**.secret",
+      "**.signature",
+      "**.sig",
       "**.token",
       "**.turnstileToken",
     ],

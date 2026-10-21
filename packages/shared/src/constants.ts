@@ -10,3 +10,4 @@ export const HIGH_RES_LOSSLESS_MIN_SAMPLE_RATE_HZ = 44_100
 export const PERCENTAGE_SCALE = 100
 export const HTTP_CLIENT_ERROR_STATUS = 400
 export const ANALYZE_PROGRESS_STREAM_CONTENT_TYPE = "application/x-ndjson"
+export const ANALYZE_URL_MAX_LENGTH = 4096

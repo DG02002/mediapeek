@@ -51,14 +51,14 @@ const rootLoader = async ({
     APP_ENV: appEnv,
   }
 
-  return turnstileEnabled
+  const env = turnstileEnabled
     ? {
-        env: {
-          ...publicEnvironment,
-          TURNSTILE_SITE_KEY: TURNSTILE_SITE_KEY?.trim() ?? "",
-        },
+        ...publicEnvironment,
+        TURNSTILE_SITE_KEY: TURNSTILE_SITE_KEY?.trim() ?? "",
       }
-    : { env: publicEnvironment }
+    : publicEnvironment
+
+  return { env, nonce: serverContext.nonce }
 }
 
 const NotFoundPage = () => (
@@ -117,7 +117,9 @@ const RootErrorBoundary = ({ error }: { error: unknown }) => {
 }
 
 const RootDocumentContent = ({ children }: { children: ReactNode }) => {
-  const env = Route.useLoaderData()?.env ?? DEFAULT_PUBLIC_ENVIRONMENT
+  const rootLoaderData = Route.useLoaderData()
+
+  const env = rootLoaderData?.env ?? DEFAULT_PUBLIC_ENVIRONMENT
 
   const { theme } = useTheme()
   const isMobile = useMediaQuery("(max-width: 640px)")
@@ -163,6 +165,7 @@ const RootDocumentContent = ({ children }: { children: ReactNode }) => {
           ))
         )}
         <script
+          nonce={rootLoaderData?.nonce}
           dangerouslySetInnerHTML={{
             __html: `window.ENV = ${JSON.stringify(env)}`,
           }}

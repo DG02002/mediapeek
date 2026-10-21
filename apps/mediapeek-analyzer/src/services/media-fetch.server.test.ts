@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { UpstreamFetchError } from "../lib/error-utils"
+import { UpstreamFetchError, ValidationFailureError } from "../lib/error-utils"
 import { fetchMediaChunk } from "./media-fetch.server"
+import { MAX_INITIAL_READ_BYTES } from "./remote-byte-source"
 
 const makeResponse = (
   body: Uint8Array | null,
@@ -57,6 +58,24 @@ const createZipFileHeader = (dataDescriptor = false) => {
   return header
 }
 
+const createZipPrefixWithFileSize = (fileSize: number, prefixSize: number) => {
+  const name = new TextEncoder().encode("Folder/inner-video.mkv")
+  const dataOffset = 30 + name.byteLength
+  const prefix = new Uint8Array(prefixSize)
+  const view = new DataView(prefix.buffer)
+
+  view.setUint32(0, 0x04034b50, true)
+  view.setUint16(4, 20, true)
+  view.setUint16(8, 0, true)
+  view.setUint32(18, fileSize, true)
+  view.setUint32(22, fileSize, true)
+  view.setUint16(26, name.byteLength, true)
+  prefix.set(name, 30)
+  prefix.fill(0xaa, dataOffset)
+
+  return prefix
+}
+
 const createMockZipWithDirectory = (): Uint8Array => {
   const directoryHeader = createZipDirectoryHeader()
   const fileHeader = createZipFileHeader()
@@ -87,6 +106,7 @@ describe("fetchMediaChunk", () => {
           status: 200,
           headers: {
             "content-type": "text/plain;charset=UTF-8",
+            "content-length": "1256",
           },
         })
       )
@@ -120,7 +140,7 @@ describe("fetchMediaChunk", () => {
       )
       .mockResolvedValueOnce(
         makeResponse(new Uint8Array([0, 1, 2, 3]), {
-          status: 206,
+          status: 200,
           headers: {
             "content-type": "application/octet-stream",
             "content-range": "bytes 0-3/4",
@@ -136,6 +156,87 @@ describe("fetchMediaChunk", () => {
     expect(result.fileSize).toBe(4)
     expect(result.filename).toBe("from-get.mp4")
     expect(result.filenameSource).toBe("content-disposition-get")
+  })
+
+  it("marks the source size unknown when neither probe nor range reports it", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        makeResponse(null, {
+          status: 200,
+          headers: { "content-type": "application/octet-stream" },
+        })
+      )
+      .mockResolvedValueOnce(
+        makeResponse(new Uint8Array([0, 1, 2, 3]), {
+          status: 206,
+          headers: { "content-type": "application/octet-stream" },
+        })
+      )
+
+    const result = await fetchMediaChunk({
+      initialUrl: "https://example.com/unknown-size.mp4",
+    })
+
+    expect(result.fileSize).toBeUndefined()
+    expect(result.diagnostics.fileSizeUnknown).toBe(true)
+  })
+
+  it("uses a valid range for an empty file and classifies its 416 response", async () => {
+    let rangeHeader: string | null = null
+
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        makeResponse(null, {
+          status: 200,
+          headers: {
+            "content-type": "application/octet-stream",
+            "content-length": "0",
+          },
+        })
+      )
+      .mockImplementationOnce(async (_input, init) => {
+        rangeHeader = new Headers(init?.headers).get("range")
+
+        return makeResponse(null, { status: 416 })
+      })
+
+    await expect(
+      fetchMediaChunk({ initialUrl: "https://example.com/empty.mp4" })
+    ).rejects.toBeInstanceOf(ValidationFailureError)
+    expect(rangeHeader).toMatch(/^bytes=0-\d+$/)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("cancels the 405 probe fallback body after reading its headers", async () => {
+    const cancel = vi.fn()
+
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(null, { status: 405 }))
+      .mockResolvedValueOnce(
+        new Response(new ReadableStream({ cancel }), {
+          status: 206,
+          headers: {
+            "content-type": "application/octet-stream",
+            "content-range": "bytes 0-0/1",
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        makeResponse(new Uint8Array([0]), {
+          status: 206,
+          headers: {
+            "content-type": "application/octet-stream",
+            "content-range": "bytes 0-0/1",
+          },
+        })
+      )
+
+    await fetchMediaChunk({
+      initialUrl: "https://example.com/media.mp4",
+    })
+
+    expect(cancel).toHaveBeenCalledTimes(1)
   })
 
   it("uses verified inner archive size for stored zip entries", async () => {
@@ -171,6 +272,53 @@ describe("fetchMediaChunk", () => {
       sizeStatus: "verified",
       sizeSource: "zip-local-header",
     })
+    expect(result.diagnostics.archiveEntryTruncated).toBeUndefined()
+  })
+
+  it("warns when a verified archive entry exceeds the fetched prefix", async () => {
+    const entrySize = MAX_INITIAL_READ_BYTES + 100
+
+    const prefix = createZipPrefixWithFileSize(
+      entrySize,
+      MAX_INITIAL_READ_BYTES
+    )
+
+    const dataOffset =
+      30 + new TextEncoder().encode("Folder/inner-video.mkv").byteLength
+
+    const archiveSize = entrySize + dataOffset
+
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        makeResponse(null, {
+          status: 200,
+          headers: {
+            "content-type": "application/octet-stream",
+            "content-length": String(archiveSize),
+            "content-disposition": 'attachment; filename="outer.zip"',
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        makeResponse(prefix, {
+          status: 206,
+          headers: {
+            "content-type": "application/octet-stream",
+            "content-range": `bytes 0-${String(prefix.byteLength - 1)}/${String(archiveSize)}`,
+          },
+        })
+      )
+
+    const result = await fetchMediaChunk({
+      initialUrl: "https://example.com/archive.zip",
+    })
+
+    expect(result.archiveEntry).toMatchObject({
+      sizeStatus: "verified",
+      uncompressedSize: entrySize,
+    })
+    expect(result.buffer.byteLength).toBe(MAX_INITIAL_READ_BYTES - dataOffset)
+    expect(result.diagnostics.archiveEntryTruncated).toBe(true)
   })
 
   it("fetches additional byte ranges when reads seek past the initial prefix", async () => {

@@ -128,7 +128,10 @@ describe("authorizeTurnstile", () => {
       throw new Error("Expected siteverify to receive form data.")
     }
 
-    expect(requestBody.get("idempotency_key")).toBe("request-123")
+    expect(requestBody.get("idempotency_key")).toMatch(
+      /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/iu
+    )
+    expect(requestBody.get("idempotency_key")).not.toBe("request-123")
   })
 
   it("times out and returns an unavailable response", async () => {

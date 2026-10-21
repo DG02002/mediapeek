@@ -31,9 +31,9 @@ export const AccessibilitySection = memo(function AccessibilitySection({
               <MediaIcon name="sdh" className="h-8 opacity-80" />
             </div>
             <div className="space-y-1">
-              <h4 className="text-foreground/85 text-sm font-medium">
+              <h3 className="text-foreground/85 text-sm font-medium">
                 SDH Subtitles
-              </h4>
+              </h3>
               <p className="text-muted-foreground text-xs leading-relaxed">
                 Subtitles for the Deaf and Hard-of-Hearing (SDH) refer to
                 subtitles that include non-dialogue audio cues, similar to
@@ -50,9 +50,9 @@ export const AccessibilitySection = memo(function AccessibilitySection({
               <MediaIcon name="cc" className="h-8 opacity-80" />
             </div>
             <div className="space-y-1">
-              <h4 className="text-foreground/85 text-sm font-medium">
+              <h3 className="text-foreground/85 text-sm font-medium">
                 Closed Captions
-              </h4>
+              </h3>
               <p className="text-muted-foreground text-xs leading-relaxed">
                 Closed captions (CC) refer to subtitles in the available
                 language with the addition of relevant non-dialogue information.
@@ -68,9 +68,9 @@ export const AccessibilitySection = memo(function AccessibilitySection({
               <MediaIcon name="ad" className="h-8 opacity-80" />
             </div>
             <div className="space-y-1">
-              <h4 className="text-foreground/85 text-sm font-medium">
+              <h3 className="text-foreground/85 text-sm font-medium">
                 Audio Descriptions
-              </h4>
+              </h3>
               <p className="text-muted-foreground text-xs leading-relaxed">
                 Audio descriptions (AD) refer to a narration track describing
                 what is happening on screen, to provide context for those who

@@ -6,6 +6,7 @@ import {
   type AnalysisOutputId,
 } from "./analysis-output-formats"
 import { AnalyzeFormatSchema } from "./analyze-contract"
+import { ANALYZE_URL_MAX_LENGTH } from "./constants"
 
 const isValidUrl = (value: string): boolean => {
   try {
@@ -26,6 +27,7 @@ const isHttpUrl = (value: string): boolean => {
 }
 
 const httpUrlSchema = Schema.Trim.pipe(
+  Schema.check(Schema.isMaxLength(ANALYZE_URL_MAX_LENGTH)),
   Schema.check(
     Schema.makeFilter(
       (value) => (isValidUrl(value) ? undefined : "Invalid URL provided."),

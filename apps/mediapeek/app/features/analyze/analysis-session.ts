@@ -4,6 +4,7 @@ import type {
 } from "@mediapeek/shared/analysis-output-formats"
 import {
   AnalyzeResponseSchema,
+  type AnalyzeWarningCode,
   type AnalyzeResponse,
 } from "@mediapeek/shared/analyze-contract"
 import { ANALYZE_PROGRESS_STREAM_CONTENT_TYPE } from "@mediapeek/shared/analyze-progress"
@@ -58,6 +59,7 @@ export interface AnalysisResult {
   readonly url: string
   readonly requestId?: string
   readonly outputs: Readonly<AnalysisOutputResults>
+  readonly warnings?: ReadonlyArray<AnalyzeWarningCode>
 }
 
 export interface AnalysisProgress {
@@ -169,7 +171,11 @@ const requestInitialAnalysis = async (input: {
       )
     }
 
-    return { requestId: terminal.requestId, outputs: terminal.results }
+    return {
+      requestId: terminal.requestId,
+      outputs: terminal.results,
+      warnings: terminal.warnings,
+    }
   }
 
   const data = await readAnalyzeResponse(response)
@@ -191,12 +197,14 @@ const requestInitialAnalysis = async (input: {
   return {
     requestId: data.requestId,
     outputs: data.results,
+    warnings: data.warnings,
   }
 }
 
 interface AnalysisOutcome {
   readonly requestId: string
   readonly outputs: AnalysisOutputResults
+  readonly warnings?: ReadonlyArray<AnalyzeWarningCode>
 }
 
 interface AnalysisRetryInput {
@@ -219,17 +227,33 @@ const isTurnstileChallenge = (error: unknown): error is AnalysisRequestError =>
   error.status === 403 &&
   (error.code === "AUTH_REQUIRED" || error.code === "AUTH_INVALID")
 
+const createAnalysisRequestTimeout = (
+  controller: AbortController,
+  onController: (controller: AbortController) => void
+) => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+  onController(controller)
+
+  const arm = () => {
+    clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => {
+      controller.abort(
+        new DOMException("Analysis request timed out.", "TimeoutError")
+      )
+    }, ANALYSIS_REQUEST_TIMEOUT_MS)
+  }
+
+  arm()
+
+  return { arm, clear: () => clearTimeout(timeoutId) }
+}
+
 const requestAnalysisWithRetries = async (
   input: AnalysisRetryInput
 ): Promise<AnalysisOutcome> => {
   const controller = new AbortController()
-  input.onController(controller)
-
-  const timeoutId = setTimeout(() => {
-    controller.abort(
-      new DOMException("Analysis request timed out.", "TimeoutError")
-    )
-  }, ANALYSIS_REQUEST_TIMEOUT_MS)
+  const timeout = createAnalysisRequestTimeout(controller, input.onController)
 
   try {
     return await requestInitialAnalysis({
@@ -239,7 +263,10 @@ const requestAnalysisWithRetries = async (
       useProgressStream: input.useProgressStream,
       turnstileToken: input.turnstileToken,
       controller,
-      onProgress: input.onProgress,
+      onProgress: (progress) => {
+        timeout.arm()
+        input.onProgress(progress)
+      },
     })
   } catch (error) {
     if (
@@ -247,6 +274,7 @@ const requestAnalysisWithRetries = async (
       input.requestTurnstileToken &&
       !input.turnstileRetryAttempted
     ) {
+      timeout.clear()
       const turnstileToken = await input.requestTurnstileToken()
 
       if (!turnstileToken) {
@@ -286,7 +314,7 @@ const requestAnalysisWithRetries = async (
       attempt: input.attempt + 1,
     })
   } finally {
-    clearTimeout(timeoutId)
+    timeout.clear()
     input.onAttemptFinished(controller)
   }
 }
@@ -368,6 +396,7 @@ export const createBrowserAnalysisSession = (
         url,
         requestId: outcome.requestId,
         outputs: outcome.outputs,
+        warnings: outcome.warnings,
       }
 
       if (generation === analysisGeneration) {
@@ -436,7 +465,7 @@ export const createBrowserAnalysisSession = (
       .then((outcome) => {
         const content = outcome.outputs[format]
 
-        if (!content) {
+        if (content === undefined) {
           throw new Error(`No ${format.toUpperCase()} content returned.`)
         }
 

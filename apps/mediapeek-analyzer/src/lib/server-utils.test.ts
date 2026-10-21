@@ -50,6 +50,11 @@ describe("validateUrl", () => {
     }
   )
 
+  it("rejects IPv6 zone identifiers and malformed colon hosts", () => {
+    expect(() => validateUrl("https://[fe80::1%25eth0]/media.mp4")).toThrow()
+    expect(() => validateUrl("https://[1:2:3:4:5:6:7:8:9]/media.mp4")).toThrow()
+  })
+
   it.each(["localhost", "localhost.localdomain", "ip6-localhost"])(
     "rejects local hostname %s",
     (host) => {

@@ -5,12 +5,29 @@ import {
   type AnalysisOutputRequest,
 } from "./analysis-output-formats"
 
+export const ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN = "source_size_unknown"
+export const ANALYZE_WARNING_ARCHIVE_ENTRY_TRUNCATED = "archive_entry_truncated"
+
+export const ANALYZE_WARNING_FORMAT_GENERATION_FAILED =
+  "format_generation_failed"
+
+export const AnalyzeWarningCodeSchema = Schema.Literals([
+  ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN,
+  ANALYZE_WARNING_ARCHIVE_ENTRY_TRUNCATED,
+  ANALYZE_WARNING_FORMAT_GENERATION_FAILED,
+])
+
+export type AnalyzeWarningCode = typeof AnalyzeWarningCodeSchema.Type
+
 export const AnalyzeErrorCodeSchema = Schema.Literals([
   "AUTH_REQUIRED",
   "AUTH_INVALID",
+  "ANALYZER_AUTH_REQUIRED",
+  "ANALYZER_AUTH_INVALID",
   "RATE_LIMITED",
   "VALIDATION_FAILED",
   "CPU_BUDGET_EXCEEDED",
+  "CLIENT_ABORTED",
   "UPSTREAM_FETCH_FAILED",
   "INTERNAL_ERROR",
 ])
@@ -25,10 +42,12 @@ export const AnalyzeErrorSchema = Schema.Struct({
   retryable: Schema.Boolean,
 })
 
+// Public success responses omit fileSize; streamed success events follow this output-only contract.
 export const AnalyzeSuccessResponseSchema = Schema.Struct({
   success: Schema.Literal(true),
   requestId: Schema.String,
   results: Schema.Record(Schema.String, Schema.String),
+  warnings: Schema.optionalKey(Schema.Array(AnalyzeWarningCodeSchema)),
 })
 
 export const AnalyzeErrorResponseSchema = Schema.Struct({
@@ -51,6 +70,8 @@ export const AnalyzerFetchDiagnosticsSchema = Schema.Struct({
   resolvedFilenameSource: Schema.String,
   responseStatus: Schema.Number,
   probeMethod: Schema.String,
+  fileSizeUnknown: Schema.optionalKey(Schema.Boolean),
+  archiveEntryTruncated: Schema.optionalKey(Schema.Boolean),
   firstByteReadTimeoutMs: Schema.optionalKey(Schema.Number),
   firstByteReadRetries: Schema.optionalKey(Schema.Number),
   firstByteReadStrategy: Schema.optionalKey(
@@ -79,6 +100,7 @@ export const AnalyzerRpcSuccessResponseSchema = Schema.Struct({
   requestId: Schema.optionalKey(Schema.String),
   fileSize: Schema.optionalKey(Schema.Number),
   results: Schema.Record(Schema.String, Schema.String),
+  warnings: Schema.optionalKey(Schema.Array(AnalyzeWarningCodeSchema)),
   diagnostics: Schema.Struct({
     fetch: AnalyzerFetchDiagnosticsSchema,
     analysis: AnalyzerAnalysisDiagnosticsSchema,

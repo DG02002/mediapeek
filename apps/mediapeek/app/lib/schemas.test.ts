@@ -1,3 +1,4 @@
+import { ANALYZE_URL_MAX_LENGTH } from "@mediapeek/shared/constants"
 import { analyzeSchema } from "@mediapeek/shared/schemas"
 import type { Schema } from "effect"
 import { describe, expect, it } from "vitest"
@@ -49,5 +50,25 @@ describe("analyzeSchema", () => {
     if ("value" in result) {
       expect(result.value.format).toEqual(["json", "text"])
     }
+  })
+
+  it("accepts a valid URL at the 4096-character limit", () => {
+    const prefix = "https://example.com/"
+    const url = `${prefix}${"a".repeat(ANALYZE_URL_MAX_LENGTH - prefix.length)}`
+    const result = validateAnalyzeSchema({ url })
+
+    expect("value" in result).toBe(true)
+
+    if ("value" in result) {
+      expect(result.value.url).toHaveLength(ANALYZE_URL_MAX_LENGTH)
+    }
+  })
+
+  it("rejects a URL longer than 4096 characters", () => {
+    const prefix = "https://example.com/"
+    const url = `${prefix}${"a".repeat(ANALYZE_URL_MAX_LENGTH + 1 - prefix.length)}`
+    const result = validateAnalyzeSchema({ url })
+
+    expect("issues" in result).toBe(true)
   })
 })

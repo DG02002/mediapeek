@@ -47,6 +47,8 @@ const followSafeMediaRedirects = async (
     return response
   }
 
+  void response.body?.cancel()
+
   if (options.redirectCount >= MAX_REDIRECTS) {
     throw new UpstreamFetchError("Too many media redirects.")
   }

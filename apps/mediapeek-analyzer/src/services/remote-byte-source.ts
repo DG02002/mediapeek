@@ -72,6 +72,8 @@ const readRemoteSpanBody = async (
   response: Response,
   signal: AbortSignal
 ): Promise<Uint8Array> => {
+  assertByteFetchStatus(response)
+
   const body = await readResponseBodyWithinLimit(
     response,
     MAX_INITIAL_READ_BYTES,
@@ -148,6 +150,36 @@ const storeRemoteSpanChunks = (options: {
     }
 
     options.setChunk(chunkStart, chunkBytes)
+  }
+}
+
+const assertRemoteSpanResponse = (options: {
+  response: Response
+  body: Uint8Array
+  spanStart: number
+  spanEnd: number
+  fileSize?: number
+}) => {
+  if (options.response.status !== 206) {
+    return
+  }
+
+  const contentRange = options.response.headers.get("content-range")
+
+  if (contentRange !== null) {
+    const match = /^bytes (\d+)-(\d+)\/(\d+|\*)$/i.exec(contentRange)
+
+    if (!match || Number(match[1]) !== options.spanStart) {
+      throw new UpstreamFetchError("Origin returned a shifted byte range.")
+    }
+  }
+
+  if (
+    options.fileSize !== undefined &&
+    options.body.byteLength < options.spanEnd - options.spanStart &&
+    options.spanEnd < options.fileSize
+  ) {
+    throw new UpstreamFetchError("Origin returned fewer bytes than requested.")
   }
 }
 
@@ -259,9 +291,9 @@ export const createRemoteByteSource = (
       signal: readSignal,
     })
 
-    assertByteFetchStatus(response)
-
     const body = await readRemoteSpanBody(response, readSignal)
+    assertRemoteSpanResponse({ body, fileSize, response, spanEnd, spanStart })
+
     diagnostics.seekFetchCount = (diagnostics.seekFetchCount ?? 0) + 1
     diagnostics.seekBytesFetched =
       (diagnostics.seekBytesFetched ?? 0) + body.byteLength

@@ -1,3 +1,4 @@
+import type { AnalyzeWarningCode } from "@mediapeek/shared/analyze-contract"
 import {
   ANALYZE_PROGRESS_STREAM_CONTENT_TYPE,
   encodeAnalyzeStreamEvent,
@@ -7,9 +8,10 @@ import {
 import type { AnalysisExecutionInput } from "./analysis-execution.server"
 import {
   classifyAnalyzeError,
+  getAnalysisWarnings,
   type AnalyzeRequestState,
   type AnalyzerAnalysisExecutor,
-  type AnalyzerContext,
+  type AnalyzerResponder,
   type RunAnalyzeRequest,
   type SetLogContextValue,
 } from "./analyze-responses.server"
@@ -55,7 +57,8 @@ const closeProgressStream = (state: ProgressStreamState): void => {
 
 const writeProgressSuccess = (
   state: ProgressStreamState,
-  results: Record<string, string>
+  results: Record<string, string>,
+  warnings?: Array<AnalyzeWarningCode>
 ): void => {
   if (state.finished || state.signal.aborted) {
     return
@@ -73,6 +76,7 @@ const writeProgressSuccess = (
         type: "success",
         requestId: state.requestState.requestId,
         results,
+        warnings,
       })
     )
   )
@@ -111,6 +115,20 @@ const writeProgressError = (
   closeProgressStream(state)
 }
 
+const classifyProgressAbort = (
+  state: ProgressStreamState,
+  setLogContextValue: SetLogContextValue
+): void => {
+  const classified = classifyAnalyzeError(
+    state.signal.reason,
+    state.requestState.context,
+    setLogContextValue
+  )
+
+  state.requestState.setStatus(classified.status)
+  state.requestState.setSeverity(classified.severity)
+}
+
 const finalizeProgressStream = (state: ProgressStreamState): void => {
   const { requestState } = state
   requestState.context.analysis_status = requestState.status
@@ -139,13 +157,18 @@ const runProgressAnalysis = async (options: {
       analysisExecutor: options.analysisExecutor,
     })
 
-    writeProgressSuccess(options.state, result.results)
+    writeProgressSuccess(
+      options.state,
+      result.results,
+      getAnalysisWarnings(result.diagnostics)
+    )
   } catch (error) {
     if (options.state.finished) {
       return
     }
 
     if (options.state.signal.aborted) {
+      classifyProgressAbort(options.state, options.setLogContextValue)
       options.state.finished = true
       options.state.controller?.error(options.state.signal.reason)
 
@@ -159,7 +182,7 @@ const runProgressAnalysis = async (options: {
 }
 
 export const createProgressResponse = (options: {
-  context: AnalyzerContext
+  context: AnalyzerResponder
   requestState: AnalyzeRequestState
   url: string
   formats: AnalysisExecutionInput["formats"]

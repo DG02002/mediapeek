@@ -48,6 +48,7 @@ describe("analyzer request logging", () => {
       new Request("https://analyzer.test/health", {
         headers: {
           "cf-ray": "ray-id",
+          "x-request-id": "web-request-id",
           "x-mediapeek-request-id": "web-request-id",
         },
       }),
@@ -66,6 +67,26 @@ describe("analyzer request logging", () => {
       path: "/health",
       status: 200,
       service: "mediapeek-analyzer-test",
+    })
+  })
+
+  it("normalizes the internal request ID when the evlog ID is absent", async () => {
+    const response = await createTestApp().fetch(
+      new Request("https://analyzer.test/health", {
+        headers: {
+          "x-mediapeek-request-id": "internal-request-id",
+        },
+      }),
+      { APP_ENV: "staging" }
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get("x-request-id")).toBe("internal-request-id")
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      request_id: "internal-request-id",
+      path: "/health",
+      status: 200,
     })
   })
 })

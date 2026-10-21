@@ -1,6 +1,7 @@
 "use client"
 
 import { ArrowExpandIcon, ArrowShrink02Icon } from "@hugeicons/core-free-icons"
+import type { AnalyzeWarningCode } from "@mediapeek/shared/analyze-contract"
 import { AnimatePresence, motion } from "motion/react"
 import {
   memo,
@@ -25,6 +26,7 @@ import { clientLog } from "~/lib/client-logger"
 import { cn } from "~/lib/utils"
 import { startNativeViewTransition } from "~/lib/view-transition"
 
+import { AnalysisWarningBanner } from "./media-view/analysis-warning-banner"
 import { MediaHeader } from "./media-view/media-header"
 import { MediaReportExport } from "./media-view/media-report-export"
 import { MediaReportSections } from "./media-view/media-report-sections"
@@ -35,6 +37,7 @@ export type MediaViewData = Record<string, string>
 interface MediaViewProps {
   data: MediaViewData
   url: string
+  warnings?: ReadonlyArray<AnalyzeWarningCode>
   session?: Pick<AnalysisSession, "output">
   requestTurnstileToken?: () => Promise<string | null>
   allowLazyTextOutput?: boolean
@@ -261,6 +264,7 @@ const renderTextOutput = (options: {
 export const MediaView = memo(function MediaView({
   data,
   url,
+  warnings,
   session: providedSession,
   requestTurnstileToken,
   allowLazyTextOutput = true,
@@ -390,6 +394,7 @@ export const MediaView = memo(function MediaView({
       ref={containerRef}
       className="animate-in fade-in mx-auto w-full max-w-5xl space-y-6 pb-20"
     >
+      <AnalysisWarningBanner warnings={warnings} />
       {report.container && (
         <MediaHeader
           url={url}

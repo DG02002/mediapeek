@@ -1,16 +1,11 @@
 {
   "extends": "@mediapeek/config-typescript/hono",
   "compilerOptions": {
-    "types": [
-      "@cloudflare/workers-types",
-      "vitest/globals",
-      "vite/client",
-      "node"
-    ],
+    "types": ["vitest/globals", "vite/client", "node"],
     "paths": {
       "~/*": ["./src/*"],
       "@mediapeek/shared/*": ["../../packages/shared/src/*"]
     }
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "worker-configuration.d.ts"]
 }

@@ -1,9 +1,13 @@
-import type {
-  AnalyzeErrorCode,
-  AnalyzerRpcSuccessResponse,
+import {
+  ANALYZE_WARNING_ARCHIVE_ENTRY_TRUNCATED,
+  ANALYZE_WARNING_FORMAT_GENERATION_FAILED,
+  ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN,
+  type AnalyzeErrorCode,
+  type AnalyzeWarningCode,
+  type AnalyzerRpcSuccessResponse,
 } from "@mediapeek/shared/analyze-contract"
+import type { RequestLogSeverity } from "@mediapeek/shared/request-log-state"
 import { Match, type Schema } from "effect"
-import type { Context } from "hono"
 
 import { unknownToError } from "../lib/error"
 import {
@@ -15,13 +19,52 @@ import type {
   AnalysisExecutionInput,
   AnalysisExecutionResult,
 } from "./analysis-execution.server"
-import type { AnalyzerRequestLoggingEnvironment } from "./request-logging.server"
 
 export interface AnalyzerAnalysisExecutor {
   (input: AnalysisExecutionInput): Promise<AnalysisExecutionResult>
 }
 
-export type AnalyzerContext = Context<AnalyzerRequestLoggingEnvironment>
+export const getAnalysisWarnings = (
+  diagnostics: AnalysisExecutionResult["diagnostics"]
+) => {
+  const warnings: Array<AnalyzeWarningCode> = []
+
+  if (diagnostics.fetch.fileSizeUnknown) {
+    warnings.push(ANALYZE_WARNING_SOURCE_SIZE_UNKNOWN)
+  }
+
+  if (diagnostics.fetch.archiveEntryTruncated) {
+    warnings.push(ANALYZE_WARNING_ARCHIVE_ENTRY_TRUNCATED)
+  }
+
+  if (
+    Object.keys(diagnostics.analysis.formatErrors).length > 0 ||
+    diagnostics.analysis.objectProcessError !== undefined
+  ) {
+    warnings.push(ANALYZE_WARNING_FORMAT_GENERATION_FAILED)
+  }
+
+  return warnings.length > 0 ? warnings : undefined
+}
+
+interface AnalyzerRpcFailureResponse {
+  success: false
+  requestId: string
+  error: {
+    code: AnalyzeErrorCode
+    message: string
+    retryable: boolean
+  }
+}
+
+type AnalyzerResponseBody =
+  | AnalyzerRpcSuccessResponse
+  | AnalyzerRpcFailureResponse
+
+export interface AnalyzerResponder {
+  json(body: AnalyzerResponseBody, status?: number): Response
+  req: { raw: { signal: AbortSignal } }
+}
 
 export interface AnalyzeLogContext {
   [key: string]: typeof Schema.Json.Type
@@ -33,16 +76,14 @@ export type SetLogContextValue = (
   cause: unknown
 ) => void
 
-type RequestSeverity = "INFO" | "WARNING" | "ERROR"
-
-type AnalyzeStatus = 200 | 400 | 401 | 403 | 429 | 500 | 502 | 503
+type AnalyzeStatus = 200 | 400 | 401 | 403 | 429 | 499 | 500 | 502 | 503
 
 interface ClassifiedAnalyzeError {
   status: AnalyzeStatus
   code: AnalyzeErrorCode
   message: string
   retryable: boolean
-  severity: RequestSeverity
+  severity: RequestLogSeverity
   errorClass: string
 }
 
@@ -55,11 +96,11 @@ export interface AnalyzeLogActions {
 export interface AnalyzeRequestState {
   readonly requestId: string
   readonly status: number
-  readonly severity: RequestSeverity
+  readonly severity: RequestLogSeverity
   readonly context: AnalyzeLogContext
   annotate: (values: Partial<AnalyzeLogContext>) => void
   setStatus: (status: number) => void
-  setSeverity: (severity: RequestSeverity) => void
+  setSeverity: (severity: RequestLogSeverity) => void
   log: AnalyzeLogActions
   finalize: () => void
 }
@@ -127,10 +168,10 @@ export const classifyAnalyzerFailure = Match.typeTags<
     severity: "WARNING",
     errorClass: "ANALYZE_VALIDATION_FAILED",
   }),
-  UpstreamFetchError: () => ({
+  UpstreamFetchError: (failure) => ({
     status: 502,
     code: "UPSTREAM_FETCH_FAILED",
-    message: "Unable to retrieve the media source.",
+    message: failure.message || "Unable to retrieve the media source.",
     retryable: true,
     severity: "ERROR",
     errorClass: "UPSTREAM_FETCH_FAILED",
@@ -146,9 +187,27 @@ export const classifyAnalyzeError = (
   const diagnosticsError = cause instanceof DiagnosticsError ? cause : undefined
   const analyzerFailure = diagnosticsError?.cause ?? cause
 
-  const classification = isAnalyzerFailure(analyzerFailure)
-    ? classifyAnalyzerFailure(analyzerFailure)
-    : internalErrorClassification
+  const isClientAbort =
+    analyzerFailure instanceof Error &&
+    (analyzerFailure.name === "AbortError" ||
+      analyzerFailure.name === "TimeoutError")
+
+  let classification: ClassifiedAnalyzeError
+
+  if (isClientAbort) {
+    classification = {
+      status: 499,
+      code: "CLIENT_ABORTED",
+      message: "The request was cancelled before analysis finished.",
+      retryable: true,
+      severity: "INFO",
+      errorClass: "ANALYZER_CLIENT_ABORTED",
+    }
+  } else if (isAnalyzerFailure(analyzerFailure)) {
+    classification = classifyAnalyzerFailure(analyzerFailure)
+  } else {
+    classification = internalErrorClassification
+  }
 
   if (diagnosticsError) {
     setLogContextValue(logContext, "diagnostics", diagnosticsError.diagnostics)
@@ -166,7 +225,7 @@ export const classifyAnalyzeError = (
 }
 
 export const createBufferedSuccessResponse = async (options: {
-  context: AnalyzerContext
+  context: AnalyzerResponder
   requestState: AnalyzeRequestState
   url: string
   formats: AnalysisExecutionInput["formats"]
@@ -188,6 +247,7 @@ export const createBufferedSuccessResponse = async (options: {
     requestId: options.requestState.requestId,
     fileSize: result.fileSize,
     results: result.results,
+    warnings: getAnalysisWarnings(result.diagnostics),
     diagnostics: result.diagnostics,
   } satisfies AnalyzerRpcSuccessResponse
 
@@ -195,7 +255,7 @@ export const createBufferedSuccessResponse = async (options: {
 }
 
 export const createBufferedErrorResponse = (options: {
-  context: AnalyzerContext
+  context: AnalyzerResponder
   state: AnalyzeRequestState
   cause: unknown
   setLogContextValue: SetLogContextValue

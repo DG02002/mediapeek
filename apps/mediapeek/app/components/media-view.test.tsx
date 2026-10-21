@@ -111,6 +111,52 @@ describe("MediaView", () => {
     expect(screen.getAllByText("Opening")).toHaveLength(2)
     expect(screen.getAllByText("SDH Subtitles")).toHaveLength(2)
     expect(screen.getAllByText("MediaInfoLib 25.04")).toHaveLength(2)
+    expect(screen.queryByRole("note", { name: "Analysis warning" })).toBeNull()
+  })
+
+  it("shows a warning when the source size is unknown", () => {
+    render(
+      <MediaView
+        data={{ json: '{"media":{"track":[]}}' }}
+        url="https://example.com/movie.mkv"
+        warnings={["source_size_unknown"]}
+      />
+    )
+
+    expect(
+      screen.getByRole("note", { name: "Analysis warning" }).textContent
+    ).toContain("The source did not report its total size")
+  })
+
+  it("shows a warning when an archive entry was truncated", () => {
+    render(
+      <MediaView
+        data={{ json: '{"media":{"track":[]}}' }}
+        url="https://example.com/archive.zip"
+        warnings={["archive_entry_truncated"]}
+      />
+    )
+
+    expect(
+      screen.getByRole("note", { name: "Analysis warning" }).textContent
+    ).toContain("analysis covered only its first portion")
+  })
+
+  it("shows a warning when an output format failed to generate", () => {
+    render(
+      <MediaView
+        data={{
+          json: '{"media":{"track":[]}}',
+          xml: "Error generating XML view.",
+        }}
+        url="https://example.com/movie.mkv"
+        warnings={["format_generation_failed"]}
+      />
+    )
+
+    expect(
+      screen.getByRole("note", { name: "Analysis warning" }).textContent
+    ).toContain("Their displayed error placeholders are not metadata")
   })
 
   it("does not render an undefined channel label when track metadata omits channels", () => {

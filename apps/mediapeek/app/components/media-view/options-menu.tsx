@@ -48,6 +48,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import type { AnalysisSession } from "~/features/analyze/analysis-session"
 import { useMediaActions } from "~/hooks/use-media-actions"
 import { useMediaQuery } from "~/hooks/use-media-query"
+import { CLIPBOARD_ACCESS_BLOCKED_MESSAGE } from "~/lib/clipboard"
 import { cn } from "~/lib/utils"
 
 import type { MediaPngExportTheme } from "./media-export"
@@ -79,6 +80,21 @@ const blurActiveElement = () => {
 
   if (activeElement instanceof HTMLElement) {
     activeElement.blur()
+  }
+}
+
+export const copyShareLinkToClipboard = async (url: string) => {
+  try {
+    await navigator.clipboard.writeText(url)
+    toast.success("Link Copied")
+
+    return true
+  } catch {
+    toast.error("Copy Failed", {
+      description: CLIPBOARD_ACCESS_BLOCKED_MESSAGE,
+    })
+
+    return false
   }
 }
 
@@ -166,11 +182,13 @@ export function OptionsMenu({
     }
   }
 
-  const copyToClipboard = () => {
+  const copyToClipboard = async () => {
     if (shareData?.url) {
-      void navigator.clipboard.writeText(shareData.url)
-      toast.success("Link Copied")
-      setShareDialogOpen(false)
+      const copied = await copyShareLinkToClipboard(shareData.url)
+
+      if (copied) {
+        setShareDialogOpen(false)
+      }
     }
   }
 
